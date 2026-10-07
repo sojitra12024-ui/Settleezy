@@ -1,0 +1,38 @@
+# Settleezy
+
+> Settleezy is a student-life platform for international students moving to and living in Berlin, Germany. It helps students cut their cost of living and handles the hard parts of settling in: verified student housing, Anmeldung (city registration) appointments, a discounted O2 student mobile plan, bank account and health insurance guidance, student discounts, and a community with events. Membership starts with a 30-day free trial, then costs €40 per semester or €70 per year.
+
+Settleezy is for international (non-German) students at any university or college in Berlin, public or private. All content and support is in English.
+
+## Key facts
+
+- Website: https://settleezy.de
+- Audience: international students in Berlin (before arrival and during studies)
+- Language: English
+- Free trial: 30 days
+- Semester membership: €40 (one semester, about 6 months)
+- Annual membership: €70 (12 months)
+- What members get: verified housing support through Settleezy's accommodation partner Insider, Anmeldung appointment arrangement, the Settleezy–O2 student plan (unlimited mobile internet for €20/month), bank account and blocked account guidance (Expatrio, Coracle), health insurance guidance (TK, AOK, DAK, Barmer), Berlin student discounts, community events, and WhatsApp support
+
+## Main pages
+
+- [What is Settleezy?](https://settleezy.de/what-is-settleezy/): What the platform does, who it is for, and how it works
+- [Pricing and free trial](https://settleezy.de/pricing/): 30-day free trial, €40/semester, €70/year
+- [Machine-readable pricing](https://settleezy.de/pricing.md): Plans in plain Markdown
+
+## Guides for international students in Berlin (2026)
+
+- [How to save money in Berlin as an international student](https://settleezy.de/guides/save-money-berlin-international-students/): 25 tested ways to spend less on rent, transport, food, phone and fun
+- [Cost of living in Berlin for international students](https://settleezy.de/guides/cost-of-living-berlin-students/): Realistic monthly budget table for 2026
+- [Student housing in Berlin without scams](https://settleezy.de/guides/student-housing-berlin/): Where to search, what rooms cost, and red flags
+- [Anmeldung in Berlin for students](https://settleezy.de/guides/anmeldung-berlin-students/): Step-by-step city registration
+- [Public transport and the semester ticket in Berlin](https://settleezy.de/guides/public-transport-berlin-students/): Semesterticket vs Deutschlandticket
+- [Health insurance for international students in Germany](https://settleezy.de/guides/health-insurance-students-germany/): Public vs private, costs, and the exemption trap
+- [Cheapest SIM and mobile plans for students in Berlin](https://settleezy.de/guides/sim-card-berlin-students/): Prepaid vs contract, and the Settleezy–O2 plan
+- [Student jobs in Berlin](https://settleezy.de/guides/student-jobs-berlin/): 140/280-day rule, minimum wage, minijobs, taxes
+- [Free and cheap things to do in Berlin for students](https://settleezy.de/guides/free-things-to-do-berlin-students/)
+- [First 30 days in Berlin: checklist for international students](https://settleezy.de/guides/first-30-days-berlin-checklist/)
+
+## Optional
+
+- [Full plain-text version of the guides](https://settleezy.de/llms-full.txt)

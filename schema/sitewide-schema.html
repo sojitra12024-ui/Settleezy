@@ -1,0 +1,93 @@
+<!--
+  Settleezy site-wide structured data (JSON-LD).
+  Paste into WordPress with the free "WPCode" plugin:
+    Code Snippets → Add Snippet → "Add Your Custom Code" → Code Type: HTML
+    Location: "Site Wide Header" → Activate.
+  If Rank Math or Yoast already outputs an Organization, keep only one:
+  either set the Organization details in the SEO plugin, or disable it there and use this.
+  Before going live: replace the logo URL and add real social profile URLs to "sameAs"
+  (delete any line you don't have). Validate at https://validator.schema.org
+-->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": "https://settleezy.de/#organization",
+      "name": "Settleezy",
+      "url": "https://settleezy.de/",
+      "logo": "https://settleezy.de/wp-content/uploads/settleezy-logo.png",
+      "description": "Settleezy is a student-life platform for international students in Berlin. It helps students make Berlin affordable and settle in with verified housing, Anmeldung appointments, a €20/month unlimited O2 student plan, bank and health insurance guidance, student discounts and community events.",
+      "areaServed": { "@type": "City", "name": "Berlin" },
+      "audience": {
+        "@type": "EducationalAudience",
+        "educationalRole": "student",
+        "audienceType": "International students in Berlin"
+      },
+      "knowsLanguage": "en",
+      "sameAs": [
+        "https://www.instagram.com/REPLACE",
+        "https://www.linkedin.com/company/REPLACE",
+        "https://www.facebook.com/REPLACE"
+      ]
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://settleezy.de/#website",
+      "url": "https://settleezy.de/",
+      "name": "Settleezy",
+      "inLanguage": "en",
+      "publisher": { "@id": "https://settleezy.de/#organization" }
+    },
+    {
+      "@type": "Service",
+      "@id": "https://settleezy.de/#membership",
+      "name": "Settleezy Membership",
+      "serviceType": "Student relocation and cost-of-living support",
+      "provider": { "@id": "https://settleezy.de/#organization" },
+      "areaServed": { "@type": "City", "name": "Berlin" },
+      "audience": { "@type": "Audience", "audienceType": "International students" },
+      "description": "Membership for international students in Berlin: verified housing support (partner: Insider), Anmeldung appointment arrangement, Settleezy–O2 student plan (unlimited data for €20/month), bank and blocked account guidance, health insurance guidance, student discounts, events and English WhatsApp support. 30-day free trial.",
+      "offers": [
+        {
+          "@type": "Offer",
+          "name": "30-day free trial",
+          "price": "0",
+          "priceCurrency": "EUR",
+          "url": "https://settleezy.de/pricing/",
+          "availability": "https://schema.org/InStock"
+        },
+        {
+          "@type": "Offer",
+          "name": "Semester plan",
+          "price": "40",
+          "priceCurrency": "EUR",
+          "url": "https://settleezy.de/pricing/",
+          "availability": "https://schema.org/InStock",
+          "priceSpecification": {
+            "@type": "UnitPriceSpecification",
+            "price": "40",
+            "priceCurrency": "EUR",
+            "referenceQuantity": { "@type": "QuantitativeValue", "value": "6", "unitCode": "MON" }
+          }
+        },
+        {
+          "@type": "Offer",
+          "name": "Annual plan",
+          "price": "70",
+          "priceCurrency": "EUR",
+          "url": "https://settleezy.de/pricing/",
+          "availability": "https://schema.org/InStock",
+          "priceSpecification": {
+            "@type": "UnitPriceSpecification",
+            "price": "70",
+            "priceCurrency": "EUR",
+            "referenceQuantity": { "@type": "QuantitativeValue", "value": "1", "unitCode": "ANN" }
+          }
+        }
+      ]
+    }
+  ]
+}
+</script>
