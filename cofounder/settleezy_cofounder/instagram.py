@@ -74,6 +74,7 @@ def sync(cfg: Config, db: DB) -> dict:
     prof = ig.profile()
     media = ig.recent_media()
     db.metric("instagram", "followers", prof.get("followers_count", 0))
+    db.kv_set("instagram:username", prof.get("username", ""))
     db.metric("instagram", "posts", prof.get("media_count", 0))
     for k, v in ig.daily_insights().items():
         db.metric("instagram", k, v)
@@ -91,4 +92,11 @@ def sync(cfg: Config, db: DB) -> dict:
         "instagram:top_posts",
         json.dumps(sorted(media, key=lambda m: -((m.get("like_count") or 0) + 3 * (m.get("comments_count") or 0)))[:5], ensure_ascii=False),
     )
-    return {"followers": prof.get("followers_count"), "unanswered_comments": len(comments)}
+    out = {"followers": prof.get("followers_count"), "unanswered_comments": len(comments)}
+    try:   # keep follower counts of Instagram leads fresh (cheap: a few calls per day)
+        from .igdiscovery import refresh_profiles
+
+        out["lead_profiles"] = refresh_profiles(cfg, db, int(cfg.get("instagram.refresh_per_run", 15)), ig=ig)
+    except Exception as exc:
+        out["lead_profiles"] = f"error: {exc}"[:120]
+    return out

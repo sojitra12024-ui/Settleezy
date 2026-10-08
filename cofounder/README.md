@@ -192,6 +192,35 @@ partners are hidden unless you add "include partners".
 **Impressum enrichment** runs by itself every day for the best leads with a website. It reads the homepage, the menu
 page and the Impressum.
 
+## Instagram-only venues and brands
+
+Many of the best student spots and small Berlin brands with their own products live on Instagram and barely exist on
+Google or Maps. `sz instagram discover` (and automatically on Tuesdays and Fridays) finds them through the official
+Instagram Graph API with your Business account, so there's no scraping and no risk to the account:
+
+1. It reads the top posts of Berlin hashtags (#berlinfood, #kreuzbergfood, #berlinvegan, #madeinberlin…; configurable
+   under `[instagram] discovery_hashtags`).
+2. It collects the accounts those posts @mention.
+3. It looks each account up with **business discovery**: followers, bio, website, recent engagement.
+4. It sorts them into a venue (address, opening hours…), a brand with its own product (shop, Versand…) or a creator
+   (blogger, collab, PR…). An address in the bio becomes the lead's address and district. Accounts under 300
+   followers are skipped and not looked up again for a month.
+
+Instagram allows 30 different hashtags per 7 days; Setz rotates within that budget (`sz instagram` shows what's
+left). To add accounts you spotted yourself, use `sz instagram add @handle https://instagram.com/other` or the box
+in the Lead finder.
+
+Then ask for them:
+- "popular venues only on Instagram"
+- "vegan brands with own products"
+- "food creators with over 10k followers"
+
+Creators are for marketing collaborations and only appear when you ask for them. Follower counts of Instagram leads
+refresh with every Instagram sync, and big followings raise a lead's score.
+
+*Meta setup:* hashtag search and business discovery work for your own app in development mode. Add the
+**Instagram Public Content Access** feature in the Meta app dashboard if hashtag search answers "permission denied".
+
 ## Lead generation, pipeline and your week
 
 **Find leads near campuses.** `sz leadgen scan` asks OpenStreetMap for every café, restaurant, supermarket, bakery,

@@ -330,6 +330,24 @@ def cmd_find(args) -> None:
         print(f"\n{res['missing_contacts']} have no email/phone yet: add --enrich to read their website + Impressum.")
 
 
+def cmd_instagram(args) -> None:
+    from . import igdiscovery as igd
+
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        if args.action == "discover":
+            _print(igd.discover(cfg, db, args.items or None, max_profiles=args.max))
+        elif args.action == "add":
+            for r in igd.add_handles(cfg, db, args.items):
+                print(f"@{r['handle']}: " + (r["error"] if "error" in r else
+                      f"{'new' if r['created'] else 'updated'} {r['kind']} lead #{r['lead_id']}, {r['followers']:,} followers"))
+        elif args.action == "refresh":
+            _print(igd.refresh_profiles(cfg, db))
+        else:
+            print(f"Hashtags left this week: {igd.hashtags_left(db)} of {igd.HASHTAG_BUDGET}")
+            print("Next: " + ", ".join("#" + t for t in igd.pick_hashtags(cfg, db, 8)))
+
+
 def cmd_leadgen(args) -> None:
     from . import leadgen
 
@@ -600,6 +618,12 @@ def main(argv: list[str] | None = None) -> None:
     fd.add_argument("--discover", action="store_true", help="scan OpenStreetMap around the campus if there are few results")
     fd.add_argument("--limit", type=int, default=0)
     fd.set_defaults(fn=cmd_find)
+
+    ig_ = sub.add_parser("instagram", help="Instagram venue discovery: sz instagram discover [hashtag ...] | add @handle ... | refresh | status")
+    ig_.add_argument("action", nargs="?", default="status", choices=["status", "discover", "add", "refresh"])
+    ig_.add_argument("items", nargs="*", help="hashtags (discover) or @handles / profile links (add)")
+    ig_.add_argument("--max", type=int, default=40, help="discover: max profiles to look up")
+    ig_.set_defaults(fn=cmd_instagram)
 
     lg = sub.add_parser("leadgen", help="campus venues from OpenStreetMap: sz leadgen scan [--campus TU] | list | coverage")
     lg.add_argument("action", nargs="?", default="list", choices=["scan", "list", "coverage"])

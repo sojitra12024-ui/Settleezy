@@ -117,11 +117,16 @@ def parse(question: str) -> LeadQuery:
         if m and take(m, "cuisine: " + c):
             q.cuisines.append("döner|kebab" if c in ("döner", "kebab") else "sushi|japanese" if c == "sushi" else c)
     for rx, kind in [(r"\buniversit(y|ies)\b|\bhochschulen?\b|international offices?", "university"),
-                     (r"\bbrands?\b|\bonline\b|\bmarken\b", "brand"), (r"\bservices?\b|\bdienstleist\w*", "service")]:
-        m = re.search(rx, t)
-        if m and not (kind == "university" and re.search(r"\b(near|around|at|close to|bei|nahe|an der)\s+\w*\s*universit", t)):
-            if take(m, "kind: " + kind):
+                     (r"\bbrands?\b|\bonline\b|\bmarken\b|own products?|eigene produkte", "brand"),
+                     (r"\bservices?\b|\bdienstleist\w*", "service"),
+                     (r"\b(creators?|influencers?|bloggers?|content creators?)\b", "creator")]:
+        if kind == "university" and re.search(r"\b(near|around|at|close to|bei|nahe|an der)\s+\w*\s*universit", t):
+            continue
+        for m in re.finditer(rx, t):   # consume every mention ("brands with own products")
+            used.append(m.span())
+            if kind not in q.kinds:
                 q.kinds.append(kind)
+                q.understood.append("kind: " + kind)
     for rx, campus in CAMPUS_ALIASES.items():
         m = re.search(rx, t)
         if m:
@@ -226,6 +231,8 @@ def find(cfg: Config, db: DB, question: str | LeadQuery, *, discover: bool = Fal
 
     def query() -> list[dict]:
         sql, params = "SELECT * FROM leads WHERE status != 'lost'", []
+        if "creator" not in q.kinds:
+            sql += " AND kind != 'creator'"   # creators are for marketing collabs; only shown when asked for
         if not q.include_partners:
             sql += " AND status != 'partner' AND id NOT IN (SELECT lead_id FROM partners WHERE lead_id IS NOT NULL)"
         if q.kinds:

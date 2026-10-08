@@ -382,6 +382,10 @@ dialog .dhead { display: flex; justify-content: space-between; align-items: cent
       <button type="button" data-lf="popular venues only on Instagram">Instagram-only venues</button>
       <button type="button" data-lf="Spätis in Neukölln mit Telefonnummer">Spätis in Neukölln</button>
       <button type="button" data-lf="listed on Groupon near HU">On Groupon near HU</button></div>
+    <details class="lf-ig"><summary>Find venues & brands that live on Instagram</summary>
+      <div class="lf-bar" style="margin-top:8px"><button type="button" data-job="igdiscover" title="Top posts of Berlin hashtags → mentioned accounts → leads (30 hashtags/week)">Discover via hashtags</button>
+        <form id="ig-add" class="lf-bar" style="flex:1"><input id="ig-handles" placeholder="@handle, @another or profile links you spotted" aria-label="Instagram handles"><button>Add</button></form></div>
+      <div class="muted" style="font-size:12px;margin-top:4px">Uses your Instagram Business account via the official API, so no scraping and no risk to the account. Creators show up only when you search for “creators”.</div></details>
     <div id="lf-meta" class="muted" style="font-size:12.5px;margin:8px 0"></div>
     <div class="lf-actions" id="lf-actions" hidden><button id="lf-enrich" title="Read website, menu and Impressum: email, phone, owner, address, price">Read Impressum for selected</button>
       <button id="lf-seq">Start outreach for selected</button><a id="lf-csv" download><button type="button">Export CSV (Excel)</button></a></div>
@@ -1028,6 +1032,9 @@ document.addEventListener("change", async (e) => {
   if (e.target.id === "pl-campus") drawMap();
 });
 $("#lf-form").addEventListener("submit", (e) => { e.preventDefault(); runFinder(); });
+$("#ig-add").addEventListener("submit", async (e) => { e.preventDefault(); const v = $("#ig-handles").value.trim(); if (!v) return;
+  try { const r = await post("/api/instagram/add", { handles: v }); toast(r.map((x) => x.error ? `@${x.handle}: ${x.error}` : `@${x.handle}: ${x.kind}, ${fmt(x.followers)} followers`).join(" · "));
+    $("#ig-handles").value = ""; runFinder("venues only on Instagram"); } catch (err) { toast(err.message); } });
 let qTimer; $("#lead-q").addEventListener("input", () => { clearTimeout(qTimer); qTimer = setTimeout(loadLeads, 250); });
 $("#todo-form").addEventListener("submit", async (e) => { e.preventDefault(); const v = $("#todo-input").value.trim(); if (!v) return;
   const r = await post("/api/tasks", { title: v }); toast(r.duplicate ? "Already on your list" : "Added"); $("#todo-input").value = ""; refreshOps(); });

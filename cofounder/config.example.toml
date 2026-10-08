@@ -35,6 +35,13 @@ enrich_per_run = 20
 [instagram]
 graph_version = "v23.0"
 metrics = ["reach", "profile_views", "website_clicks", "accounts_engaged"]
+# Venue discovery (sz instagram discover): top posts of these hashtags -> mentioned accounts -> leads.
+# Instagram allows 30 different hashtags per 7 days; Setz rotates through this list within that budget.
+discovery_hashtags = ["berlinfood", "berlincafe", "berlincoffee", "berlinbrunch", "berlinvegan", "kreuzbergfood",
+                      "neukoellnfood", "berlinbakery", "berlineats", "berlinfoodie", "studentberlin", "berlinnightlife",
+                      "friedrichshainfood", "prenzlauerbergfood", "berlinstartup", "madeinberlin"]
+discovery_tags_per_run = 4
+refresh_per_run = 15         # Instagram leads whose follower counts are refreshed on each Instagram sync
 
 [voice]
 tts = "elevenlabs"                      # "elevenlabs" (needs ELEVENLABS_API_KEY) or "windows"

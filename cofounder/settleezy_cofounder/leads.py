@@ -23,7 +23,7 @@ CATEGORY_WEIGHTS = [
     (r"beauty|hair|friseur|barber|nail|cosmetic|kosmetik", 0.6),
     (r"spa|wellness|massage|sauna|therme", 0.5),
 ]
-KIND_BASE = {"university": 30, "housing": 28, "service": 25, "brand": 22, "merchant": 20}
+KIND_BASE = {"university": 30, "housing": 28, "service": 25, "brand": 22, "merchant": 20, "creator": 10}
 
 
 def category_weight(text: str) -> float:
@@ -42,6 +42,8 @@ def score(lead: dict) -> float:
     s += min(len(sources), 3) * 6          # on several competitor platforms = proven discount appetite
     s += 8 if lead.get("email") else 0
     s += 4 if lead.get("instagram") else 0
+    f = lead.get("ig_followers") or 0
+    s += 6 if f >= 10000 else 3 if f >= 2000 else 0   # students already follow them: the offer spreads itself
     s += 4 if lead.get("website") else 0
     d = lead.get("distance_m")
     if d is not None:   # walking distance to a campus: students pass by every day

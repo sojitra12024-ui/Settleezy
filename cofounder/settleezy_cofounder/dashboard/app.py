@@ -260,6 +260,23 @@ def leads_enrich(body: dict, x_sz: str | None = Header(default=None)) -> dict:
     return out
 
 
+@app.post("/api/instagram/add")
+def instagram_add(body: dict, x_sz: str | None = Header(default=None)) -> list[dict]:
+    """Add Instagram accounts you spotted (handles or profile links) as leads, with followers and bio."""
+    _guard(x_sz)
+    from ..igdiscovery import add_handles
+
+    handles = [h for h in re.split(r"[\s,;]+", body.get("handles") or "") if h.strip()][:20]
+    if not handles:
+        raise HTTPException(400, "handles required")
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        try:
+            return add_handles(cfg, db, handles)
+        except RuntimeError as exc:   # Instagram not connected
+            raise HTTPException(400, str(exc)) from exc
+
+
 @app.post("/api/leads")
 def add_lead(body: dict, x_sz: str | None = Header(default=None)) -> dict:
     _guard(x_sz)

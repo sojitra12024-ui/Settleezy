@@ -392,6 +392,21 @@ def enrich_leads(lead_ids: str) -> str:
             f.close()
 
 
+@server.tool()
+def discover_instagram_venues(hashtags: str = "", handles: str = "") -> str:
+    """Find popular Berlin venues and own-product brands that live on Instagram (often not on Google): scans the
+    top posts of hashtags (comma-separated, or the configured rotation; max 30 per week) for @mentions, looks the
+    accounts up and adds venues/brands as leads (creators separately). Or add specific handles (comma-separated)."""
+    from . import igdiscovery as igd
+
+    cfg, db = _db()
+    with db:
+        if handles:
+            return json.dumps(igd.add_handles(cfg, db, [h for h in handles.split(",") if h.strip()]), ensure_ascii=False)
+        tags = [t.strip() for t in hashtags.split(",") if t.strip()] or None
+        return json.dumps(igd.discover(cfg, db, tags), ensure_ascii=False)
+
+
 def main() -> None:
     server.run("stdio")
 

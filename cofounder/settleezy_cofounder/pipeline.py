@@ -281,7 +281,7 @@ def auto_start(cfg: Config, db: DB, limit: int | None = None) -> list[dict]:
     from .ops import link_partners_to_leads
 
     link_partners_to_leads(db)
-    pool = [dict(r) for r in db.q("SELECT * FROM leads WHERE status IN ('new','drafted') AND sequence_started IS NULL "
+    pool = [dict(r) for r in db.q("SELECT * FROM leads WHERE status IN ('new','drafted') AND sequence_started IS NULL AND kind != 'creator' "
                                   "AND (email != '' OR instagram != '' OR website != '' OR address != '') "
                                   "AND id NOT IN (SELECT lead_id FROM partners WHERE lead_id IS NOT NULL) "
                                   "AND lower(name) NOT IN (SELECT lower(name) FROM partners) ORDER BY score DESC LIMIT ?",

@@ -113,6 +113,12 @@ def _pipeline(cfg: Config, db: DB) -> Any:
     return {"sequences_started": auto_start(cfg, db)}
 
 
+def _igdiscover(cfg: Config, db: DB) -> Any:
+    from .igdiscovery import discover
+
+    return discover(cfg, db)
+
+
 def _brain(cfg: Config, db: DB) -> Any:
     from .brain import learn
 
@@ -136,6 +142,7 @@ JOBS: dict[str, Callable[[Config, DB], Any]] = {
     "leadgen": _leadgen,
     "pipeline": _pipeline,
     "brain": _brain,
+    "igdiscover": _igdiscover,
 }
 
 # What `sz morning` runs, in order. Sources that aren't configured are skipped, not fatal.
