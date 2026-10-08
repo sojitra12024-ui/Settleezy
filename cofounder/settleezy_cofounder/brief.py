@@ -33,7 +33,19 @@ def gather(cfg: Config, db: DB, llm: LLM | None = None) -> dict:
         "new_listings": new_listings(db, 24),
         "top_new_leads": [l for l in top(db, status="new", limit=8)],
         "pipeline": pipeline(db),
+        **_ops_data(cfg, db),
     }
+
+
+def _ops_data(cfg: Config, db: DB) -> dict:
+    from .ops import partner_stats, reach_out, tasks, today_plan
+
+    try:
+        plan = today_plan(cfg, db)
+        return {"plan": plan["items"], "tasks": tasks(db, "today")[:10], "reach_out": reach_out(cfg, db, 10),
+                "partners": partner_stats(cfg, db)}
+    except Exception:  # the brief must never fail because of one section
+        return {"plan": [], "tasks": [], "reach_out": [], "partners": {}}
 
 
 def next_actions(cfg: Config, data: dict, llm: LLM) -> str:
@@ -45,6 +57,9 @@ def next_actions(cfg: Config, data: dict, llm: LLM) -> str:
         "new_competitor_listings": [(l["source"], l["merchant"], l["category"]) for l in data["new_listings"][:15]],
         "top_new_leads": [(l["name"], l["kind"], l["score"], bool(l["email"])) for l in data["top_new_leads"]],
         "pipeline": data["pipeline"],
+        "reach_out_queue": [(r["who"], r["action"], r["reason"]) for r in data.get("reach_out", [])[:10]],
+        "todos_today": [(t["title"], t["due"], t["priority"]) for t in data.get("tasks", [])],
+        "service_partners": data.get("partners", {}),
         "instagram": data["instagram"],
         "unanswered_ig_comments": len(data["instagram_comments"]),
     }
@@ -67,8 +82,27 @@ Be concrete (name the person/lead/listing). Include at most one growth/marketing
 
 def render(data: dict, actions: str) -> str:
     L = [f"# Daily brief — {data['date']}", ""]
-    L.append("## Meetings today")
-    L += [f"- **{m['start'][11:16]}–{m['end'][11:16]}** {m['title']} ({m['source']}){' — ' + m['location'] if m['location'] else ''}" for m in data["meetings"]] or ["- No meetings."]
+    L.append("## Today's plan")
+    if data.get("plan"):
+        for i in data["plan"]:
+            if i["type"] == "meeting":
+                L.append(f"- **{i['start']}–{i['end']}** 📅 {i['title']}{' — ' + i['detail'] if i['detail'] else ''}")
+            else:
+                extra = f" — {', '.join(i['suggestions'][:3])}" if i.get("suggestions") else ""
+                L.append(f"- {i['start']}–{i['end']} {i['title']}{extra}{' (clashes with a meeting)' if i.get('clash') else ''}")
+    else:
+        L += [f"- **{m['start'][11:16]}–{m['end'][11:16]}** {m['title']} ({m['source']}){' — ' + m['location'] if m['location'] else ''}" for m in data["meetings"]] or ["- No meetings."]
+    if data.get("tasks"):
+        L += ["", f"## To-dos ({len(data['tasks'])})"]
+        L += [f"- [ ] {'❗ ' if t['priority'] >= 3 else ''}{t['title']}{' (overdue)' if t.get('overdue') else ''}" for t in data["tasks"]]
+    if data.get("reach_out"):
+        L += ["", "## Who to reach out to"]
+        L += [f"- **{r['who']}**: {r['action']} — {r['reason']}" for r in data["reach_out"][:8]]
+    ps = data.get("partners") or {}
+    if ps.get("total"):
+        L += ["", "## Service partners",
+              f"- {ps['live']} live · {ps['onboarding']} onboarding · {ps['onboarded_this_month']} onboarded this month"
+              + (f" · {ps['at_risk']} at risk" if ps.get("at_risk") else "")]
     L += ["", f"## Replies owed ({len(data['replies'])})"]
     L += [f"- {'🔴' if r['priority'] >= 3 else '🟡'} {r['counterpart_name'] or r['counterpart']}: *{r['subject']}* — {r['summary']} ({r['age_days']}d)" for r in data["replies"][:12]] or ["- Inbox clear."]
     L += ["", f"## Follow-ups due ({len(data['followups'])})"]
@@ -89,13 +123,20 @@ def render(data: dict, actions: str) -> str:
 
 def spoken(data: dict, actions: str) -> str:
     """Short version for text-to-speech."""
-    parts = [f"Good morning. You have {len(data['meetings'])} meeting{'s' if len(data['meetings']) != 1 else ''} today"]
+    parts = [f"Good morning, it's Setz. You have {len(data['meetings'])} meeting{'s' if len(data['meetings']) != 1 else ''} today"]
     if data["meetings"]:
         first = data["meetings"][0]
         parts[-1] += f", the first at {first['start'][11:16]}: {first['title']}"
     parts.append(f"{len(data['replies'])} emails need a reply and {len(data['followups'])} follow-ups are due")
     if data["drafts_created_today"]:
         parts.append(f"I drafted {data['drafts_created_today']} of them for you in Outlook")
+    if data.get("tasks"):
+        parts.append(f"{len(data['tasks'])} to-dos are due")
+    ps = data.get("partners") or {}
+    if ps.get("at_risk"):
+        parts.append(f"{ps['at_risk']} partner{'s need' if ps['at_risk'] != 1 else ' needs'} attention")
+    if data.get("reach_out"):
+        parts.append(f"First person to contact: {data['reach_out'][0]['who']}")
     if data["new_listings"]:
         parts.append(f"Competitors added {len(data['new_listings'])} new Berlin listings")
     if actions:

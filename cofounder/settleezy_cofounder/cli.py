@@ -70,6 +70,105 @@ def cmd_doctor(args) -> None:
         sys.exit(1)
 
 
+def cmd_plan(args) -> None:
+    from .ops import focus_now, today_plan
+
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        plan = today_plan(cfg, db)
+        for i in plan["items"]:
+            mark = "▶" if plan["current"] is i else " "
+            if i["type"] == "meeting":
+                print(f"{mark} {i['start']}-{i['end']}  [meeting] {i['title']}")
+            else:
+                print(f"{mark} {i['start']}-{i['end']}  {i['title']}" + (f"  (clash: {', '.join(i['clash'])})" if i["clash"] else ""))
+                for sug in i["suggestions"][:4]:
+                    print(f"      · {sug}")
+        print("\n" + focus_now(cfg, db))
+
+
+def cmd_todo(args) -> None:
+    from . import ops
+
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        if args.action == "add":
+            tid = ops.add_task(db, " ".join(args.text), source="manual")
+            print(f"added #{tid}")
+        elif args.action in {"done", "snooze", "reopen", "delete"}:
+            ops.set_task(db, int(args.text[0]), args.action, int(args.text[1]) if len(args.text) > 1 else 1)
+            print("ok")
+        else:
+            for t in ops.tasks(db, "done" if args.action == "done-list" else "open"):
+                flag = "!" if t["priority"] >= 3 else " "
+                print(f"#{t['id']:<4} {flag} {t['due'] or '          '} {t['title']}{'  (overdue)' if t.get('overdue') else ''}")
+
+
+def cmd_partners(args) -> None:
+    from . import ops
+
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        if args.action == "add":
+            pid = ops.add_partner(db, " ".join(args.rest), args.kind or "venue")
+            print(f"added partner #{pid}")
+        elif args.action == "advance":
+            p = ops.advance(db, int(args.rest[0]))
+            print(f"{p['name']} -> {p['stage']}")
+        elif args.action == "set":
+            pid, field, value = int(args.rest[0]), args.rest[1], " ".join(args.rest[2:])
+            ops.update_partner(db, pid, **{field: value})
+            print("ok")
+        elif args.action == "stats":
+            _print(ops.partner_stats(cfg, db))
+        else:
+            for p in ops.partners(cfg, db):
+                print(f"#{p['id']:<4} {p['health']['label']:<8} {p['status']:<10} {p['stage_label']:<26} {p['kind'] or '':<10} {p['name']}")
+
+
+def cmd_reach(args) -> None:
+    from .ops import reach_out
+
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        for r in reach_out(cfg, db, args.limit):
+            print(f"{r['priority']:>5.0f}  {r['who'][:32]:<32} {r['action']:<24} {r['reason']}")
+
+
+def cmd_prep(args) -> None:
+    from .llm import LLM
+    from .ops import meeting_prep
+
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        event_id = args.event
+        if not event_id:
+            from datetime import datetime
+
+            nxt = db.one("SELECT id FROM events WHERE start >= ? ORDER BY start LIMIT 1", (datetime.now().strftime("%Y-%m-%dT%H:%M"),))
+            if not nxt:
+                sys.exit("No upcoming meetings.")
+            event_id = nxt["id"]
+        print(meeting_prep(cfg, db, event_id, None if args.no_ai else LLM(cfg)))
+
+
+def cmd_scorecard(args) -> None:
+    from .ops import scorecard
+
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        for r in scorecard(cfg, db):
+            print(f"{r['metric']:<24} this week {r['this_week']:>4}   last week {r['last_week']:>4}   ({r['delta']:+d})")
+
+
+def cmd_import(args) -> None:
+    from .importer import run
+
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        _print(run(cfg, db, args.folder))
+
+
 def cmd_kpi(args) -> None:
     from .tracking import record_kpi
 
@@ -218,6 +317,28 @@ def main(argv: list[str] | None = None) -> None:
     k.add_argument("--day", help="YYYY-MM-DD (default today)")
     k.set_defaults(fn=cmd_kpi)
 
+    sub.add_parser("plan", help="today's plan: routine + meetings + what to do in each block").set_defaults(fn=cmd_plan)
+    t = sub.add_parser("todo", help="to-dos: sz todo | sz todo add call Kranz tomorrow | sz todo done 3 | sz todo snooze 3 2")
+    t.add_argument("action", nargs="?", default="list", choices=["list", "add", "done", "snooze", "reopen", "delete", "done-list"])
+    t.add_argument("text", nargs="*")
+    t.set_defaults(fn=cmd_todo)
+    pa = sub.add_parser("partners", help="service partners: list | stats | add <name> | advance <id> | set <id> <field> <value>")
+    pa.add_argument("action", nargs="?", default="list", choices=["list", "stats", "add", "advance", "set"])
+    pa.add_argument("rest", nargs="*")
+    pa.add_argument("--kind", help="venue | brand | university | housing | service")
+    pa.set_defaults(fn=cmd_partners)
+    rc = sub.add_parser("reach", help="who to reach out to now, and why")
+    rc.add_argument("--limit", type=int, default=20)
+    rc.set_defaults(fn=cmd_reach)
+    pr = sub.add_parser("prep", help="one-page prep for your next (or a given) meeting")
+    pr.add_argument("event", nargs="?")
+    pr.add_argument("--no-ai", action="store_true")
+    pr.set_defaults(fn=cmd_prep)
+    sub.add_parser("scorecard", help="this week vs last week").set_defaults(fn=cmd_scorecard)
+    im = sub.add_parser("import", help="import exported contacts/leads (CSV/XLSX/JSON) and outreach/social docs (MD/TXT/DOCX)")
+    im.add_argument("folder")
+    im.set_defaults(fn=cmd_import)
+
     sub.add_parser("triage", help="show replies owed + follow-ups due").set_defaults(fn=cmd_triage)
 
     d = sub.add_parser("drafts", help="write reply/follow-up drafts in Outlook (never sends)")
@@ -253,7 +374,7 @@ def main(argv: list[str] | None = None) -> None:
     db_.add_argument("--port", type=int, default=None)
     db_.set_defaults(fn=cmd_dashboard)
 
-    v = sub.add_parser("voice", help="hands-free voice assistant ('Hey Jarvis')")
+    v = sub.add_parser("voice", help="Setz, the hands-free voice assistant ('Hey Setz')")
     v.add_argument("--no-wake", action="store_true", help="push-to-talk with Enter instead of the wake word")
     v.set_defaults(fn=cmd_voice)
 

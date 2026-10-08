@@ -105,6 +105,47 @@ CREATE TABLE IF NOT EXISTS kv (
     key TEXT PRIMARY KEY,
     value TEXT
 );
+
+CREATE TABLE IF NOT EXISTS partners (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    lead_id INTEGER UNIQUE,
+    name TEXT NOT NULL,
+    kind TEXT,                  -- venue | brand | university | housing | service
+    category TEXT,
+    contact_name TEXT,
+    email TEXT,
+    phone TEXT,
+    instagram TEXT,
+    website TEXT,
+    status TEXT DEFAULT 'onboarding',   -- onboarding | live | paused | ended
+    stage TEXT DEFAULT 'agreed',        -- see ops.STAGES
+    stage_since TEXT,
+    offer TEXT,                 -- e.g. "10% off all drinks for members"
+    signed_at TEXT,
+    live_at TEXT,
+    renewal_date TEXT,
+    last_contact_at TEXT,
+    redemptions INTEGER DEFAULT 0,
+    notes TEXT,
+    created_at TEXT,
+    updated_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS tasks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    notes TEXT,
+    due TEXT,                   -- YYYY-MM-DD
+    priority INTEGER DEFAULT 2, -- 1 low .. 3 high
+    status TEXT DEFAULT 'open', -- open | done
+    snoozed_until TEXT,
+    source TEXT DEFAULT 'manual',
+    lead_id INTEGER,
+    partner_id INTEGER,
+    dedupe_key TEXT UNIQUE,     -- stops auto-generated tasks from repeating
+    created_at TEXT,
+    done_at TEXT
+);
 """
 
 

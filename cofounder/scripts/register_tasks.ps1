@@ -2,7 +2,7 @@
 # Re-run any time to update. Remove with:  Get-ScheduledTask -TaskPath "\Settleezy\" | Unregister-ScheduledTask -Confirm:$false
 #   .\scripts\register_tasks.ps1            # default schedule
 #   .\scripts\register_tasks.ps1 -Speak     # also read the morning brief aloud
-#   .\scripts\register_tasks.ps1 -Voice     # also start "Hey Jarvis" at logon
+#   .\scripts\register_tasks.ps1 -Voice     # also start Setz ("Hey Setz") at logon
 param([switch]$Speak, [switch]$Voice)
 $ErrorActionPreference = "Stop"
 $root = Split-Path $PSScriptRoot -Parent

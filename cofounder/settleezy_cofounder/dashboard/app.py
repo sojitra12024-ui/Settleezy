@@ -119,6 +119,47 @@ def summary() -> dict:
         }
 
 
+@app.get("/api/hub")
+def hub() -> list[dict]:
+    """Channels flowing into Setz on the full-screen hologram: connection state + one live number each."""
+    from ..ops import partner_stats
+
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        conn = {r["name"]: r for r in json.loads(db.kv_get("connections", "{}")).get("results", [])}
+        ok = lambda name: conn[name]["ok"] if name in conn else None  # noqa: E731
+        today = datetime.now().date().isoformat()
+        since7 = (datetime.now() - timedelta(days=7)).isoformat()
+        latest = lambda src, key: (db.one("SELECT value FROM metrics WHERE source=? AND key=? ORDER BY day DESC LIMIT 1", (src, key)) or {"value": None})["value"]  # noqa: E731
+        followers = latest("instagram", "followers")
+        ps = partner_stats(cfg, db)
+        new_listings_7d = db.one("SELECT COUNT(*) n FROM listings WHERE first_seen != 'baseline' AND first_seen >= ?", (since7,))["n"]
+        return [
+            {"key": "outlook", "label": "Outlook", "icon": "outlook", "ok": ok("Outlook"),
+             "value": f"{len(_safe_replies(cfg, db))} to reply"},
+            {"key": "instagram", "label": "Instagram", "icon": "instagram", "ok": ok("Instagram"),
+             "value": f"{followers:,.0f} followers" if followers else ""},
+            {"key": "calendar", "label": "Calendar", "icon": "calendar", "ok": ok("Calendly") if "Calendly" in conn else ok("Outlook"),
+             "value": f"{db.one('SELECT COUNT(*) n FROM events WHERE substr(start,1,10)=?', (today,))['n']} meetings today"},
+            {"key": "web", "label": "Competitors", "icon": "web", "ok": True if db.kv_get("last_run:scrape") else None,
+             "value": f"{new_listings_7d} new / 7d"},
+            {"key": "partners", "label": "Partners", "icon": "partners", "ok": True,
+             "value": f"{ps['live']} live · {ps['onboarding']} onboarding"},
+            {"key": "claude", "label": "Claude", "icon": "brain", "ok": ok("Claude API"), "value": ""},
+            {"key": "ollama", "label": "Local model", "icon": "chip", "ok": ok("Local model (Ollama)"), "value": ""},
+            {"key": "voice", "label": "Voice", "icon": "voice", "ok": ok("Voice (ElevenLabs)"), "value": ""},
+        ]
+
+
+def _safe_replies(cfg, db) -> list:
+    try:
+        from ..triage import needs_reply
+
+        return needs_reply(cfg, db, None)
+    except Exception:
+        return []
+
+
 @app.get("/api/metric")
 def metric_series(key: str, days: int = 90) -> dict:
     cfg = load_config()
@@ -186,6 +227,102 @@ def lead_draft(lead_id: int, x_sz: str | None = Header(default=None)) -> dict:
             return outreach_draft(cfg, db, lead_id)
         except Exception as exc:
             raise HTTPException(400, str(exc)) from exc
+
+
+# -- operations: plan, to-dos, reach-out, partners, prep ------------------
+
+@app.get("/api/ops")
+def ops_summary() -> dict:
+    from .. import ops
+
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        plan = ops.today_plan(cfg, db)
+        return {
+            "plan": plan,
+            "focus_now": ops.focus_now(cfg, db),
+            "tasks": ops.tasks(db, "open"),
+            "tasks_done": ops.tasks(db, "done")[:15],
+            "reach_out": ops.reach_out(cfg, db, 20),
+            "partners": ops.partners(cfg, db),
+            "partner_stats": ops.partner_stats(cfg, db),
+            "stages": ops.STAGES,
+            "scorecard": ops.scorecard(cfg, db),
+        }
+
+
+@app.post("/api/tasks")
+def task_add(body: dict, x_sz: str | None = Header(default=None)) -> dict:
+    _guard(x_sz)
+    from ..ops import add_task
+
+    title = (body.get("title") or "").strip()
+    if not title:
+        raise HTTPException(400, "title is required")
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        tid = add_task(db, title, due=body.get("due") or None, priority=int(body.get("priority", 2)), source=body.get("source", "manual"),
+                       lead_id=body.get("lead_id"), partner_id=body.get("partner_id"))
+    return {"id": tid, "duplicate": tid is None}
+
+
+@app.post("/api/tasks/{task_id}")
+def task_action(task_id: int, body: dict, x_sz: str | None = Header(default=None)) -> dict:
+    _guard(x_sz)
+    from ..ops import set_task
+
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        try:
+            set_task(db, task_id, body.get("action", ""), int(body.get("days", 1)))
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+    return {"ok": True}
+
+
+@app.post("/api/partners")
+def partner_add(body: dict, x_sz: str | None = Header(default=None)) -> dict:
+    _guard(x_sz)
+    from ..ops import add_partner
+
+    if not (body.get("name") or "").strip():
+        raise HTTPException(400, "name is required")
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        fields = {k: v for k, v in body.items() if k not in {"name", "kind"}}
+        return {"id": add_partner(db, body["name"], body.get("kind") or "venue", **fields)}
+
+
+@app.post("/api/partners/{partner_id}")
+def partner_update(partner_id: int, body: dict, x_sz: str | None = Header(default=None)) -> dict:
+    _guard(x_sz)
+    from .. import ops
+
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        try:
+            if body.get("advance"):
+                return ops.advance(db, partner_id)
+            if body.get("log_contact"):
+                from ..db import utcnow
+
+                body = {"last_contact_at": utcnow()}
+            return ops.update_partner(db, partner_id, **body)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+
+
+@app.get("/api/prep/{event_id}")
+def prep(event_id: str, ai: int = 0) -> dict:
+    from ..llm import LLM
+    from ..ops import meeting_prep
+
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        try:
+            return {"markdown": meeting_prep(cfg, db, event_id, LLM(cfg) if ai else None)}
+        except ValueError as exc:
+            raise HTTPException(404, str(exc)) from exc
 
 
 # -- tracking ---------------------------------------------------------------
@@ -295,7 +432,7 @@ async def voice_stream(request: Request) -> StreamingResponse:
 
 @app.post("/api/ask")
 def ask(body: dict, x_sz: str | None = Header(default=None)) -> dict:
-    """Ask Jarvis from the dashboard. With speak=true and ElevenLabs set up, the reply comes back as audio
+    """Ask Setz from the dashboard. With speak=true and ElevenLabs set up, the reply comes back as audio
     that the page plays while the hologram animates."""
     _guard(x_sz)
     from ..mailtext import detect_language

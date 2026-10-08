@@ -85,7 +85,7 @@ def sync_calendar(cfg: Config, db: DB, graph: Graph | None = None, days: int = 7
                 e["start"]["dateTime"][:16],
                 e["end"]["dateTime"][:16],
                 loc,
-                ", ".join(_addr(a)[1] or _addr(a)[0] for a in e.get("attendees") or []),
+                ", ".join(f"{_addr(a)[1]} <{_addr(a)[0]}>" if _addr(a)[1] else _addr(a)[0] for a in e.get("attendees") or []),
                 e.get("webLink") or "",
             ),
         )

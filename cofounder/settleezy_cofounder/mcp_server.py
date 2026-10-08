@@ -22,9 +22,10 @@ from .scraping.monitor import new_listings
 from .triage import followups_due, needs_reply
 
 server = MCPServer(
-    "settleezy-cofounder",
-    instructions="Tools for Settleezy's founder: daily brief, inbox triage, Outlook drafts (never sends), "
-    "competitor listings in Berlin, partner leads and growth reviews.",
+    "setz",
+    instructions="Setz, the chief of staff for Settleezy's founder: daily brief and plan, to-dos, who to contact, "
+    "service partners and onboarding, meeting prep, inbox triage, Outlook drafts (never sends), competitor listings "
+    "in Berlin, partner leads and growth reviews.",
 )
 
 
@@ -130,6 +131,109 @@ def record_kpi(key: str, value: float) -> str:
     with DB(cfg.db_path) as db:
         rec(db, key, value)
     return "ok"
+
+
+@server.tool()
+def todays_plan() -> str:
+    """Today's plan: routine blocks laid around meetings, with who/what to do in each block, and what to focus on now."""
+    from .ops import focus_now, today_plan
+
+    cfg, db = _db()
+    with db:
+        plan = today_plan(cfg, db)
+        plan["focus_now"] = focus_now(cfg, db)
+        return json.dumps(plan, ensure_ascii=False, default=str)
+
+
+@server.tool()
+def who_to_contact(limit: int = 10) -> str:
+    """People to reach out to now (replies owed, follow-ups, partners needing attention, warm leads), with reasons."""
+    from .ops import reach_out
+
+    cfg, db = _db()
+    with db:
+        return json.dumps(reach_out(cfg, db, limit), ensure_ascii=False, default=str)
+
+
+@server.tool()
+def add_todo(text: str) -> str:
+    """Add a to-do. Dates in the text are understood: 'call Café Kranz tomorrow', 'send contract on Friday'."""
+    from .ops import add_task
+
+    _, db = _db()
+    with db:
+        tid = add_task(db, text, source="voice")
+    return f"added #{tid}" if tid else "already on the list"
+
+
+@server.tool()
+def list_todos(scope: str = "today") -> str:
+    """To-dos. scope: today | open | done."""
+    from .ops import tasks
+
+    _, db = _db()
+    with db:
+        return json.dumps(tasks(db, scope), ensure_ascii=False, default=str)
+
+
+@server.tool()
+def complete_todo(task_id: int) -> str:
+    """Mark a to-do as done."""
+    from .ops import set_task
+
+    _, db = _db()
+    with db:
+        set_task(db, task_id, "done")
+    return "ok"
+
+
+@server.tool()
+def service_partners(status: str = "") -> str:
+    """Service partners with onboarding stage and health (status: onboarding | live | paused | ended, empty = all), plus stats."""
+    from .ops import partner_stats, partners
+
+    cfg, db = _db()
+    with db:
+        return json.dumps({"stats": partner_stats(cfg, db), "partners": partners(cfg, db, status or None)}, ensure_ascii=False, default=str)
+
+
+@server.tool()
+def update_partner(partner_id: int, stage: str = "", status: str = "", offer: str = "", renewal_date: str = "", notes: str = "") -> str:
+    """Update a partner. stage: agreed | contract | offer | listed | promoted | live."""
+    from . import ops
+
+    _, db = _db()
+    fields = {k: v for k, v in {"stage": stage, "status": status, "offer": offer, "renewal_date": renewal_date, "notes": notes}.items() if v}
+    with db:
+        return json.dumps(ops.update_partner(db, partner_id, **fields), ensure_ascii=False, default=str)
+
+
+@server.tool()
+def meeting_prep(event_id: str = "") -> str:
+    """One-page prep for a meeting (default: the next one): who, what we know, recent emails, suggested plan."""
+    from datetime import datetime
+
+    from . import ops
+    from .llm import LLM
+
+    cfg, db = _db()
+    with db:
+        if not event_id:
+            nxt = db.one("SELECT id FROM events WHERE start >= ? ORDER BY start LIMIT 1", (datetime.now().strftime("%Y-%m-%dT%H:%M"),))
+            if not nxt:
+                return "No upcoming meetings."
+            event_id = nxt["id"]
+        return ops.meeting_prep(cfg, db, event_id, LLM(cfg))
+
+
+@server.tool()
+def weekly_scorecard() -> str:
+    """This week vs last week: outreach, replies, meetings, partners gone live, new leads, to-dos done."""
+    from .ops import scorecard
+
+    cfg, db = _db()
+    with db:
+        return json.dumps(scorecard(cfg, db), ensure_ascii=False)
 
 
 def main() -> None:

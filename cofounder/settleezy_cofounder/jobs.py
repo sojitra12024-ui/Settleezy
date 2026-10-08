@@ -16,6 +16,7 @@ def _mail(cfg: Config, db: DB) -> Any:
     g = Graph(cfg)
     out = {"mail": sync(cfg, db, g), "calendar_events": sync_calendar(cfg, db, g)}
     out["tracking"] = _track(cfg, db)   # match sent drafts / replies right after new mail arrives
+    out["ops"] = _ops(cfg, db)          # post-meeting follow-ups, stuck onboarding, renewals -> to-dos
     return out
 
 
@@ -23,6 +24,12 @@ def _track(cfg: Config, db: DB) -> Any:
     from .tracking import snapshot, track_drafts
 
     return {**track_drafts(cfg, db), **snapshot(cfg, db)}
+
+
+def _ops(cfg: Config, db: DB) -> Any:
+    from .ops import sync_auto_tasks
+
+    return {"auto_tasks_created": sync_auto_tasks(cfg, db)}
 
 
 def _doctor(cfg: Config, db: DB) -> Any:
@@ -90,6 +97,7 @@ def _growth(cfg: Config, db: DB) -> Any:
 JOBS: dict[str, Callable[[Config, DB], Any]] = {
     "mail": _mail,
     "track": _track,
+    "ops": _ops,
     "doctor": _doctor,
     "calendly": _calendly,
     "instagram": _instagram,
@@ -102,7 +110,7 @@ JOBS: dict[str, Callable[[Config, DB], Any]] = {
 }
 
 # What `sz morning` runs, in order. Sources that aren't configured are skipped, not fatal.
-MORNING = ["doctor", "mail", "calendly", "instagram", "track", "drafts", "brief"]
+MORNING = ["doctor", "mail", "calendly", "instagram", "track", "ops", "drafts", "brief"]
 
 
 def run_job(cfg: Config, name: str) -> Any:

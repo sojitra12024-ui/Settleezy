@@ -1,6 +1,6 @@
-# Settleezy co-founder
+# Setz: Settleezy's AI chief of staff
 
-Your personal assistant and growth co-founder. It runs on your laptop next to [OpenJarvis](https://github.com/open-jarvis/OpenJarvis).
+**Setz** is your personal assistant and growth co-founder. It runs on your laptop on top of [OpenJarvis](https://github.com/open-jarvis/OpenJarvis). Say **"Hey Setz"**, or open the dashboard.
 
 Settleezy helps students in Berlin, especially international students, save money and settle in: a membership app (savings at restaurants, cafés, grocery stores, activities and events, plus guides, an expense and savings tracker, a document vault and emergency numbers), workshops, and the Buddy platform for universities. The assistant knows this from `knowledge/settleezy.md`.
 
@@ -12,8 +12,13 @@ Settleezy helps students in Berlin, especially international students, save mone
 | **Watches competitors** | Groupon, vspots, Top10 Berlin, UNiDAYS, Student Beans: new Berlin listings, stored in a database |
 | **Builds your lead list** | Every merchant/brand found becomes a scored lead; it finds email/Instagram from their website and Impressum; plus 30+ Berlin universities and student-service seeds |
 | **Thinks like a co-founder** | Weekly growth review: scoreboard, what's working, competitor read, 3 experiments, next week's marketing plan (`playbook/berlin-growth-playbook.md` is its strategy; `knowledge/settleezy.md` is what it knows about Settleezy) |
-| **Voice + hologram** | "Hey Jarvis" wake word, Whisper speech recognition on your GPU, answers spoken in your chosen **ElevenLabs** voice (English or German). A **hologram** animates in sync while it listens, thinks and speaks: on the dashboard, or full screen at http://127.0.0.1:8765/hologram |
-| **Dashboard** | http://127.0.0.1:8765: ask Jarvis (typed, spoken answer), goals with progress bars, connection health, today, inbox, trends for any metric, numbers from the app (members, trials, downloads, workshops, Buddy students), AI-draft funnel (drafted → you sent → got a reply), partner pipeline, competitor charts, searchable leads with notes, Instagram (followers, reach, engagement, top posts, comments), brief, weekly review |
+| **Runs your day** | **Today's plan**: your daily routine (config `[routine]`) laid around today's meetings, with the right people and tasks slotted into each block, plus "focus now". **To-dos** you can add by typing or voice ("Hey Setz, remind me to send HTW the deck on Friday"); Setz also adds its own (stuck onboarding, renewals, follow-up after every meeting). **Who to reach out to**: everyone you should contact now, ranked, each with the reason and a one-click draft |
+| **Tracks your service partners** | Every partner moves through onboarding: agreed → agreement signed → member offer set up → listed in the app → launch promo → live. A **health score** flags stuck steps, partners you haven't spoken to in 30 days, live partners without redemptions, and renewals due. Shows partners onboarded this week/month, average days to go live, and live partners by type (venues, universities on the Buddy platform, housing, brands, services) |
+| **Prepares you for meetings** | One-page prep for any meeting: who's coming, what you know about them (lead/partner record), recent emails, and a suggested goal, agenda, ask and objections |
+| **Weekly scorecard** | This week vs last week: outreach sent, replies, meetings, partners gone live, new leads, to-dos done |
+| **Imports your past work** | `sz import <folder>` pulls in exported contacts, leads and partner lists (CSV/XLSX/JSON) and earlier outreach emails, social posts and strategy notes (MD/TXT/DOCX), e.g. from your Claude projects. Setz learns from them |
+| **Voice + hologram** | **"Hey Setz"** wake phrase, Whisper speech recognition on your GPU, answers spoken in your chosen **ElevenLabs** voice (English or German). Setz appears as an animated **low-poly hologram robot**: it floats, blinks, follows your cursor, tilts its head and waves when listening, looks up with orbiting dots while thinking, and its eyes, mouth and fins move with its voice. Full screen at http://127.0.0.1:8765/hologram also shows your channels (Outlook, Instagram, calendar, competitors, partners, AI, voice) flowing into Setz with their live status |
+| **Dashboard** | http://127.0.0.1:8765, in five tabs. **Today**: Setz, KPIs, plan, to-dos, who to contact, inbox, brief. **Partners**: onboarding board, partner health, add/edit partners, log contacts. **Growth**: goals, scorecard, trends for any metric, numbers from the app, AI-draft funnel, reply rate by weekday, Instagram, weekly review. **Leads & competitors**: searchable leads with notes and one-click drafts, competitor charts. **Insights**: connections, Instagram posts and comments, upcoming meetings with prep, import |
 | **Connection doctor** | `sz doctor` (and the dashboard's Connections card) tests Outlook, Instagram, Calendly, Claude, Ollama and ElevenLabs with real calls and tells you exactly how to fix anything broken |
 
 **Privacy:** Raw email is read by a local model (Ollama on your RTX 3060). Only what's needed for drafting and analysis goes to the Claude API, and email addresses, phone numbers and IBANs are replaced with placeholders first. Everything is stored locally in `cofounder/data/` (git-ignored).
@@ -73,12 +78,20 @@ DMs are not included: Meta requires app review for message access.
    - alternative: <https://elevenlabs.io/voices/r1KmysJdVYZjJCm4mL3b>
 2. Profile → **API keys** → create a key → `.env` `ELEVENLABS_API_KEY`.
 3. `config.toml` `[voice]` already points at both voices; swap `elevenlabs_voice_id` and `elevenlabs_voice_id_alt` to change which one speaks. `eleven_multilingual_v2` speaks English and German; `eleven_flash_v2_5` answers faster.
-4. Test: `sz brief --speak`. Open http://127.0.0.1:8765/hologram (with the dashboard running) to watch the hologram while it speaks. Without a key, Jarvis falls back to Windows voices and the hologram still animates.
+4. Test: `sz brief --speak`. Open http://127.0.0.1:8765/hologram (with the dashboard running) to watch Setz while it speaks. Without a key, Setz falls back to Windows voices and the hologram still animates.
 
 ### 7. Connect OpenJarvis (chat + voice brain)
 Copy `openjarvis\config.toml` and `openjarvis\mcp-servers.json` to `%USERPROFILE%\.openjarvis\`, then edit `mcp-servers.json` so `"command"` is the full path, e.g.
 `"C:\\Users\\you\\Settleezy\\cofounder\\.venv\\Scripts\\sz.exe"`.
-Now `jarvis` can call your tools: *"what's my day?"*, *"draft replies"*, *"top merchant leads"*, *"what did Groupon add in Berlin?"*.
+Now `jarvis` (the OpenJarvis chat) can use Setz's tools: *"what's my plan today?"*, *"who should I contact?"*, *"add a to-do: call Kranz tomorrow"*, *"how are my partners doing?"*, *"prep my next meeting"*, *"draft replies"*, *"what did Groupon add in Berlin?"*.
+
+### 7b. Import your past work (Claude projects and other files)
+Setz can't open your Claude projects directly, so export their files once:
+1. In each project (**Settleezy**, **Partnership and outreach**, **Social media**), download the files you want Setz to learn from: contact and lead lists, partner sheets, outreach emails and templates, captions and content plans, strategy docs. For results that only exist in a chat, ask Claude in that project to "export all contacts and leads from this project as a CSV" and to "put the outreach emails we wrote into one document", then download them.
+2. Put everything in one folder, e.g. `Downloads\settleezy-exports`.
+3. Run `.\.venv\Scripts\sz.exe import "C:\Users\you\Downloads\settleezy-exports"`.
+
+What happens: contacts and leads are merged into your lead list (columns like *Company, E-Mail, Instagram, Category, Status, Contact person, Notes* are recognised in English and German). Rows whose status says signed or live become **partners** with an onboarding record. Outreach emails teach Setz your voice and are reused when drafting. Social posts and strategy notes feed the weekly growth review and content plan. Run it again whenever you have more; nothing is duplicated.
 
 ### 8. First run
 ```powershell
@@ -106,7 +119,7 @@ Read `data\voice_profile.md`. If anything sounds off, edit it; the drafts follow
 | Daily 18:00 | Instagram metrics + unanswered comments |
 | Sunday 20:00 | Re-learn your voice from the week's sent mail |
 | Monday 07:15 | Co-founder growth review |
-| At logon | Dashboard, and "Hey Jarvis" with `-Voice` |
+| At logon | Dashboard, and Setz ("Hey Setz") with `-Voice` |
 
 Logs are in `data\logs\`.
 
@@ -114,6 +127,13 @@ Logs are in `data\logs\`.
 
 ## Everyday commands
 ```
+sz plan                     today's plan: routine + meetings + what to do in each block
+sz todo add call Kranz tomorrow       sz todo        sz todo done 3        sz todo snooze 3 2
+sz reach                    who to contact now, and why
+sz partners                 partner list with stage + health   (sz partners stats | add <name> --kind venue | advance <id> | set <id> offer "10% off")
+sz prep                     one-page prep for your next meeting
+sz scorecard                this week vs last week
+sz import <folder>          bring in exported contacts, leads, outreach and social files
 sz doctor                   test every connection, with fixes
 sz kpi paying_members 240   record a number from the app (also on the dashboard)
 sz brief --speak            today's brief, read aloud
@@ -125,13 +145,16 @@ sz leads status 42 contacted --note "met at Kranz, follow up Friday"
 sz leads add --name "Café X" --kind-new merchant --website cafe-x.de
 sz leads export             data\leads.csv
 sz growth                   co-founder weekly review now
-sz voice                    "Hey Jarvis" (or --no-wake for push-to-talk); hologram at /hologram
+sz voice                    Setz: say "Hey Setz …" (or --no-wake for push-to-talk); hologram at /hologram
 ```
 
 ## Tuning
 - **Competitor patterns:** `competitors.toml`. Run `sz scrape --inspect --site groupon` after any change. If a site only renders with JavaScript, set `render = true` and run `pip install -e ".[render]"` then `playwright install chromium`.
 - **Follow-up cadence:** `config.toml` `[followup] cadence_days`. `sz learn` reports what your own data says works.
 - **German speech:** set `whisper_model = "medium"` for better German recognition. (Only if you don't use ElevenLabs: install a German Windows voice under Settings → Time & language → Speech.)
+- **Daily routine:** `config.toml` `[[routine.blocks]]` (start, end, title, focus = inbox | outreach | partners | content | calls | review, days). With `announce = true`, `sz voice` tells you when each block starts and who to begin with.
+- **Partners:** `[partners] stage_stuck_days` / `checkin_days` decide when a partner needs attention.
+- **Wake phrase:** "Hey Setz" works out of the box (Whisper listens for it). Raise `voice.mic_threshold` if background noise keeps waking the mic. For an always-on, lower-power wake word you can train a custom "hey setz" openWakeWord model and set `wake_mode = "openwakeword"` plus `wake_model`.
 - **Goals:** `config.toml` `[[growth.targets]]`, where each goal points at a metric (`manual.*` numbers you enter, `ops.*` computed daily, `instagram.*`).
 - **Hologram on a second screen:** open http://127.0.0.1:8765/hologram full screen (F11) on a second monitor.
 - **GPU speech recognition:** if Whisper falls back to CPU, run `pip install nvidia-cublas-cu12 "nvidia-cudnn-cu12==9.*"` in the venv.
@@ -143,7 +166,7 @@ Outlook ─┐                                   ┌─> Outlook Drafts ("Settle
 Calendly ├─> sz jobs ─> SQLite (data/) ──────┼─> Daily brief (md + voice)
 Instagram┘      ▲            │               ├─> Dashboard :8765
 Competitors ────┘            │               └─> Weekly growth review
-                             └─> MCP server ─> OpenJarvis (chat, "Hey Jarvis")
+Partners · to-dos · routine ─┘└─> MCP server ─> OpenJarvis chat  ·  Setz voice + hologram
 local model (Ollama): triage, extraction  ·  Claude API: drafts, analysis (redacted)
 ```
 

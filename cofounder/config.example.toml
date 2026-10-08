@@ -44,7 +44,10 @@ elevenlabs_model = "eleven_multilingual_v2"       # speaks English + German; "el
 stability = 0.45
 similarity = 0.8
 whisper_model = "small"                 # "medium" is more accurate for German, slower
+wake_mode = "phrase"                    # "phrase" = say "Hey Setz" (no training needed) | "openwakeword" (custom model)
+wake_model = ""                         # path to a trained "hey setz" .onnx when wake_mode = "openwakeword"
 wake_threshold = 0.5
+mic_threshold = 0.012                   # raise if background noise keeps waking the mic
 rate = 185                              # Windows voice speed (fallback only)
 openjarvis_config = ""                  # empty = ~/.openjarvis/config.toml
 
@@ -59,7 +62,7 @@ goals = [
 
 # Goal bars on the dashboard. metric = "<source>.<key>" from the metrics table:
 #   manual.*     numbers you enter on the dashboard (KPI form)  e.g. manual.paying_members
-#   ops.*        computed daily: partners_merchant, partners_university, replies_owed, response_hours_median_7d, ...
+#   ops.*        computed daily: partners_live_venue, partners_live_university, partners_onboarded_month, replies_owed, ...
 #   instagram.*  followers, reach, engagement_rate_pct, ...
 [[growth.targets]]
 label = "Paying members"
@@ -68,13 +71,13 @@ target = 1000
 deadline = "end of winter semester"
 
 [[growth.targets]]
-label = "Partner venues"
-metric = "ops.partners_merchant"
+label = "Live partner venues"
+metric = "ops.partners_live_venue"
 target = 30
 
 [[growth.targets]]
 label = "Buddy platform universities"
-metric = "ops.partners_university"
+metric = "ops.partners_live_university"
 target = 3
 
 [[growth.targets]]
@@ -88,3 +91,48 @@ manual_kpis = ["paying_members", "trial_members", "app_downloads", "workshop_sig
 
 [dashboard]
 port = 8765
+
+[partners]
+stage_stuck_days = 7        # onboarding step older than this -> flagged + auto to-do
+checkin_days = 30           # live partner without contact for this long -> "check in"
+
+# Your daily routine. Setz lays it around today's meetings, fills each block with the right people/tasks,
+# and (with `sz voice`) announces each block when it starts. days: 0 = Monday ... 6 = Sunday.
+[routine]
+announce = true
+[[routine.blocks]]
+start = "08:30"
+end = "09:00"
+title = "Inbox & replies"
+focus = "inbox"
+days = [0, 1, 2, 3, 4]
+[[routine.blocks]]
+start = "09:00"
+end = "10:30"
+title = "Partner outreach"
+focus = "outreach"
+days = [0, 1, 2, 3, 4]
+[[routine.blocks]]
+start = "10:30"
+end = "12:00"
+title = "Partner onboarding & universities"
+focus = "partners"
+days = [0, 1, 2, 3, 4]
+[[routine.blocks]]
+start = "13:00"
+end = "14:00"
+title = "Content & Instagram"
+focus = "content"
+days = [0, 1, 2, 3, 4]
+[[routine.blocks]]
+start = "14:00"
+end = "16:30"
+title = "Calls, venue visits & workshops"
+focus = "calls"
+days = [0, 1, 2, 3, 4]
+[[routine.blocks]]
+start = "16:30"
+end = "17:00"
+title = "Wrap-up: follow-ups & plan tomorrow"
+focus = "review"
+days = [0, 1, 2, 3, 4]

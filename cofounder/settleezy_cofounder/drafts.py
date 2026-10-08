@@ -86,6 +86,9 @@ def outreach_draft(cfg: Config, db: DB, lead_id: int, llm: LLM | None = None, gr
     if not lead or not lead["email"]:
         raise ValueError("Lead has no email address; add one or contact them via Instagram/phone.")
     playbook = load_playbook(cfg)
+    from .importer import library
+
+    past = library(cfg, "outreach", 5000)
     lang = "German" if (lead["website"] or "").endswith(".de") or lead["kind"] in {"merchant", "university"} else "English"
     prompt = f"""Write a first partnership email to this lead. Language: {lang} (use Sie unless the style guide says otherwise for this type).
 Lead: {json.dumps(dict(lead), ensure_ascii=False, default=str)}
@@ -98,7 +101,8 @@ housing/service -> accommodation or service support for the same students, or co
 Only promise what the Settleezy facts say (e.g. don't claim the listing is free unless the facts say so).
 One clear ask (a 15-minute call or a yes/no). Under 120 words. Include a one-line polite opt-out.
 First line of your output must be "SUBJECT: ..." then a blank line, then the body.
-{('Outreach playbook:' + chr(10) + playbook[:4000]) if playbook else ''}"""
+{('Outreach playbook:' + chr(10) + playbook[:4000]) if playbook else ''}
+{('Outreach you wrote before (reuse what fits, keep the voice):' + chr(10) + past) if past else ''}"""
     out = llm.cloud(prompt, _system(cfg), effort="medium", max_tokens=3000)
     subject, _, body = out.partition("\n")
     subject = subject.replace("SUBJECT:", "").strip() or "Settleezy x " + lead["name"]

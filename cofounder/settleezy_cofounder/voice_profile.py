@@ -157,6 +157,11 @@ def build_profile(cfg: Config, db: DB, llm: LLM) -> tuple[Path, Path]:
     sample_text = "\n\n".join(
         f"=== {lang.upper()} EMAIL {i + 1} ===\n{s}" for lang, items in samples.items() for i, s in enumerate(items)
     )
+    from .importer import library
+
+    imported = library(cfg, "outreach", 8000)
+    if imported:
+        sample_text += "\n\n=== OUTREACH WRITTEN EARLIER (imported documents) ===\n" + imported
     me = cfg.me
     profile = llm.cloud(
         f"""Founder: {me.get('name', 'the founder')}, {me.get('role', 'founder')} of Settleezy.

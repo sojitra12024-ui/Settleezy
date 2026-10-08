@@ -22,6 +22,12 @@ def _metric_series(db: DB, days: int = 56) -> dict[str, list]:
     return {k: v[::7] + ([v[-1]] if v and v[-1] not in v[::7] else []) for k, v in series.items()}
 
 
+def _imported(cfg: Config) -> str:
+    from .importer import library
+
+    return (library(cfg, "notes", 3000) + "\n\n" + library(cfg, "social", 3000)).strip() or "(none imported yet)"
+
+
 def review(cfg: Config, db: DB, llm: LLM | None = None) -> str:
     llm = llm or LLM(cfg)
     since = (datetime.now() - timedelta(days=7)).isoformat()
@@ -53,6 +59,9 @@ Metric trends (weekly samples, last 8 weeks):
 
 Our growth playbook (strategy we agreed on):
 {playbook()[:8000]}
+
+Earlier strategy notes and social media work (imported):
+{_imported(cfg)}
 
 Write the review in Markdown:
 1. **Scoreboard**: 4–6 numbers vs last week, one line each on what it means.

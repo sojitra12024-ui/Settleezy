@@ -149,6 +149,10 @@ def set_status(db: DB, lead_id: int, status: str, note: str = "") -> None:
         "last_contact_at=CASE WHEN ? IN ('contacted','replied','meeting') THEN ? ELSE last_contact_at END WHERE id=?",
         (status, note, utcnow(), status, utcnow(), lead_id),
     )
+    if status == "partner":  # a signed lead becomes a service partner with an onboarding checklist
+        from .ops import ensure_partner_from_lead
+
+        ensure_partner_from_lead(db, lead_id)
 
 
 def export_csv(db: DB, path: Path) -> int:

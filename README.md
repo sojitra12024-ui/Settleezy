@@ -16,4 +16,4 @@
 
 | Folder | What it is |
 |---|---|
-| `cofounder/` | The founder's personal assistant and growth co-founder: learns your email voice, drafts in Outlook (never sends), daily brief, competitor and lead engine, voice, dashboard. See `cofounder/README.md` |
+| `cofounder/` | **Setz**, the founder's AI chief of staff and growth co-founder: daily plan and to-dos, who to contact, service partner onboarding, meeting prep, email drafts in your voice (never sends), competitor and lead engine, "Hey Setz" voice with a hologram, dashboard. See `cofounder/README.md` |

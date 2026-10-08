@@ -103,10 +103,16 @@ def test_draft_sent_and_replied_are_detected_and_move_the_lead(cfg, db):
 def test_snapshot_kpis_and_goals(cfg, db):
     msg(db, "a", "c1", "inbox", "x@y.de", ME, "Can you help?", 0.5)
     msg(db, "b", "c1", "sent", ME, "x@y.de", "Sure", 0.4)
+    from settleezy_cofounder import ops
+    from settleezy_cofounder.leads import set_status
+
     lid, _ = upsert(db, "Uni X", "university")
-    db.x("UPDATE leads SET status='partner' WHERE id=?", (lid,))
+    set_status(db, lid, "partner")                      # creates the partner record (onboarding)
+    pid = db.one("SELECT id FROM partners WHERE lead_id=?", (lid,))["id"]
+    ops.update_partner(db, pid, stage="live")
     values = tracking.snapshot(cfg, db)
-    assert values["partners_university"] == 1 and values["response_hours_median_7d"] == 2.4
+    assert values["partners_university"] == 1 and values["partners_live_university"] == 1
+    assert values["response_hours_median_7d"] == 2.4
     tracking.record_kpi(db, "paying_members", 250)
     g = {x["label"]: x for x in tracking.goals(cfg, db)}
     assert g["Paying members"]["current"] == 250 and g["Paying members"]["pct"] == 25.0
@@ -136,5 +142,7 @@ def test_dashboard_kpi_leads_metric_and_voice(cfg, monkeypatch):
     monkeypatch.setattr("settleezy_cofounder.voice.answer", lambda cfg, text, lang: f"answer to {text} ({lang})")
     r = c.post("/api/ask", json={"text": "Was steht heute an?", "speak": True}, headers=h).json()
     assert r == {"answer": "answer to Was steht heute an? (de)"}          # no ElevenLabs key -> text only
-    assert "Jarvis" in c.get("/hologram").text and "class Hologram" in c.get("/static/hologram.js").text
+    assert "Setz" in c.get("/hologram").text and "class Hologram" in c.get("/static/hologram.js").text
+    hub = c.get("/api/hub").json()
+    assert [x["key"] for x in hub][:3] == ["outlook", "instagram", "calendar"] and all("icon" in x for x in hub)
     assert c.get("/static/..%2Fapp.py").status_code == 404

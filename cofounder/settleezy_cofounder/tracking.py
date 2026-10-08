@@ -94,6 +94,13 @@ def snapshot(cfg: Config, db: DB) -> dict[str, float]:
         values[f"leads_open_{kind}"] = sum(n for s, n in statuses.items() if s not in ("partner", "lost"))
     since7 = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
     values["new_listings_7d"] = db.one("SELECT COUNT(*) n FROM listings WHERE first_seen != 'baseline' AND first_seen >= ?", (since7,))["n"]
+    from .ops import partner_stats
+
+    ps = partner_stats(cfg, db)
+    values.update({"partners_live": ps["live"], "partners_onboarding": ps["onboarding"],
+                   "partners_onboarded_month": ps["onboarded_this_month"], "partners_at_risk": ps["at_risk"]})
+    for kind in ("venue", "brand", "university", "housing", "service"):
+        values[f"partners_live_{kind}"] = ps["live_by_kind"].get(kind, 0)
     for k, v in values.items():
         db.metric("ops", k, v)
     return values
