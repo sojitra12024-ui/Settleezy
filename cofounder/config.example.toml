@@ -119,6 +119,13 @@ partner_goal_per_month = 6  # Setz works back from this to weekly targets for co
 # title = "Send first outreach email"
 # minutes = 15
 
+[brain]
+# Long-term memory embeddings. auto = fastembed if installed (best for English + German, CPU, ~120 MB model download
+# on first use), else Ollama (`ollama pull bge-m3`), else a built-in offline embedder.
+embedder = "auto"            # auto | fastembed | ollama | hash
+fastembed_model = "intfloat/multilingual-e5-small"
+ollama_model = "bge-m3"
+
 [planner]
 days_per_week = 5
 max_meeting_hours_per_day = 4   # more than this on a day -> Setz suggests moving or shortening meetings

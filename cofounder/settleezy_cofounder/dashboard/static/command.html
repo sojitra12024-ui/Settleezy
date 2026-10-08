@@ -97,8 +97,24 @@ main { position: relative; z-index: 1; display: grid; gap: 14px; padding: 14px 2
   padding: 9px 14px; border-radius: 8px; font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 30; }
 .toast.show { opacity: 1; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-@media (max-width: 1250px) { main { grid-template-columns: 1fr 1fr; } .center { grid-column: 1 / -1; order: -1; } .charts { grid-template-columns: 1fr 1fr; } }
-@media (max-width: 720px) { main { grid-template-columns: 1fr; padding: 12px 16px 40px; } .top { padding: 10px 16px; } .brain-wrap { height: 380px; } .charts { grid-template-columns: 1fr; } .kpis { grid-template-columns: 1fr 1fr; } }
+/* memory + neural net */
+.brainrow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.memform { display: flex; gap: 8px; } .memform input { flex: 1; min-width: 0; }
+.mems { margin-top: 10px; max-height: 300px; overflow: auto; }
+.mem { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 7px 0; border-bottom: 1px dashed rgba(94,232,255,.12); font-size: 13px; }
+.mem .k { font-family: var(--mono); font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; }
+.mem .sc { font-family: var(--mono); font-size: 11px; color: var(--muted); text-align: right; }
+.mem button { padding: 1px 7px; font-size: 11px; margin-top: 3px; }
+.memstats { display: flex; flex-wrap: wrap; gap: 12px; font-family: var(--mono); font-size: 11.5px; color: var(--text-2); margin-top: 10px; }
+.k-fact { color: var(--cyan); } .k-preference { color: #e87ba4; } .k-episode { color: var(--warn); } .k-insight { color: var(--ok); } .k-conversation { color: var(--violet); }
+.nn { position: relative; height: 300px; }
+.nn canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.nnstats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+.sig { display: grid; grid-template-columns: 130px 1fr 52px; gap: 8px; align-items: center; font-size: 12px; margin-top: 6px; }
+.sig .b { height: 6px; border-radius: 99px; background: rgba(94,232,255,.1); overflow: hidden; } .sig .b i { display: block; height: 100%; background: linear-gradient(90deg, #3987e5, #5ee8ff); }
+.sig .v { font-family: var(--mono); color: var(--text-2); text-align: right; }
+@media (max-width: 1250px) { main { grid-template-columns: 1fr 1fr; } .center { grid-column: 1 / -1; order: -1; } .charts { grid-template-columns: 1fr 1fr; } .brainrow { grid-template-columns: 1fr; } }
+@media (max-width: 720px) { main { grid-template-columns: 1fr; padding: 12px 16px 40px; } .top { padding: 10px 16px; } .brain-wrap { height: 380px; } .charts, .brainrow { grid-template-columns: 1fr; } .kpis { grid-template-columns: 1fr 1fr; } }
 @media (prefers-reduced-motion: reduce) { .briefing .cursor { animation: none; } .stream .new { animation: none; } }
 </style>
 </head>
@@ -138,6 +154,17 @@ main { position: relative; z-index: 1; display: grid; gap: 14px; padding: 14px 2
     <div class="panel"><p class="label">Thought stream <span class="dot s-ok" id="live-dot" title="live"></span></p><div class="stream" id="stream" aria-live="polite"></div></div>
   </section>
 
+  <section class="charts brainrow" aria-label="Setz's brain">
+    <div class="panel"><p class="label">Long-term memory <span id="mem-count"></span></p>
+      <form class="memform" id="memsearch"><input id="mem-q" placeholder="Search memory by meaning… e.g. who prefers WhatsApp?" aria-label="Search memory"><button>Recall</button></form>
+      <div class="mems" id="mems"></div>
+      <form class="memform" id="memadd" style="margin-top:10px"><input id="mem-new" placeholder="Teach Setz something… e.g. Anna at Café Kranz wants monthly reports" aria-label="New memory"><button class="primary">Remember</button></form>
+      <div class="memstats" id="memstats"></div></div>
+    <div class="panel"><p class="label">Neural network · lead reply model <span id="nn-at"></span></p>
+      <div class="nn"><canvas id="nn" role="img" aria-label="Diagram of the lead model's neural network and its weights"></canvas></div>
+      <div class="nnstats" id="nnstats"></div><div id="signals" style="margin-top:8px"></div></div>
+  </section>
+
   <section class="charts">
     <div class="panel"><p class="label">Paying members <span id="m-now"></span></p><div class="chart"><canvas id="c-members" aria-label="Paying members over time"></canvas></div></div>
     <div class="panel"><p class="label">Instagram followers <span id="ig-now"></span></p><div class="chart"><canvas id="c-ig" aria-label="Instagram followers over time"></canvas></div></div>
@@ -154,6 +181,7 @@ const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 const fmt = (v) => v == null ? "–" : Number(v).toLocaleString(undefined, { maximumFractionDigits: 1 });
+const MEMCOL = { fact: "94,232,255", preference: "232,123,164", episode: "240,180,60", insight: "76,217,123", conversation: "144,133,233" };
 const COLORS = { ok: [76, 217, 123], warn: [240, 180, 60], alert: [255, 107, 107], error: [255, 107, 107], none: [106, 143, 160] };
 const ICONS = {   // SVG paths (24x24)
   mail: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>',
@@ -192,13 +220,28 @@ class Brain {
       if (d < 0.17 && Math.sign(this.pts[i].u) === Math.sign(this.pts[j].u)) this.links.push([i, j, d]);
     }
     new ResizeObserver(() => this.resize()).observe(canvas); this.resize();
-    canvas.addEventListener("pointermove", (e) => { const r = canvas.getBoundingClientRect(); this.hover = this.hit(e.clientX - r.left, e.clientY - r.top); canvas.style.cursor = this.hover >= 0 ? "pointer" : "default"; });
+    this.mem = new Map(); this.memLinks = []; this.lit = new Map(); this.hoverMem = -1; this.P = [];
+    canvas.addEventListener("pointermove", (e) => { const r = canvas.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+      this.hover = this.hit(mx, my); this.hoverMem = this.hover >= 0 ? -1 : this.hitMem(mx, my); canvas.style.cursor = this.hover >= 0 ? "pointer" : "default"; });
+    canvas.addEventListener("pointerleave", () => { this.hoverMem = -1; });
     canvas.addEventListener("click", (e) => { const r = canvas.getBoundingClientRect(), i = this.hit(e.clientX - r.left, e.clientY - r.top); if (i >= 0) openDrawer(this.nodes[i].key); });
     this.t0 = performance.now(); this.tick = this.frame.bind(this); requestAnimationFrame(this.tick);
   }
   resize() { const dpr = Math.min(devicePixelRatio || 1, 2), r = this.c.getBoundingClientRect(); this.w = r.width; this.h = r.height; this.c.width = r.width * dpr; this.c.height = r.height * dpr; this.x.setTransform(dpr, 0, 0, dpr, 0, 0); }
   setAgents(list) { this.nodes = list.map((a, i) => ({ ...a, i, pos: [0, 0] })); }
   pulse(key, status) { const n = this.nodes.find((x) => x.key === key); if (n) { this.pulses.push({ n, t: 0, col: COLORS[status] || COLORS.ok }); this.flash = 1; } }
+  setMemory(g) {   // real memories become neurons: kind = colour, importance = size, similarity = synapses
+    this.mem.clear(); const used = new Set(), idx = {}, N = this.pts.length;
+    const h = (s) => { let x = 2166136261; for (const c of s) x = Math.imul(x ^ c.charCodeAt(0), 16777619); return Math.abs(x); };
+    for (const n of g.nodes.filter((n) => n.kind !== "subject")) {
+      let i = h(n.id) % N; while (used.has(i) && used.size < N) i = (i + 1) % N;
+      used.add(i); idx[n.id] = i; this.mem.set(i, n);
+    }
+    this.memLinks = g.links.filter((l) => idx[l.source] != null && idx[l.target] != null).map((l) => [idx[l.source], idx[l.target], l.w]);
+    this.memIndex = idx;
+  }
+  recall(ids) { for (const id of ids) { const i = this.memIndex && this.memIndex["m" + id]; if (i != null) this.lit.set(i, 1); } this.flash = 1; }
+  hitMem(px, py) { let best = -1, bd = 9; for (const [i] of this.mem) { const p = this.P[i]; if (!p) continue; const d = Math.hypot(p[0] - px, p[1] - py); if (d < bd) { bd = d; best = i; } } return best; }
   hit(px, py) { return this.nodes.findIndex((n) => Math.hypot(n.pos[0] - px, n.pos[1] - py) < 28); }
   frame(now) {
     requestAnimationFrame(this.tick);
@@ -221,10 +264,30 @@ class Brain {
       const a = 0.08 + 0.22 * (1 - d / 0.17) + glow * 0.2;
       x.strokeStyle = `rgba(94,232,255,${a})`; x.beginPath(); x.moveTo(P[i][0], P[i][1]); x.lineTo(P[j][0], P[j][1]); x.stroke();
     }
+    this.P = P;
+    // memory synapses
+    for (const [i, j, w] of this.memLinks) {
+      const li = Math.max(this.lit.get(i) || 0, this.lit.get(j) || 0);
+      x.strokeStyle = `rgba(144,133,233,${0.12 + 0.35 * Math.min(1, w) + li * 0.5})`; x.lineWidth = 1 + li * 1.5;
+      const mx = (P[i][0] + P[j][0]) / 2 + (P[i][1] - P[j][1]) * 0.15, my = (P[i][1] + P[j][1]) / 2 - (P[i][0] - P[j][0]) * 0.15;
+      x.beginPath(); x.moveTo(P[i][0], P[i][1]); x.quadraticCurveTo(mx, my, P[j][0], P[j][1]); x.stroke();
+    }
+    x.lineWidth = 1;
     this.pts.forEach((p, i) => {
-      const s = 0.5 + 0.5 * Math.sin(t * 2 + p.ph), r = 1.1 + s * 1.3;
-      x.fillStyle = `rgba(${s > 0.92 ? "255,255,255" : "150,240,255"},${0.35 + 0.5 * s})`;
-      x.beginPath(); x.arc(P[i][0], P[i][1], r, 0, 7); x.fill();
+      const s = 0.5 + 0.5 * Math.sin(t * 2 + p.ph), m = this.mem.get(i);
+      if (m) {
+        const col = MEMCOL[m.kind] || MEMCOL.fact, li = this.lit.get(i) || 0, r = 2 + m.weight * 2.2 + s * 0.8 + li * 4;
+        if (li) { const g = x.createRadialGradient(P[i][0], P[i][1], 0, P[i][0], P[i][1], 26 * li + 6); g.addColorStop(0, `rgba(${col},${0.8 * li})`); g.addColorStop(1, `rgba(${col},0)`);
+          x.fillStyle = g; x.beginPath(); x.arc(P[i][0], P[i][1], 26 * li + 6, 0, 7); x.fill();
+          x.strokeStyle = `rgba(${col},${0.5 * li})`; x.beginPath(); x.moveTo(P[i][0], P[i][1]); x.lineTo(cx, cy); x.stroke();
+          this.lit.set(i, li > 0.02 ? li * 0.985 : 0); if (!this.lit.get(i)) this.lit.delete(i); }
+        x.fillStyle = `rgba(${col},${0.7 + 0.3 * s})`; x.beginPath(); x.arc(P[i][0], P[i][1], r, 0, 7); x.fill();
+        if (this.hoverMem === i) { x.strokeStyle = "#fff"; x.beginPath(); x.arc(P[i][0], P[i][1], r + 3, 0, 7); x.stroke(); }
+      } else {
+        const r = 1.1 + s * 1.3;
+        x.fillStyle = `rgba(${s > 0.92 ? "255,255,255" : "150,240,255"},${0.35 + 0.5 * s})`;
+        x.beginPath(); x.arc(P[i][0], P[i][1], r, 0, 7); x.fill();
+      }
     });
     // synapse sparks travelling along links
     if (!this.reduced) for (let k = 0; k < 14; k++) {
@@ -262,6 +325,13 @@ class Brain {
       const qx = px + (cx - px) * f, qy = py + (cy - py) * f;
       const g = x.createRadialGradient(qx, qy, 0, qx, qy, 14); g.addColorStop(0, `rgba(${p.col},0.95)`); g.addColorStop(1, `rgba(${p.col},0)`);
       x.fillStyle = g; x.beginPath(); x.arc(qx, qy, 14, 0, 7); x.fill();
+    }
+    // hovered memory: show what this neuron "knows"
+    if (this.hoverMem >= 0 && this.mem.get(this.hoverMem)) {
+      const m = this.mem.get(this.hoverMem), p = P[this.hoverMem], txt = m.label.length > 70 ? m.label.slice(0, 69) + "…" : m.label;
+      x.font = "12px Inter, system-ui, sans-serif"; const tw = Math.min(x.measureText(txt).width + 20, w - 20), bx = Math.max(10, Math.min(p[0] - tw / 2, w - tw - 10)), by = p[1] - 46;
+      x.fillStyle = "rgba(6,18,32,0.95)"; x.strokeStyle = `rgba(${MEMCOL[m.kind] || MEMCOL.fact},0.9)`; x.beginPath(); x.roundRect(bx, by, tw, 30, 6); x.fill(); x.stroke();
+      x.fillStyle = "#e2f6ff"; x.textAlign = "left"; x.fillText(txt, bx + 10, by + 19, tw - 20);
     }
     // core label
     x.fillStyle = `rgba(226,246,255,${0.85 + glow * 0.15})`; x.font = "700 13px Inter, system-ui, sans-serif"; x.textAlign = "center";
@@ -374,12 +444,71 @@ document.addEventListener("keydown", (e) => {
 });
 $("#run").addEventListener("click", async (e) => { e.target.disabled = true; try { await post("/api/agents/run"); toast("Agents running…"); poll(); } catch (err) { toast(err.message); e.target.disabled = false; } });
 $("#ask").addEventListener("submit", async (e) => { e.preventDefault(); const q = $("#ask-in").value.trim(); if (!q) return;
-  $("#answer").textContent = "Setz is thinking…"; try { const r = await post("/api/ask", { text: q, speak: false }); $("#answer").textContent = r.answer; $("#ask-in").value = ""; } catch (err) { $("#answer").textContent = err.message; } });
+  $("#answer").textContent = "Setz is thinking…"; recallQuery(q, `Memories Setz used for “${q}”`).catch(() => {});
+  try { const r = await post("/api/ask", { text: q, speak: false }); $("#answer").textContent = r.answer; $("#ask-in").value = ""; loadBrain().catch(() => {}); } catch (err) { $("#answer").textContent = err.message; } });
+
+/* ================= memory + neural network ================= */
+let B = null;
+const KIND_LABEL = { fact: "fact", preference: "preference", episode: "episode", insight: "insight", conversation: "conversation" };
+function renderMemList(list, title) {
+  $("#mems").innerHTML = (title ? `<div style="font-size:12px;color:var(--muted);margin-bottom:4px">${esc(title)}</div>` : "") + (list.length ? list.map((m) =>
+    `<div class="mem"><div><span class="k k-${esc(m.kind)}">${esc(KIND_LABEL[m.kind] || m.kind)}${m.subject ? " · " + esc(m.subject) : ""}</span><div>${esc(m.text || m.label)}</div></div>
+     <div class="sc">${m.score != null ? (m.score * 100).toFixed(0) + "%" : ""}<br><button data-forget="${esc(String(m.id).replace(/^m/, ""))}" aria-label="Forget this">forget</button></div></div>`).join("")
+    : `<div style="color:var(--muted);font-size:13px;padding:8px 0">Nothing found.</div>`);
+}
+async function recallQuery(q, title) {
+  const list = await (await fetch("/api/brain/recall?q=" + encodeURIComponent(q))).json();
+  renderMemList(list, title); brain.recall(list.map((m) => m.id)); return list;
+}
+async function loadBrain() {
+  B = await (await fetch("/api/brain")).json();
+  brain.setMemory(B);
+  const st = B.stats;
+  $("#mem-count").textContent = `${st.memories} memories`;
+  $("#memstats").innerHTML = Object.entries(st.by_kind || {}).map(([k, n]) => `<span class="k-${esc(k)}">● ${esc(k)} ${n}</span>`).join("") + `<span>embedder ${esc(st.embedder || "–")}</span>`;
+  if (!$("#mems").dataset.q) renderMemList(B.nodes.filter((n) => n.kind !== "subject" && n.kind !== "conversation").slice(0, 8).map((n) => ({ ...n, text: n.label })), "Most important right now");
+  drawNet(B.model);
+}
+function drawNet(m) {
+  const c = $("#nn"), r = c.getBoundingClientRect(), dpr = Math.min(devicePixelRatio || 1, 2), x = c.getContext("2d");
+  c.width = r.width * dpr; c.height = r.height * dpr; x.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const w = r.width, h = r.height; x.clearRect(0, 0, w, h);
+  const feats = (m && m.features) || ["kind", "category", "email", "Instagram", "website", "phone", "campus", "distance", "competitors", "score"];
+  const H = m ? m.W2.length : 8, lx = Math.min(150, w * 0.36), hx = lx + (w - lx) * 0.45, ox = w - 40;
+  const yi = (i) => 12 + i * (h - 40) / Math.max(1, feats.length - 1), yh = (j) => 30 + j * (h - 60) / Math.max(1, H - 1), yo = h / 2;
+  const imp = Object.fromEntries((m && m.importance) || []);
+  for (let j = 0; j < H; j++) for (let i = 0; i < feats.length; i++) {
+    const wv = m ? m.W1[j][i] : 0.2; x.strokeStyle = wv >= 0 ? `rgba(94,232,255,${Math.min(0.85, Math.abs(wv) * 0.5 + 0.04)})` : `rgba(240,140,60,${Math.min(0.85, Math.abs(wv) * 0.5 + 0.04)})`;
+    x.lineWidth = Math.min(3, 0.3 + Math.abs(wv)); x.beginPath(); x.moveTo(lx, yi(i)); x.lineTo(hx, yh(j)); x.stroke();
+  }
+  for (let j = 0; j < H; j++) { const wv = m ? m.W2[j] : 0.3; x.strokeStyle = wv >= 0 ? `rgba(94,232,255,${Math.min(0.9, Math.abs(wv) * 0.4 + 0.1)})` : `rgba(240,140,60,${Math.min(0.9, Math.abs(wv) * 0.4 + 0.1)})`;
+    x.lineWidth = Math.min(4, 0.5 + Math.abs(wv)); x.beginPath(); x.moveTo(hx, yh(j)); x.lineTo(ox, yo); x.stroke(); }
+  x.font = "10.5px Inter, system-ui, sans-serif"; x.textAlign = "right";
+  feats.forEach((f, i) => { const v = imp[f] || 0; x.fillStyle = v > 0.01 ? "#e2f6ff" : "rgba(156,195,210,.75)"; x.fillText(f, lx - 10, yi(i) + 3.5);
+    x.fillStyle = `rgba(94,232,255,${0.4 + Math.min(0.6, v * 4)})`; x.beginPath(); x.arc(lx, yi(i), 3 + Math.min(4, v * 20), 0, 7); x.fill(); });
+  for (let j = 0; j < H; j++) { x.fillStyle = "#08182a"; x.strokeStyle = "rgba(94,232,255,.9)"; x.lineWidth = 1.5; x.beginPath(); x.arc(hx, yh(j), 7, 0, 7); x.fill(); x.stroke(); }
+  x.fillStyle = m && m.trusted ? "rgba(76,217,123,.95)" : "rgba(106,143,160,.9)"; x.beginPath(); x.arc(ox, yo, 12, 0, 7); x.fill();
+  x.textAlign = "center"; x.fillStyle = "#e2f6ff"; x.font = "600 10px Inter, system-ui, sans-serif"; x.fillText("reply", ox, yo + 26); x.fillText("chance", ox, yo + 38);
+  x.fillStyle = "rgba(156,195,210,.8)"; x.font = "10px JetBrains Mono, monospace"; x.fillText("inputs", lx - 30, h - 2); x.fillText("hidden (tanh)", hx, h - 2);
+  $("#nn-at").textContent = m && m.trained_at ? "trained " + timeOf(m.trained_at) : "untrained";
+  $("#nnstats").innerHTML = m ? [["Trained on", m.n + " leads"], ["Replied", m.positives + " (" + Math.round(100 * m.base_rate) + "%)"], ["CV AUC", m.auc == null ? "–" : m.auc.toFixed(2) + (m.trusted ? " ✓" : " (learning)")]]
+    .map(([k, v]) => `<div class="kpi"><div class="k">${k}</div><div class="v" style="font-size:15px">${esc(v)}</div></div>`).join("")
+    : `<div style="grid-column:1/-1;color:var(--muted);font-size:13px">Learns once ~20 contacted leads have an outcome (replied or not). Run the brain job after you've done outreach.</div>`;
+  const sig = ((m && m.importance) || []).filter(([, v]) => v > 0).slice(0, 5), mx = Math.max(0.001, ...sig.map(([, v]) => v));
+  $("#signals").innerHTML = sig.length ? `<div style="font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)">What predicts a reply</div>` + sig.map(([n, v]) =>
+    `<div class="sig"><span>${esc(n)}</span><div class="b"><i style="width:${Math.round(100 * v / mx)}%"></i></div><span class="v">+${v.toFixed(3)}</span></div>`).join("") : "";
+}
+$("#memsearch").addEventListener("submit", async (e) => { e.preventDefault(); const q = $("#mem-q").value.trim(); if (!q) return; $("#mems").dataset.q = q; await recallQuery(q, `Recalled for “${q}”`); });
+$("#memadd").addEventListener("submit", async (e) => { e.preventDefault(); const t = $("#mem-new").value.trim(); if (!t) return;
+  try { const r = await post("/api/brain/remember", { text: t, importance: 0.85 }); $("#mem-new").value = ""; toast("Setz will remember that"); await loadBrain(); brain.recall([r.id]); } catch (err) { toast(err.message); } });
+document.addEventListener("click", async (e) => { const f = e.target.closest("[data-forget]"); if (!f) return;
+  await post(`/api/brain/forget/${f.dataset.forget}`); f.closest(".mem").remove(); toast("Forgotten"); loadBrain(); });
+new ResizeObserver(() => B && drawNet(B.model)).observe($("#nn"));
 
 /* ================= data ================= */
 async function load() {
   [A, S, O] = await Promise.all(["/api/agents", "/api/summary", "/api/ops"].map((u) => fetch(u).then((r) => r.json())));
-  renderRoster(); renderBriefing(); renderStream(); renderGauges(); renderCharts();
+  renderRoster(); renderBriefing(); renderStream(); renderGauges(); renderCharts(); loadBrain().catch(() => {});
   $("#run").disabled = !!A.running;
   if (drawerKey && $("#drawer").classList.contains("open")) openDrawer(drawerKey);
 }

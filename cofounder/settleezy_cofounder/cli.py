@@ -375,6 +375,34 @@ def cmd_week(args) -> None:
                 print(f"  - {i['text']}")
 
 
+def cmd_brain(args) -> None:
+    from . import brain
+
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        a, text = args.action, " ".join(args.text)
+        if a == "learn":
+            _print(brain.learn(cfg, db))
+        elif a == "remember":
+            print("remembered #", brain.remember(cfg, db, text, kind=args.kind, subject=args.subject or "", importance=0.85))
+        elif a == "recall":
+            for m in brain.recall(cfg, db, text, args.k):
+                print(f"{m['score']:.2f}  [{m['kind']}{' · ' + m['subject'] if m['subject'] else ''}] {m['text']}")
+        elif a == "forget":
+            print("removed" if brain.forget(db, int(text)) else "not found")
+        elif a == "model":
+            g = brain.graph(cfg, db, 10)["model"]
+            if not g:
+                print("Not trained yet: needs about 20 contacted leads with a known outcome. Run `sz brain learn` later.")
+            else:
+                print(f"Lead reply model: {g['n']} leads ({g['positives']} replied), cross-validated AUC {g['auc']}"
+                      f"{'' if g['trusted'] else ' (not trusted yet: below 0.55)'}")
+                for name, v in g["importance"][:8]:
+                    print(f"  {name:<22} {v:+.3f}")
+        else:
+            _print(brain.stats(db))
+
+
 def cmd_dashboard(args) -> None:
     from .dashboard.app import serve
 
@@ -501,6 +529,14 @@ def main(argv: list[str] | None = None) -> None:
     wk.add_argument("--apply", action="store_true", help="give undated/overdue to-dos their planned day")
     wk.add_argument("--ics", help="write the plan as a calendar file to import into Outlook")
     wk.set_defaults(fn=cmd_week)
+
+    br = sub.add_parser("brain", help="Setz's memory + neural lead model: stats | learn | recall <q> | remember <text> | forget <id> | model")
+    br.add_argument("action", nargs="?", default="stats", choices=["stats", "learn", "recall", "remember", "forget", "model"])
+    br.add_argument("text", nargs="*")
+    br.add_argument("--subject")
+    br.add_argument("--kind", default="fact", choices=["fact", "preference", "episode", "insight"])
+    br.add_argument("-k", type=int, default=8)
+    br.set_defaults(fn=cmd_brain)
 
     db_ = sub.add_parser("dashboard", help="open the local dashboard")
     db_.add_argument("--port", type=int, default=None)

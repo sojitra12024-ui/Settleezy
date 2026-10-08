@@ -290,6 +290,52 @@ def task_action(task_id: int, body: dict, x_sz: str | None = Header(default=None
     return {"ok": True}
 
 
+# -- brain ------------------------------------------------------------------------
+
+@app.get("/api/brain")
+def brain_graph(limit: int = 90) -> dict:
+    from .. import brain
+
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        return brain.graph(cfg, db, max(10, min(limit, 200)))
+
+
+@app.get("/api/brain/recall")
+def brain_recall(q: str, k: int = 8) -> list[dict]:
+    from .. import brain
+
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        return brain.recall(cfg, db, q, max(1, min(k, 20)))
+
+
+@app.post("/api/brain/remember")
+def brain_remember(body: dict, x_sz: str | None = Header(default=None)) -> dict:
+    _guard(x_sz)
+    from .. import brain
+
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        try:
+            mid = brain.remember(cfg, db, body.get("text", ""), kind=body.get("kind", "fact"), subject=body.get("subject", ""),
+                                 source="dashboard", importance=float(body.get("importance", 0.8)))
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+    _broadcast_agent({"agent": "setz", "status": "ok", "summary": "New memory stored", "kind": "memory"})
+    return {"id": mid}
+
+
+@app.post("/api/brain/forget/{memory_id}")
+def brain_forget(memory_id: int, x_sz: str | None = Header(default=None)) -> dict:
+    _guard(x_sz)
+    from .. import brain
+
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        return {"removed": brain.forget(db, memory_id)}
+
+
 # -- pipeline + week planner ---------------------------------------------------
 
 @app.get("/api/pipeline")
@@ -541,6 +587,27 @@ def _fanout(state: dict) -> None:
             q.put_nowait(state)
         except asyncio.QueueFull:
             pass
+
+
+def _agent_fanout(event: dict) -> None:
+    for q in list(_agent_subs):
+        try:
+            q.put_nowait(event)
+        except asyncio.QueueFull:
+            pass
+
+
+def _broadcast_agent(event: dict) -> None:
+    """Push an event to the command center's live stream (thread-safe)."""
+    event = {**event, "at": time.time()}
+    try:
+        running = asyncio.get_running_loop()
+    except RuntimeError:
+        running = None
+    if _loop is not None and running is not _loop:
+        _loop.call_soon_threadsafe(_agent_fanout, event)
+    elif running is not None:
+        _agent_fanout(event)
 
 
 def _broadcast(event: dict) -> None:

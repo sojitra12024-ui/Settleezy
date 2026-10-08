@@ -126,7 +126,20 @@ def board(db: DB, limit: int = 60) -> list[dict]:
         l["stale"] = bool(d is not None and d > STALE_DAYS.get(l["status"], 7))
         l["open_task"] = open_steps.get(l["id"])
         l["has_next_step"] = bool(l["next_step"] or l["open_task"])
+    _with_reply_chance(db, rows)
     return rows
+
+
+def _with_reply_chance(db: DB, rows: list[dict]) -> None:
+    """Add the neural lead model's reply probability (None until it has enough history to be trusted)."""
+    try:
+        from .brain import reply_chance
+
+        for l in rows:
+            l["reply_chance"] = reply_chance(db, l)
+    except Exception:
+        for l in rows:
+            l["reply_chance"] = None
 
 
 def stale(db: DB) -> list[dict]:
@@ -263,8 +276,13 @@ def auto_start(cfg: Config, db: DB, limit: int | None = None) -> list[dict]:
     room = max(0, cap - started_this_week(db))
     if limit is not None:
         room = min(room, limit)
-    picked = db.q("SELECT * FROM leads WHERE status IN ('new','drafted') AND sequence_started IS NULL "
-                  "AND (email != '' OR instagram != '' OR website != '' OR address != '') ORDER BY score DESC LIMIT ?", (room,))
+    pool = [dict(r) for r in db.q("SELECT * FROM leads WHERE status IN ('new','drafted') AND sequence_started IS NULL "
+                                  "AND (email != '' OR instagram != '' OR website != '' OR address != '') ORDER BY score DESC LIMIT ?",
+                                  (max(room * 5, 1),))]
+    _with_reply_chance(db, pool)
+    # with a trusted model, rank by expected value: score x how likely they are to answer
+    pool.sort(key=lambda l: -(l["score"] * (0.5 + l["reply_chance"]) if l["reply_chance"] is not None else l["score"]))
+    picked = pool[:room]
     out = []
     for l in picked:
         out.append({"lead_id": l["id"], "name": l["name"], "steps": start_sequence(cfg, db, l["id"])})

@@ -705,7 +705,7 @@ function renderPipeline(p) {
     const sq = seqs[l.id], ot = l.open_task, otTitle = ot ? (ot.title.includes(": ") ? ot.title.split(": ").slice(1).join(": ") : ot.title) : "";
     const nxt = ot ? `${esc(otTitle)} <span class="muted">· ${esc(ot.due || "")}</span>` : l.next_step ? `${esc(l.next_step)} <span class="muted">· ${esc(l.next_step_due || "")}</span>` : `<span class="stale">none</span>`;
     const bar = sq ? `<span class="seqbar" title="sequence ${sq.done}/${sq.total}">${Array.from({ length: sq.total }, (_, i) => `<i class="${i < sq.done ? "on" : ""}"></i>`).join("")}</span>` : "";
-    return `<tr><td><b>${esc(l.name)}</b><div class="muted" style="font-size:12px">${esc(l.kind)}${l.campus ? " · " + esc(l.campus) : ""}${l.email ? " · ✉" : ""}</div></td>
+    return `<tr><td><b>${esc(l.name)}</b><div class="muted" style="font-size:12px">${esc(l.kind)}${l.campus ? " · " + esc(l.campus) : ""}${l.email ? " · ✉" : ""}${l.reply_chance != null && ["drafted", "contacted"].includes(l.status) ? ` · <span title="neural lead model">${Math.round(100 * l.reply_chance)}% reply chance</span>` : ""}</div></td>
       <td><select data-lead="${l.id}" aria-label="Stage">${STATUSES.map(s => `<option ${s === l.status ? "selected" : ""}>${s}</option>`).join("")}</select></td>
       <td class="${l.stale ? "stale" : ""}">${l.days_in_stage == null ? "–" : fmt(l.days_in_stage) + " d"}</td>
       <td>${bar}${nxt}</td>

@@ -113,6 +113,12 @@ def _pipeline(cfg: Config, db: DB) -> Any:
     return {"sequences_started": auto_start(cfg, db)}
 
 
+def _brain(cfg: Config, db: DB) -> Any:
+    from .brain import learn
+
+    return learn(cfg, db)
+
+
 JOBS: dict[str, Callable[[Config, DB], Any]] = {
     "mail": _mail,
     "track": _track,
@@ -129,10 +135,11 @@ JOBS: dict[str, Callable[[Config, DB], Any]] = {
     "growth": _growth,
     "leadgen": _leadgen,
     "pipeline": _pipeline,
+    "brain": _brain,
 }
 
 # What `sz morning` runs, in order. Sources that aren't configured are skipped, not fatal.
-MORNING = ["doctor", "mail", "calendly", "instagram", "track", "ops", "agents", "drafts", "brief"]
+MORNING = ["doctor", "mail", "calendly", "instagram", "track", "ops", "agents", "brain", "drafts", "brief"]
 
 
 def run_job(cfg: Config, name: str) -> Any:

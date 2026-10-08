@@ -144,7 +144,37 @@ def split_wake(text: str, required: bool = True) -> tuple[bool, str]:
 
 
 def answer(cfg: Config, text: str, lang: str) -> str:
-    """Route a request (spoken or typed). Quick, reliable answers for the common things; the brain for the rest."""
+    """Route a request (spoken or typed) and keep the exchange in Setz's memory."""
+    reply = _answer(cfg, text, lang)
+    if len(text.split()) >= 3:
+        try:
+            from .brain import remember
+
+            with DB(cfg.db_path) as db:
+                remember(cfg, db, f"Founder asked: {text[:200]} | Setz: {reply[:300]}", kind="conversation",
+                         source="voice", importance=0.2)
+        except Exception:
+            pass   # memory must never break answering
+    return reply
+
+
+_REMEMBER = re.compile(r"^\s*(?:please\s+)?(?:remember|keep in mind|note)(?: that)?[:,]?\s+(.+)|^\s*merk dir(?:,? dass)?[:,]?\s+(.+)", re.I)
+_KNOW = re.compile(r"\b(?:what do you know about|what do we know about|tell me about|was weißt du über)\s+(.+?)[?.!]*$", re.I)
+
+
+def _subject_in(db: DB, text: str) -> str:
+    low = text.casefold()
+    best = ""
+    for r in db.q("SELECT name FROM partners UNION SELECT name FROM leads"):
+        n = r["name"]
+        if len(n) > len(best) and len(n) >= 4 and n.casefold() in low:
+            best = n
+    return best
+
+
+def _answer(cfg: Config, text: str, lang: str) -> str:
+    """Quick, reliable answers for the common things; the brain for the rest."""
+    from . import brain
     from . import brief as brief_mod
     from . import ops
     from .leads import top
@@ -152,6 +182,18 @@ def answer(cfg: Config, text: str, lang: str) -> str:
 
     t = text.lower()
     with DB(cfg.db_path) as db:
+        m = _REMEMBER.match(text)
+        if m:
+            fact = (m.group(1) or m.group(2)).strip(" .")
+            brain.remember(cfg, db, fact, kind="preference" if re.search(r"\bprefers?|likes?|mag\b", fact, re.I) else "fact",
+                           subject=_subject_in(db, fact), source="voice", importance=0.85)
+            return "Got it, I'll remember that." if lang != "de" else "Alles klar, ich merke es mir."
+        m = _KNOW.search(text)
+        if m:
+            mems = brain.recall(cfg, db, m.group(1), 4)
+            if not mems:
+                return f"I don't know anything about {m.group(1)} yet."
+            return " ".join(x["text"].rstrip(".") + "." for x in mems if x["kind"] != "conversation")[:700] or mems[0]["text"]
         m = re.search(r"\b(?:remind me to|add (?:a )?(?:task|to-?do)(?: to)?|note to self|erinnere mich(?: daran)?,?)\s+(.+)", text, re.I)
         if m:
             tid = ops.add_task(db, m.group(1), source="voice")
@@ -239,8 +281,15 @@ def ask_brain(cfg: Config, text: str, lang: str) -> str:
     try:
         from openjarvis import Jarvis  # type: ignore  # OpenJarvis is the framework Setz runs on
 
+        try:
+            from .brain import context_for
+
+            with DB(cfg.db_path) as db:
+                mem = context_for(cfg, db, text, 6)
+        except Exception:
+            mem = ""
         with Jarvis(config_path=cfg.get("voice.openjarvis_config") or None) as j:
-            return j.ask(f"[{SETZ_PERSONA}]\n{text}{suffix}")
+            return j.ask(f"[{SETZ_PERSONA}]\n" + (f"[What you remember:\n{mem}]\n" if mem else "") + f"{text}{suffix}")
     except ImportError:
         pass
     from .knowledge import ONE_LINER
@@ -249,6 +298,12 @@ def ask_brain(cfg: Config, text: str, lang: str) -> str:
     from .ops import partner_stats, reach_out, today_plan
 
     with DB(cfg.db_path) as db:
+        try:
+            from .brain import context_for
+
+            memories = context_for(cfg, db, text, 8)
+        except Exception:
+            memories = ""
         latest = cfg.data_dir / "briefs" / f"{time.strftime('%Y-%m-%d')}.md"
         context = latest.read_text(encoding="utf-8") if latest.exists() else ""
         state = {
@@ -258,7 +313,7 @@ def ask_brain(cfg: Config, text: str, lang: str) -> str:
             "plan": [(i["start"], i["title"]) for i in today_plan(cfg, db)["items"]],
         }
     return LLM(cfg).cloud(
-        f"Today's brief:\n{context}\n\nLive state: {json.dumps(state, ensure_ascii=False, default=str)}\n\nQuestion: {text}\n"
+        f"Today's brief:\n{context}\n\nWhat you remember that may be relevant:\n{memories or '- nothing yet'}\n\nLive state: {json.dumps(state, ensure_ascii=False, default=str)}\n\nQuestion: {text}\n"
         f"Answer in {'German' if lang == 'de' else 'English'} in at most 3 short sentences; it will be read aloud.",
         SETZ_PERSONA + " " + ONE_LINER,
         effort="low",

@@ -185,6 +185,30 @@ sz week                           sz week --next            sz week --apply   sz
 ```
 Voice: "Hey Setz, plan my week", "how's the pipeline?".
 
+## Setz's brain: memory and a neural network
+
+**Memory.** Setz keeps long-term memories (facts, preferences, episodes, insights and your conversations) and finds them
+by meaning: ask "how should I contact Brew Lab?" and it recalls that Lea prefers WhatsApp. It learns by itself every
+morning from partners, lead notes, stage changes, meetings, the knowledge base and your pipeline/planner analytics, and
+you can teach it: "Hey Setz, remember that Anna at Café Kranz wants a monthly report", or the Remember box in the
+command center. Every answer from Setz (voice, dashboard, OpenJarvis) includes the relevant memories.
+"What do you know about HTW?" reads them back.
+
+For the best recall in English *and* German, install the multilingual embedder (CPU-only, no GPU needed):
+`pip install fastembed`. Without it Setz uses Ollama (`ollama pull bge-m3`) or a built-in offline embedder.
+
+**Neural network.** A small neural network (14 inputs → 8 hidden units → reply chance) learns from your own outreach
+which leads answer: kind, category, contact channels, distance to campus, presence on competitor sites. It is
+cross-validated before it is trusted (AUC ≥ 0.55), shows what predicts a reply, ranks which leads get the next
+outreach sequences, and shows each lead's reply chance on the Pipeline tab. It starts once ~20 contacted leads have an
+outcome. The command center draws the network with its real weights, and the brain's neurons are your memories:
+they light up when Setz recalls them.
+
+```
+sz brain                     sz brain learn               sz brain model
+sz brain recall who prefers WhatsApp                     sz brain remember Anna wants monthly reports --subject "Café Kranz"
+```
+
 ## What's next
 See [`ROADMAP.md`](ROADMAP.md) for researched open-source projects that could be added next: a WhatsApp + Instagram DM inbox, partner impact reports, a content engine, OpenStreetMap venue discovery, app analytics, CRM, e-signatures, newsletters, memory and more, ranked by business impact.
 

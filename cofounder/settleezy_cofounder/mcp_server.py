@@ -324,6 +324,39 @@ def plan_week(next_week: bool = False) -> str:
         }, ensure_ascii=False, default=str)
 
 
+@server.tool()
+def remember(text: str, subject: str = "", kind: str = "fact", importance: float = 0.8) -> str:
+    """Store something in Setz's long-term memory (a fact, preference, insight or episode), e.g.
+    'Lea from Brew Lab prefers WhatsApp'. subject = the person/company/topic it is about."""
+    from . import brain
+
+    cfg, db = _db()
+    with db:
+        return f"remembered (#{brain.remember(cfg, db, text, kind=kind, subject=subject, source='mcp', importance=importance)})"
+
+
+@server.tool()
+def recall(query: str, k: int = 8) -> str:
+    """Search Setz's long-term memory by meaning: partners, leads, past meetings, outcomes, insights, preferences."""
+    from . import brain
+
+    cfg, db = _db()
+    with db:
+        return json.dumps([{k2: m[k2] for k2 in ("kind", "subject", "text", "score", "updated_at")}
+                           for m in brain.recall(cfg, db, query, k)], ensure_ascii=False)
+
+
+@server.tool()
+def lead_model() -> str:
+    """The neural lead model: how well it predicts replies (cross-validated AUC) and which signals matter most."""
+    from . import brain
+
+    cfg, db = _db()
+    with db:
+        g = brain.graph(cfg, db, 10)
+        return json.dumps(g["model"] or "not trained yet: needs ~20 contacted leads with outcomes", ensure_ascii=False)
+
+
 def main() -> None:
     server.run("stdio")
 
