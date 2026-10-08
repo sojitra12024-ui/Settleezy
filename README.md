@@ -11,3 +11,9 @@
 | Free trial | €0 for 30 days |
 | Semester | €40 |
 | Annual | €70 |
+
+## In this repository
+
+| Folder | What it is |
+|---|---|
+| `cofounder/` | The founder's personal assistant and growth co-founder: learns your email voice, drafts in Outlook (never sends), daily brief, competitor and lead engine, voice, dashboard. See `cofounder/README.md` |

@@ -1,0 +1,23 @@
+# OpenJarvis config for the Settleezy co-founder.
+# Copy this file AND mcp-servers.json to %USERPROFILE%\.openjarvis\  (see cofounder/README.md, step 7).
+#
+# Laptop: i5-11300H, 16 GB RAM, RTX 3060 Laptop (6 GB VRAM) -> a 7-8B model at Q4 runs fully on the GPU.
+
+[engine]
+default = "ollama"
+
+[intelligence]
+default_model = "qwen2.5:7b-instruct"
+temperature = 0.3
+
+[agent]
+default_agent = "orchestrator"
+max_turns = 12
+context_from_memory = true
+
+[tools]
+enabled = ["think", "web_search", "memory_store", "memory_search", "knowledge_search"]
+
+[tools.mcp]
+enabled = true
+servers = "mcp-servers.json"   # gives Jarvis the settleezy tools: daily_brief, inbox_needs_reply, create_drafts, top_leads, ...

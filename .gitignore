@@ -1,3 +1,8 @@
+# co-founder assistant: private data and secrets
+cofounder/data/
+cofounder/.env
+cofounder/config.toml
+cofounder/.venv/
 __pycache__/
 *.egg-info/
 .pytest_cache/

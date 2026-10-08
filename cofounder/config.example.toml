@@ -1,0 +1,52 @@
+# Copy to config.toml (`sz init` does this) and edit. Secrets go in .env, not here.
+
+[me]
+name = "Your Name"
+role = "Founder"
+emails = ["you@settleezy.de"]          # every address you send from (used to tell your mail from others')
+timezone = "Europe/Berlin"
+
+[llm]
+ollama_url = "http://localhost:11434"
+local_model = "qwen2.5:7b-instruct"     # fits the RTX 3060 6 GB; reads raw mail locally
+cloud_enabled = true                    # Claude writes drafts + analysis (inputs are redacted first)
+cloud_model = "claude-opus-5-5"
+
+[outlook]
+history_days = 365                      # first sync pulls this much history for learning your voice
+max_messages_per_sync = 5000
+draft_category = "Settleezy AI"         # every draft is tagged with this Outlook category
+
+[triage]
+ignore_domains = []                     # e.g. ["@hostinger.com", "@stripe.com"]
+
+[followup]
+cadence_days = [4, 7, 14]               # follow-up #1 after 4 days, #2 after 7 more, breakup after 14; `sz learn` suggests better values
+
+[drafts]
+max_per_run = 15
+
+[scraping]
+sites_file = "competitors.toml"
+min_delay_seconds = 4                   # per host; polite and avoids blocks
+respect_robots = true
+enrich_per_run = 20
+
+[instagram]
+graph_version = "v23.0"
+metrics = ["reach", "profile_views", "website_clicks", "accounts_engaged"]
+
+[voice]
+whisper_model = "small"                 # "medium" is more accurate for German, slower
+wake_threshold = 0.5
+rate = 185
+openjarvis_config = ""                  # empty = ~/.openjarvis/config.toml
+
+[growth]
+goals = [
+  "Reach 1,000 paying members in Berlin by the end of the winter semester",
+  "Sign 30 partner venues in Berlin (restaurants, cafés, grocery stores, activities, events)",
+  "Sign 3 Berlin universities for the Buddy platform before the next intake",
+  "Keep trial-to-paid conversion above 25%",
+  "Run 2 workshops per month (CV, portfolio)",
+]

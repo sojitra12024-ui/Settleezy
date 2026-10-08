@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Settleezy HQ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
+<style>
+:root {
+  color-scheme: light;
+  --bg: #f4f4f1; --surface-1: #fcfcfb; --surface-2: #f0efec; --border: #e3e2dd;
+  --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #7a7974;
+  --accent: #2a78d6; --accent-ink: #ffffff;
+  --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a; --series-4: #eda100; --series-5: #e87ba4;
+  --good: #0ca30c; --warning: #fab219; --critical: #d03b3b; --good-text: #006300;
+  --grid: #e8e7e3;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #121211; --surface-1: #1a1a19; --surface-2: #232321; --border: #2f2f2c;
+    --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #8f8e86;
+    --accent: #3987e5;
+    --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --series-4: #c98500; --series-5: #d55181;
+    --good-text: #4cc94c; --grid: #2a2a28;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #121211; --surface-1: #1a1a19; --surface-2: #232321; --border: #2f2f2c;
+  --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #8f8e86;
+  --accent: #3987e5;
+  --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --series-4: #c98500; --series-5: #d55181;
+  --good-text: #4cc94c; --grid: #2a2a28;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text-primary); font: 14px/1.5 Inter, system-ui, sans-serif; }
+header { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between;
+  padding: 14px 24px; background: var(--surface-1); border-bottom: 1px solid var(--border); }
+header h1 { font-size: 18px; margin: 0; letter-spacing: -0.01em; }
+header .sub { color: var(--text-secondary); font-size: 13px; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+button, select { font: inherit; font-size: 13px; border: 1px solid var(--border); background: var(--surface-1); color: var(--text-primary);
+  border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+button:hover { background: var(--surface-2); }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+button:disabled { opacity: .55; cursor: progress; }
+main { max-width: 1400px; margin: 0 auto; padding: 20px 24px 60px; display: grid; gap: 16px; grid-template-columns: repeat(12, 1fr); }
+.card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; min-width: 0; }
+.card h2 { font-size: 14px; margin: 0 0 12px; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.card h2 small { color: var(--text-muted); font-weight: 400; }
+.span-12 { grid-column: span 12; } .span-8 { grid-column: span 8; } .span-6 { grid-column: span 6; } .span-4 { grid-column: span 4; }
+.kpis { grid-column: span 12; display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.kpi { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+.kpi .label { color: var(--text-secondary); font-size: 12px; }
+.kpi .value { font-size: 28px; font-weight: 600; letter-spacing: -0.02em; margin-top: 2px; }
+.kpi .note { color: var(--text-muted); font-size: 12px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; color: var(--text-muted); font-weight: 500; font-size: 12px; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+td { padding: 7px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+td a { color: var(--accent); text-decoration: none; }
+.scroll { max-height: 360px; overflow: auto; }
+.pill { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; padding: 1px 8px; border-radius: 99px; background: var(--surface-2); color: var(--text-secondary); white-space: nowrap; }
+.pill.high::before { content: "▲"; color: var(--critical); }
+.pill.med::before { content: "●"; color: var(--warning); }
+.muted { color: var(--text-muted); }
+.empty { color: var(--text-muted); padding: 12px 0; }
+.timeline .ev { display: grid; grid-template-columns: 92px 1fr; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.timeline .ev:last-child { border-bottom: 0; }
+.timeline .time { font-variant-numeric: tabular-nums; color: var(--text-secondary); }
+.chart-wrap { position: relative; height: 240px; }
+.legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; color: var(--text-secondary); margin-bottom: 8px; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+.funnel { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 8px; }
+.funnel div { background: var(--surface-2); border-radius: 8px; padding: 8px 10px; }
+.funnel b { display: block; font-size: 20px; }
+.funnel span { font-size: 12px; color: var(--text-secondary); text-transform: capitalize; }
+.md { font-size: 13.5px; } .md h1 { font-size: 16px; } .md h2 { font-size: 14px; margin: 14px 0 6px; } .md ul { padding-left: 18px; }
+.tabs { display: flex; gap: 6px; }
+.tabs button[aria-selected="true"] { background: var(--surface-2); font-weight: 600; }
+.toast { position: fixed; bottom: 18px; right: 18px; background: var(--text-primary); color: var(--bg); padding: 10px 14px; border-radius: 8px; font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+.toast.show { opacity: 1; }
+details summary { cursor: pointer; color: var(--text-secondary); font-size: 12px; margin-top: 8px; }
+@media (max-width: 1000px) { .span-8, .span-6, .span-4 { grid-column: span 12; } }
+@media (max-width: 600px) { header, main { padding-left: 16px; padding-right: 16px; } }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Settleezy HQ</h1>
+    <div class="sub" id="sub">Loading…</div>
+  </div>
+  <div class="actions">
+    <button data-job="mail">Sync Outlook</button>
+    <button data-job="calendly">Calendly</button>
+    <button data-job="instagram">Instagram</button>
+    <button data-job="scrape">Scan competitors</button>
+    <button data-job="drafts">Write drafts</button>
+    <button data-job="brief" class="primary">New brief</button>
+    <button id="theme" title="Toggle theme">◐</button>
+  </div>
+</header>
+
+<main>
+  <section class="kpis" id="kpis"></section>
+
+  <section class="card span-4"><h2>Today <small id="today-date"></small></h2><div class="timeline" id="today"></div>
+    <details><summary>Upcoming</summary><div class="timeline" id="upcoming"></div></details></section>
+
+  <section class="card span-8"><h2>Inbox <span class="tabs"><button data-tab="replies" aria-selected="true">Replies owed</button><button data-tab="followups">Follow-ups due</button></span></h2>
+    <div class="scroll"><table id="inbox"></table></div></section>
+
+  <section class="card span-8"><h2>New Berlin listings by competitor <small>last 14 days</small></h2>
+    <div class="legend" id="listings-legend"></div><div class="chart-wrap"><canvas id="listingsChart" aria-label="New listings per day by competitor"></canvas></div>
+    <details><summary>Table view</summary><div class="scroll"><table id="listings-table"></table></div></details></section>
+
+  <section class="card span-4"><h2>Partner pipeline</h2><div class="funnel" id="funnel"></div>
+    <h2 style="margin-top:16px">Outreach reply rate by weekday <small id="reply-overall"></small></h2>
+    <div class="chart-wrap" style="height:170px"><canvas id="weekdayChart" aria-label="Reply rate by weekday"></canvas></div></section>
+
+  <section class="card span-12"><h2>Best new leads <small>score = student relevance × proven discount appetite × reachability</small></h2>
+    <div class="scroll"><table id="leads"></table></div></section>
+
+  <section class="card span-6"><h2>Latest competitor listings</h2><div class="scroll"><table id="latest"></table></div></section>
+
+  <section class="card span-6"><h2>Instagram <small id="ig-note"></small></h2>
+    <div class="chart-wrap" style="height:180px"><canvas id="igChart" aria-label="Instagram followers"></canvas></div>
+    <h2 style="margin-top:14px">Comments waiting for you</h2><div class="scroll" style="max-height:180px"><table id="igc"></table></div></section>
+
+  <section class="card span-6"><h2>Daily brief</h2><div class="md scroll" id="brief"></div></section>
+  <section class="card span-6"><h2>Co-founder weekly review</h2><div class="md scroll" id="report"></div></section>
+</main>
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const safeUrl = (u) => /^https?:\/\//i.test(u || "") ? esc(u) : "#";
+const md = (s) => DOMPurify.sanitize(marked.parse(s || ""));
+const SOURCES = ["groupon", "vspots", "top10berlin", "unidays", "studentbeans"];   // fixed order = fixed colour
+const STATUSES = ["new", "drafted", "contacted", "replied", "meeting", "partner", "lost"];
+let DATA = null, charts = {}, tab = "replies";
+
+function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.add("show"); setTimeout(() => t.classList.remove("show"), 2600); }
+async function post(url, body) {
+  const r = await fetch(url, { method: "POST", headers: { "X-SZ": "1", "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.detail || r.statusText);
+  return j;
+}
+
+function kpi(label, value, note) { return `<div class="kpi"><div class="label">${esc(label)}</div><div class="value">${esc(value)}</div><div class="note">${esc(note || "")}</div></div>`; }
+function last(series) { return series && series.length ? series[series.length - 1][1] : null; }
+function delta(series) { if (!series || series.length < 2) return ""; const d = series[series.length - 1][1] - series[0][1]; return (d >= 0 ? "+" : "") + d + " in 14 days"; }
+
+function renderKpis(d) {
+  const ig = d.metrics["instagram.followers"];
+  const rr = d.outreach && d.outreach.reply_rate != null ? Math.round(d.outreach.reply_rate * 100) + "%" : "–";
+  $("#kpis").innerHTML = [
+    kpi("Meetings today", d.events_today.length, d.events_upcoming.length + " upcoming"),
+    kpi("Replies owed", d.replies.length, d.replies.filter(r => r.priority >= 3).length + " high priority"),
+    kpi("Follow-ups due", d.followups.length, "per your cadence"),
+    kpi("Drafts (7 days)", d.drafts_7d, "in Outlook → Drafts"),
+    kpi("New listings (7 days)", d.new_listings.length, d.listings_total + " tracked"),
+    kpi("New leads (7 days)", d.leads_new_7d, "from competitors + seeds"),
+    kpi("Instagram followers", last(ig) ?? "–", delta(ig)),
+    kpi("Outreach reply rate", rr, d.outreach.threads ? d.outreach.threads + " threads" : "run: sz learn"),
+  ].join("");
+}
+
+function renderToday(d) {
+  $("#today-date").textContent = new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short" });
+  const ev = (e) => `<div class="ev"><div class="time">${esc(e.start.slice(11, 16))}–${esc(e.end.slice(11, 16))}</div><div><div>${esc(e.title)}</div><div class="muted">${esc(e.source)}${e.location ? " · " + esc(e.location) : ""}${e.attendees ? " · " + esc(e.attendees).slice(0, 80) : ""}</div></div></div>`;
+  $("#today").innerHTML = d.events_today.map(ev).join("") || `<div class="empty">No meetings today.</div>`;
+  $("#upcoming").innerHTML = d.events_upcoming.map(e => ev({ ...e, start: e.start.slice(5, 10) + " " + e.start.slice(11, 16), end: e.end })).join("") || `<div class="empty">Nothing scheduled.</div>`;
+}
+
+function renderInbox(d) {
+  const rows = tab === "replies" ? d.replies : d.followups;
+  if (!rows.length) { $("#inbox").innerHTML = `<tr><td class="empty">${tab === "replies" ? "Inbox clear." : "No follow-ups due."}</td></tr>`; return; }
+  $("#inbox").innerHTML = `<tr><th>Who</th><th>Subject</th><th>${tab === "replies" ? "What they want" : "Status"}</th><th>Age</th></tr>` + rows.map(r =>
+    `<tr><td>${esc(r.counterpart_name || r.counterpart)}<div class="muted">${esc(r.counterpart)}</div></td>
+     <td>${esc(r.subject)}</td>
+     <td>${tab === "replies" ? `<span class="pill ${r.priority >= 3 ? "high" : "med"}">${r.priority >= 3 ? "High" : "Normal"}</span> ${esc(r.summary)}` : `Follow-up #${esc(r.followup_number)}`}</td>
+     <td class="muted">${esc(Math.round(r.age_days))}d</td></tr>`).join("");
+}
+
+function baseOpts(extra) {
+  const grid = css("--grid"), muted = css("--text-muted");
+  return Object.assign({
+    responsive: true, maintainAspectRatio: false, animation: false,
+    interaction: { mode: "index", intersect: false },
+    plugins: { legend: { display: false }, tooltip: { backgroundColor: css("--surface-1"), titleColor: css("--text-primary"), bodyColor: css("--text-secondary"), borderColor: css("--border"), borderWidth: 1, padding: 10, boxPadding: 4 } },
+    scales: { x: { grid: { display: false }, ticks: { color: muted, font: { size: 11 } }, border: { color: grid } },
+              y: { beginAtZero: true, grid: { color: grid }, ticks: { color: muted, font: { size: 11 }, precision: 0 }, border: { display: false } } },
+  }, extra || {});
+}
+
+function renderListings(d) {
+  const days = [];
+  for (let i = 13; i >= 0; i--) { const t = new Date(Date.now() - i * 864e5); days.push(t.toISOString().slice(0, 10)); }
+  const present = SOURCES.filter(s => d.listings_by_day.some(r => r.source === s));
+  const sources = present.length ? present : SOURCES;
+  const sets = sources.map(s => ({
+    label: s, data: days.map(day => (d.listings_by_day.find(r => r.day === day && r.source === s) || {}).n || 0),
+    backgroundColor: css(`--series-${SOURCES.indexOf(s) + 1}`), borderColor: css("--surface-1"), borderWidth: { top: 2 },
+    borderRadius: 4, borderSkipped: "bottom", maxBarThickness: 22,
+  }));
+  $("#listings-legend").innerHTML = sources.map(s => `<span><i style="background:var(--series-${SOURCES.indexOf(s) + 1})"></i>${esc(s)}</span>`).join("");
+  charts.listings?.destroy();
+  charts.listings = new Chart($("#listingsChart"), { type: "bar", data: { labels: days.map(x => x.slice(5)), datasets: sets },
+    options: baseOpts({ scales: { ...baseOpts().scales, x: { ...baseOpts().scales.x, stacked: true }, y: { ...baseOpts().scales.y, stacked: true } } }) });
+  $("#listings-table").innerHTML = `<tr><th>Day</th>${sources.map(s => `<th>${esc(s)}</th>`).join("")}</tr>` +
+    days.map((day, i) => `<tr><td>${day}</td>${sets.map(ds => `<td>${ds.data[i]}</td>`).join("")}</tr>`).join("");
+}
+
+function renderFunnel(d) {
+  const totals = Object.fromEntries(STATUSES.map(s => [s, 0]));
+  Object.values(d.pipeline).forEach(byStatus => Object.entries(byStatus).forEach(([s, n]) => totals[s] = (totals[s] || 0) + n));
+  $("#funnel").innerHTML = STATUSES.map(s => `<div><b>${totals[s]}</b><span>${s}</span></div>`).join("");
+  const by = (d.outreach && d.outreach.reply_rate_by_weekday) || {};
+  const wd = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].filter(k => k in by);
+  $("#reply-overall").textContent = d.outreach.reply_rate != null ? `overall ${Math.round(d.outreach.reply_rate * 100)}%` : "run sz learn";
+  charts.weekday?.destroy();
+  charts.weekday = new Chart($("#weekdayChart"), { type: "bar",
+    data: { labels: wd, datasets: [{ label: "Reply rate", data: wd.map(k => Math.round(by[k] * 100)), backgroundColor: css("--series-1"), borderRadius: 4, borderSkipped: "bottom", maxBarThickness: 26 }] },
+    options: baseOpts({ plugins: { ...baseOpts().plugins, tooltip: { ...baseOpts().plugins.tooltip, callbacks: { label: c => ` ${c.parsed.y}% replied` } } },
+      scales: { ...baseOpts().scales, y: { ...baseOpts().scales.y, max: 100, ticks: { ...baseOpts().scales.y.ticks, callback: v => v + "%" } } } }) });
+}
+
+function renderLeads(d) {
+  const rows = d.leads_top.concat(d.leads_active);
+  if (!rows.length) { $("#leads").innerHTML = `<tr><td class="empty">No leads yet. Run “Scan competitors” or <code>sz leads seed</code>.</td></tr>`; return; }
+  $("#leads").innerHTML = `<tr><th>Lead</th><th>Type</th><th>Score</th><th>Seen on</th><th>Contact</th><th>Status</th><th></th></tr>` + rows.map(l => {
+    const src = JSON.parse(l.sources || "[]").join(", ");
+    const contact = [l.email && `✉ ${esc(l.email)}`, l.instagram && esc(l.instagram), l.phone && esc(l.phone)].filter(Boolean).join("<br>") || `<span class="muted">${l.website ? "enrich pending" : "no website yet"}</span>`;
+    return `<tr><td><b>${esc(l.name)}</b><div class="muted">${esc(l.category)}</div>${l.website ? `<a href="${safeUrl(l.website)}" target="_blank" rel="noopener">${esc(l.website.replace(/^https?:\/\//, ""))}</a>` : ""}</td>
+      <td>${esc(l.kind)}</td><td>${Math.round(l.score)}</td><td class="muted">${esc(src)}</td><td>${contact}</td>
+      <td><select data-lead="${l.id}">${STATUSES.map(s => `<option ${s === l.status ? "selected" : ""}>${s}</option>`).join("")}</select></td>
+      <td>${l.email ? `<button data-draft="${l.id}">Draft email</button>` : ""}</td></tr>`;
+  }).join("");
+}
+
+function renderLatest(d) {
+  $("#latest").innerHTML = d.new_listings.length ? `<tr><th>Source</th><th>Merchant / offer</th><th>Category</th><th>Seen</th></tr>` + d.new_listings.slice(0, 40).map(l =>
+    `<tr><td><span class="pill">${esc(l.source)}</span></td><td><a href="${safeUrl(l.url)}" target="_blank" rel="noopener">${esc(l.merchant || l.title)}</a><div class="muted">${esc(l.title)}</div></td><td>${esc(l.category)}</td><td class="muted">${esc((l.first_seen || "").slice(5, 10))}</td></tr>`).join("")
+    : `<tr><td class="empty">No new listings this week (the first scan only records a baseline).</td></tr>`;
+}
+
+function renderInstagram(d) {
+  const f = d.metrics["instagram.followers"] || [];
+  const er = last(d.metrics["instagram.engagement_rate_pct"]);
+  $("#ig-note").textContent = f.length ? `engagement ${er ?? "–"}%` : "connect in .env";
+  charts.ig?.destroy();
+  charts.ig = new Chart($("#igChart"), { type: "line",
+    data: { labels: f.map(x => x[0].slice(5)), datasets: [{ label: "Followers", data: f.map(x => x[1]), borderColor: css("--series-1"), borderWidth: 2, pointRadius: 0, pointHoverRadius: 5, tension: 0.25 }] },
+    options: baseOpts({ scales: { ...baseOpts().scales, y: { ...baseOpts().scales.y, beginAtZero: false } } }) });
+  const c = d.instagram_comments;
+  $("#igc").innerHTML = c.length ? c.map(x => `<tr><td><b>@${esc(x.user)}</b> ${esc(x.text)}</td><td><a href="${safeUrl(x.post)}" target="_blank" rel="noopener">post</a></td></tr>`).join("") : `<tr><td class="empty">All comments answered.</td></tr>`;
+}
+
+async function load() {
+  const r = await fetch("/api/summary");
+  DATA = await r.json();
+  const d = DATA;
+  const syncs = Object.entries(d.last_sync).filter(([, v]) => v).map(([k, v]) => `${k} ${v.slice(5, 16).replace("T", " ")}`);
+  $("#sub").textContent = (d.me ? d.me + " · " : "") + (syncs.length ? "Last runs: " + syncs.slice(0, 4).join(" · ") : "No data yet. Click Sync Outlook to start.");
+  renderKpis(d); renderToday(d); renderInbox(d); renderListings(d); renderFunnel(d); renderLeads(d); renderLatest(d); renderInstagram(d);
+  $("#brief").innerHTML = md(d.brief) || `<div class="empty">No brief yet. Click “New brief”.</div>`;
+  $("#report").innerHTML = md(d.report) || `<div class="empty">Runs weekly (sz growth).</div>`;
+  document.querySelectorAll("[data-job]").forEach(b => b.disabled = !!(d.running[b.dataset.job] === "running"));
+}
+
+document.addEventListener("click", async (e) => {
+  const job = e.target.closest("[data-job]");
+  if (job) {
+    job.disabled = true;
+    try { await post(`/api/run/${job.dataset.job}`); toast(`Started: ${job.textContent}`); poll(job.dataset.job); } catch (err) { toast(err.message); job.disabled = false; }
+  }
+  const t = e.target.closest("[data-tab]");
+  if (t) { tab = t.dataset.tab; document.querySelectorAll("[data-tab]").forEach(b => b.setAttribute("aria-selected", b === t)); renderInbox(DATA); }
+  const dr = e.target.closest("[data-draft]");
+  if (dr) { dr.disabled = true; try { const r = await post(`/api/leads/${dr.dataset.draft}/draft`); toast(`Draft saved in Outlook: ${r.subject}`); load(); } catch (err) { toast(err.message); dr.disabled = false; } }
+  if (e.target.id === "theme") {
+    const cur = document.documentElement.dataset.theme || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    const next = cur === "dark" ? "light" : "dark";
+    document.documentElement.dataset.theme = next;
+    try { localStorage.setItem("sz-theme", next); } catch (_) {}
+    load();
+  }
+});
+document.addEventListener("change", async (e) => {
+  const s = e.target.closest("select[data-lead]");
+  if (s) { try { await post(`/api/leads/${s.dataset.lead}/status`, { status: s.value }); toast("Lead updated"); } catch (err) { toast(err.message); } }
+});
+
+async function poll(job) {
+  for (let i = 0; i < 180; i++) {
+    await new Promise(r => setTimeout(r, 4000));
+    const d = await (await fetch("/api/summary")).json();
+    const st = d.running[job];
+    if (!st) { toast(`Finished: ${job}`); return load(); }
+    if (st.startsWith("error")) { toast(`${job}: ${st}`); return load(); }
+  }
+}
+
+try { const t = localStorage.getItem("sz-theme"); if (t) document.documentElement.dataset.theme = t; } catch (_) {}
+load();
+setInterval(load, 5 * 60 * 1000);
+</script>
+</body>
+</html>

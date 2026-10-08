@@ -1,0 +1,64 @@
+# Competitor / partner-source sites watched by `sz scrape`.
+#
+# Strategies are tried in this order: sitemap -> links -> jsonld -> llm (fallback only if nothing found).
+# The URL patterns below are a best first guess. Run `sz scrape --inspect <name>` once on your laptop:
+# it prints what was found without saving anything. Tweak the regexes until the sample looks right.
+#
+#   lead_kind         merchant | brand | university | housing | service
+#   city_filter       regex; listings must mention it in url/title/city/merchant (leave empty for national brands)
+#   detail_pages      max new listing pages opened per run to read merchant/category (keeps runs fast + polite)
+#   render = true     use headless Chromium for JavaScript-only pages (needs `pip install .[render]`)
+
+[[site]]
+name = "groupon"
+lead_kind = "merchant"
+strategies = ["links", "jsonld", "llm"]
+start_urls = ["https://www.groupon.de/local/berlin", "https://www.groupon.de/browse/berlin"]
+link_pattern = 'groupon\.de/deals/[a-z0-9-]+'
+link_exclude = 'deals/(gl|ga|gg)-'          # national goods / getaways
+city_filter = ''                             # start pages are already Berlin; detail pages add the city
+detail_pages = 15
+
+[[site]]
+name = "vspots"
+lead_kind = "merchant"
+strategies = ["sitemap", "links", "jsonld", "llm"]
+sitemaps = ["https://www.vspots.de/sitemap.xml"]
+sitemap_include = '(?i)berlin'
+start_urls = ["https://www.vspots.de/berlin"]
+link_pattern = 'vspots\.de/.*(?i:berlin).*'
+city_filter = '(?i)berlin'
+detail_pages = 10
+
+[[site]]
+name = "top10berlin"
+lead_kind = "merchant"
+strategies = ["links", "llm"]
+start_urls = ["https://www.top10berlin.de/en/club", "https://www.top10berlin.de/de/club"]
+link_pattern = 'top10berlin\.de/(en|de)/(?!club|top10-berlin-app)[a-z0-9-]+$'
+city_filter = ''
+detail_pages = 10
+
+[[site]]
+name = "unidays"
+lead_kind = "brand"
+strategies = ["links", "jsonld", "llm"]
+start_urls = ["https://www.myunidays.com/DE/de-DE", "https://www.myunidays.com/DE/de-DE/all"]
+link_pattern = 'myunidays\.com/DE/de-DE/partners/[a-z0-9-]+'
+merchant_from_url = 'partners/([a-z0-9-]+)'
+city_filter = ''
+detail_pages = 0
+render = true
+
+[[site]]
+name = "studentbeans"
+lead_kind = "brand"
+strategies = ["sitemap", "links", "llm"]
+sitemaps = ["https://www.studentbeans.com/sitemap.xml"]
+sitemap_include = 'student-discount/de/[a-z0-9-]+/?$'
+sitemap_child_include = '(?i)de'
+start_urls = ["https://www.studentbeans.com/de"]
+link_pattern = 'studentbeans\.com/student-discount/de/[a-z0-9-]+/?$'
+merchant_from_url = 'student-discount/de/([a-z0-9-]+)'
+city_filter = ''
+detail_pages = 0

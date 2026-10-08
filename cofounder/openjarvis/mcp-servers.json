@@ -1,0 +1,7 @@
+[
+  {
+    "name": "settleezy",
+    "command": "sz",
+    "args": ["mcp"]
+  }
+]
