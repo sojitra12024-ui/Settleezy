@@ -49,6 +49,7 @@ class Speaker:
         self.barge_in = bool(cfg.get("voice.barge_in", False))
         self.barge_threshold = float(cfg.get("voice.mic_threshold", 0.012)) * float(cfg.get("voice.barge_factor", 3.0))
         self.interrupted = False
+        self.vad = None   # set by run() when barge-in is on, so only real speech interrupts
         if not self.eleven:
             self._init_local()
 
@@ -106,10 +107,16 @@ class Speaker:
 
         loud = 0
         t0 = time.monotonic()
+        vad = self.vad
+        if vad is not None:
+            vad.reset()
         with sd.InputStream(samplerate=SAMPLE_RATE, channels=1, dtype="float32", blocksize=CHUNK // 2) as mic:
             while time.monotonic() - t0 < seconds + 0.2:
                 block, _ = mic.read(CHUNK // 2)
-                loud = loud + 1 if float(np.sqrt(np.mean(block ** 2))) > self.barge_threshold else 0
+                is_loud = float(np.sqrt(np.mean(block ** 2))) > self.barge_threshold
+                # loud AND speech-like: a door, a cough or a clap doesn't interrupt Setz
+                is_speech = vad is None or vad(block[:, 0]) >= max(0.6, vad.threshold)
+                loud = loud + 1 if is_loud and is_speech else 0
                 if loud >= 6 and time.monotonic() - t0 > 0.4:   # ignore the first moment (speaker start-up click)
                     sd.stop()
                     self.interrupted = True
@@ -127,30 +134,27 @@ class Ears:
         except Exception:  # no CUDA runtime -> CPU
             self.model = WhisperModel(name, device="cpu", compute_type="int8")
         self.threshold = float(cfg.get("voice.mic_threshold", 0.012))
+        from .vad import make_vad
+
+        self.vad = make_vad(cfg)
 
     def record_until_silence(self, max_seconds: float = 15, silence_seconds: float = 1.2, wait_seconds: float | None = None):
-        """Record one utterance. Returns (audio, heard_speech). With wait_seconds, gives up if nobody starts talking."""
+        """Record one utterance. Returns (audio, heard_speech). With wait_seconds, gives up if nobody starts talking.
+        Speech is detected by Silero VAD (noise, typing and fans don't count), or by loudness as a fallback."""
         import numpy as np
         import sounddevice as sd
 
-        frames, silent_for, started = [], 0.0, False
+        from .vad import collect_utterance
+
+        self.vad.reset()
         with sd.InputStream(samplerate=SAMPLE_RATE, channels=1, dtype="float32", blocksize=CHUNK) as stream:
-            t0 = time.monotonic()
-            while time.monotonic() - t0 < max_seconds:
-                block, _ = stream.read(CHUNK)
-                level = float(np.sqrt(np.mean(block ** 2)))
-                if level > self.threshold:
-                    started, silent_for = True, 0.0
-                elif started:
-                    silent_for += CHUNK / SAMPLE_RATE
-                    if silent_for >= silence_seconds:
-                        break
-                elif wait_seconds is not None and time.monotonic() - t0 > wait_seconds:
-                    break
-                if started or len(frames) < 4:          # keep a little pre-roll
-                    frames.append(block[:, 0].copy())
-                else:
-                    frames = frames[-3:] + [block[:, 0].copy()]
+            def blocks():
+                while True:
+                    yield stream.read(CHUNK)[0][:, 0].copy()
+
+            frames, started = collect_utterance(blocks(), self.vad, block_seconds=CHUNK / SAMPLE_RATE,
+                                                threshold=self.vad.threshold, silence_seconds=silence_seconds,
+                                                max_seconds=max_seconds, wait_seconds=wait_seconds)
         audio = np.concatenate(frames) if frames else np.zeros(0, dtype="float32")
         return audio, started
 
@@ -163,6 +167,8 @@ class Ears:
         sd.wait()
         noise = float(np.sqrt(np.mean(audio ** 2)))
         self.threshold = max(self.threshold, noise * 3.5)
+        if self.vad.name == "energy":
+            self.vad.level = self.threshold
         return noise
 
     def transcribe_words(self, audio, prompt: str = "") -> tuple[str, str, list[dict]]:
@@ -456,6 +462,11 @@ def run(cfg: Config, wake_word: bool = True) -> None:
 
     speaker = Speaker(cfg)
     ears = Ears(cfg)
+    if speaker.barge_in:
+        from .vad import make_vad
+
+        speaker.vad = make_vad(cfg)   # its own instance: separate stream state
+    print(f"(speech detection: {ears.vad.name})")
     mode = cfg.get("voice.wake_mode", "phrase") if wake_word else "push"
     detector = None
     if mode == "openwakeword":

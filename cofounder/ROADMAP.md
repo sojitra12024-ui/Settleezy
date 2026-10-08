@@ -88,7 +88,7 @@ marked *(check)* wasn't confirmed and needs a look before you install.
 
 | Order | Project | Licence | What it adds to Setz | How |
 |---|---|---|---|---|
-| 1 | [fastembed](https://github.com/qdrant/fastembed) | Apache-2.0 | Multilingual embeddings (`multilingual-e5-small`), so memory recall works across English and German | **Supported now:** `pip install fastembed` and `brain.embedder = "auto"` |
+| ✅ | [fastembed](https://github.com/qdrant/fastembed) | Apache-2.0 | Multilingual embeddings (`paraphrase-multilingual-MiniLM-L12-v2`; fastembed has no `multilingual-e5-small`), so memory recall works across English and German | **Built:** `pip install -e ".[brain]"` |
 | 2 | [sqlite-vec](https://github.com/asg017/sqlite-vec) | MIT/Apache | Vector search *inside* the existing SQLite database. Today's search reads every memory, which is fine up to ~20k; this scales further | Swap `brain._scan` for a `vec0` virtual table |
 | 3 | [mem0](https://github.com/mem0ai/mem0) | Apache-2.0 | Extracts facts from emails and chats automatically ("Anna prefers WhatsApp") instead of only from structured records | Local mode with Ollama + sqlite-vec; write its facts into `memories` |
 | 4 | [pydantic-ai](https://github.com/pydantic/pydantic-ai) | MIT | Typed tool calling and validated outputs across Ollama and Claude: fewer parsing bugs in triage and extraction | Replace the hand-parsed JSON in `llm.py` callers |
@@ -104,7 +104,7 @@ Skip for now:
 
 | Order | Project | Licence | What it adds | Notes |
 |---|---|---|---|---|
-| 1 | [silero-vad](https://github.com/snakers4/silero-vad) | MIT | Real speech detection instead of an energy threshold: fewer false wakes, cleaner barge-in | Under 1 ms per chunk on CPU; drop-in for `record_until_silence` |
+| ✅ | [silero-vad](https://github.com/snakers4/silero-vad) | MIT | Real speech detection instead of an energy threshold: fewer false wakes, cleaner barge-in | **Built** (`vad.py`): uses the ONNX model bundled with faster-whisper, no PyTorch, ~0.2 ms per 32 ms chunk |
 | 2 | [RealtimeSTT](https://github.com/KoljaB/RealtimeSTT) | MIT | Streaming faster-whisper + VAD + wake word: Setz starts thinking while you're still talking | Replaces `Ears` |
 | 3 | [smart-turn](https://github.com/pipecat-ai/smart-turn) | BSD | Detects that you've *finished* a thought (not just paused), so Setz stops cutting you off | Small model, CPU |
 | 4 | [kokoro-onnx](https://github.com/thewh1teagle/kokoro-onnx) via [RealtimeTTS](https://github.com/KoljaB/RealtimeTTS) | MIT | Free offline voice as a fallback to ElevenLabs | German voices are limited *(check)*; [Piper](https://github.com/OHF-Voice/piper1-gpl) (GPL-3.0) has good German voices |

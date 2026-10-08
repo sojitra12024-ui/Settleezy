@@ -48,6 +48,8 @@ wake_mode = "phrase"                    # "phrase" = say "Hey Setz" (no training
 wake_model = ""                         # path to a trained "hey setz" .onnx when wake_mode = "openwakeword"
 wake_threshold = 0.5
 mic_threshold = 0.012                   # raise if background noise keeps waking the mic
+vad = "auto"                            # speech detection: auto (Silero if available) | silero | energy (loudness only)
+vad_threshold = 0.5                     # Silero speech probability; raise to 0.6 in a noisy café
 calibrate = true                        # measure room noise at start and raise the threshold above it
 barge_in = false                        # true = talk over Setz to interrupt it (use a headset, or it hears itself)
 barge_factor = 3.0                      # how much louder than the speech threshold an interruption must be
@@ -123,10 +125,11 @@ partner_goal_per_month = 6  # Setz works back from this to weekly targets for co
 # minutes = 15
 
 [brain]
-# Long-term memory embeddings. auto = fastembed if installed (best for English + German, CPU, ~120 MB model download
-# on first use), else Ollama (`ollama pull bge-m3`), else a built-in offline embedder.
+# Long-term memory embeddings. auto = fastembed if installed (pip install -e ".[brain]": best for English + German,
+# CPU only, ~220 MB model downloaded once into data/models), else Ollama (`ollama pull bge-m3`), else a built-in
+# offline embedder. `sz doctor` shows which one is active.
 embedder = "auto"            # auto | fastembed | ollama | hash
-fastembed_model = "intfloat/multilingual-e5-small"
+fastembed_model = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 ollama_model = "bge-m3"
 
 [planner]

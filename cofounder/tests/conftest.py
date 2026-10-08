@@ -15,7 +15,7 @@ def cfg(tmp_path, monkeypatch):
     (tmp_path / "config.toml").write_text(
         Path(__file__).resolve().parents[1].joinpath("config.example.toml").read_text(encoding="utf-8").replace(
             'emails = ["you@settleezy.de"]', 'emails = ["me@settleezy.de"]'
-        ),
+        ).replace('embedder = "auto"', 'embedder = "hash"'),   # hermetic: no model downloads in tests
         encoding="utf-8",
     )
     from settleezy_cofounder.config import load_config

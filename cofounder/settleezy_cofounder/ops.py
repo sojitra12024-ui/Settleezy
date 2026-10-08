@@ -53,7 +53,26 @@ def add_partner(db: DB, name: str, kind: str = "venue", **fields: Any) -> int:
     data.setdefault("stage", "agreed")
     cols = ",".join(data)
     cur = db.x(f"INSERT INTO partners({cols}) VALUES({','.join('?' * len(data))})", list(data.values()))
+    if "lead_id" not in data:
+        link_partners_to_leads(db)   # a partner added by hand must never get cold outreach as a "new lead"
     return cur.lastrowid
+
+
+def link_partners_to_leads(db: DB) -> int:
+    """Attach partners without a lead to the lead with the same name, and mark that lead as a partner."""
+    from .leads import set_status
+
+    n = 0
+    for p in db.q("SELECT id, name FROM partners WHERE lead_id IS NULL"):
+        lead = db.one("SELECT id, status FROM leads WHERE lower(name)=lower(?) AND id NOT IN "
+                      "(SELECT lead_id FROM partners WHERE lead_id IS NOT NULL) ORDER BY id LIMIT 1", (p["name"],))
+        if not lead:
+            continue
+        db.x("UPDATE partners SET lead_id=? WHERE id=?", (lead["id"], p["id"]))
+        if lead["status"] != "partner":
+            set_status(db, lead["id"], "partner", "")   # also stops any outreach sequence
+        n += 1
+    return n
 
 
 def ensure_partner_from_lead(db: DB, lead_id: int) -> int:
@@ -323,6 +342,7 @@ def reach_out(cfg: Config, db: DB, limit: int = 20) -> list[dict]:
 
 def sync_auto_tasks(cfg: Config, db: DB) -> int:
     """Turn the important signals into to-dos (once each): stuck onboarding, renewals, post-meeting follow-ups."""
+    link_partners_to_leads(db)
     n = 0
     for p in partners(cfg, db):
         if p["status"] == "onboarding" and any("stuck" in r for r in p["health"]["reasons"]):

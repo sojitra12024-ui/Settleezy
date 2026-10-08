@@ -191,6 +191,8 @@ def start_sequence(cfg: Config, db: DB, lead_id: int, start: date | None = None)
         raise ValueError(f"no lead {lead_id}")
     if lead["status"] in {"replied", "meeting", "partner", "lost"}:
         raise ValueError(f"lead is already '{lead['status']}': no cold sequence needed")
+    if db.one("SELECT 1 FROM partners WHERE lead_id=? OR lower(name)=lower(?)", (lead_id, lead["name"])):
+        raise ValueError(f"{lead['name']} is already a partner: no cold sequence")
     start = start or datetime.now().date()
     while start.weekday() >= 5:      # sequences run on working days
         start += timedelta(days=1)
@@ -276,8 +278,13 @@ def auto_start(cfg: Config, db: DB, limit: int | None = None) -> list[dict]:
     room = max(0, cap - started_this_week(db))
     if limit is not None:
         room = min(room, limit)
+    from .ops import link_partners_to_leads
+
+    link_partners_to_leads(db)
     pool = [dict(r) for r in db.q("SELECT * FROM leads WHERE status IN ('new','drafted') AND sequence_started IS NULL "
-                                  "AND (email != '' OR instagram != '' OR website != '' OR address != '') ORDER BY score DESC LIMIT ?",
+                                  "AND (email != '' OR instagram != '' OR website != '' OR address != '') "
+                                  "AND id NOT IN (SELECT lead_id FROM partners WHERE lead_id IS NOT NULL) "
+                                  "AND lower(name) NOT IN (SELECT lower(name) FROM partners) ORDER BY score DESC LIMIT ?",
                                   (max(room * 5, 1),))]
     _with_reply_chance(db, pool)
     # with a trusted model, rank by expected value: score x how likely they are to answer

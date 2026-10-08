@@ -1,4 +1,5 @@
 from datetime import date, datetime, timedelta, timezone
+import pytest
 
 from settleezy_cofounder import leadgen, ops, pipeline, planner
 from settleezy_cofounder.leads import set_status, upsert
@@ -158,3 +159,16 @@ def test_task_update_and_apply_plan(cfg, db):
     if plan["totals"]["tasks_scheduled"]:
         assert planner.apply_plan(db, plan) == 1
         assert db.one("SELECT due FROM tasks WHERE id=?", (t,))["due"] is not None
+
+
+def test_existing_partners_never_get_cold_outreach(cfg, db):
+    lid, _ = upsert(db, "Café Kranz", "merchant", email="a@kranz.de", category="cafe")
+    other, _ = upsert(db, "Brew Lab", "merchant", email="b@brew.de", category="cafe")
+    ops.add_partner(db, "café kranz", "venue")                     # added by hand, different case, no lead link
+    assert db.one("SELECT status FROM leads WHERE id=?", (lid,))["status"] == "partner"
+    assert db.one("SELECT lead_id FROM partners")["lead_id"] == lid
+    db.x("INSERT INTO partners(name, kind, status) VALUES('Brew Lab', 'venue', 'onboarding')")   # e.g. from an old import
+    started = [s["name"] for s in pipeline.auto_start(cfg, db)]
+    assert started == []                                            # linked first, then excluded
+    with pytest.raises(ValueError):
+        pipeline.start_sequence(cfg, db, other)

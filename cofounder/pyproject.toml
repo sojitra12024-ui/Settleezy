@@ -26,6 +26,9 @@ voice = [
   "numpy>=1.26",
   "pyttsx3>=2.90",
 ]
+brain = [
+  "fastembed>=0.5",   # multilingual memory embeddings on the CPU (ONNX)
+]
 render = ["playwright>=1.44"]
 dev = ["pytest>=8"]
 

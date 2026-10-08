@@ -196,6 +196,10 @@ engaging), loudness, background noise and clarity. You get a 0–100 delivery sc
   (hook → problem → offer → proof → ask), the line to say instead, one delivery fix. Progress is charted over time.
 - **Recorded calls:** `sz voice analyse call.m4a --coach`.
 - **Ask:** "Hey Setz, how's my speaking?" → your trend over the last 30 days.
+- **Speech detection (Silero VAD):** a small neural network tells speech from background noise (typing, fans,
+  traffic). Setz starts recording when you start talking and doesn't cut you off at short pauses. Only real speech, not
+  a cough or a door, can interrupt it. It comes with the voice extras (faster-whisper ships the model; no PyTorch
+  needed). `[voice] vad = "energy"` switches back to the loudness threshold.
 - **Smarter listening:**
   - Setz measures the room noise at start and sets the mic threshold above it.
   - With `[voice] barge_in = true` (use a headset) you can talk over Setz and it stops to listen.
@@ -210,8 +214,12 @@ you can teach it: "Hey Setz, remember that Anna at Café Kranz wants a monthly r
 command center. Every answer from Setz (voice, dashboard, OpenJarvis) includes the relevant memories.
 "What do you know about HTW?" reads them back.
 
-For the best recall in English *and* German, install the multilingual embedder (CPU-only, no GPU needed):
-`pip install fastembed`. Without it Setz uses Ollama (`ollama pull bge-m3`) or a built-in offline embedder.
+For the best recall in English *and* German, install the multilingual embedder (CPU only, no GPU needed):
+`pip install -e ".[brain]"`. The model (`paraphrase-multilingual-MiniLM-L12-v2`, ~220 MB) downloads once into
+`data/models/` and then works offline, so a German question ("Wann soll ich Unis kontaktieren?") finds an English
+note. Without it Setz uses Ollama (`ollama pull bge-m3`) or a built-in offline embedder. `sz doctor` shows which one is
+active. If the download fails (offline), Setz waits a day before retrying instead of slowing down every start;
+`sz doctor` retries straight away.
 
 **Neural network.** A small neural network (14 inputs → 8 hidden units → reply chance) learns from your own outreach
 which leads answer: kind, category, contact channels, distance to campus, presence on competitor sites. It is

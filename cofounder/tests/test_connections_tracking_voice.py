@@ -53,8 +53,11 @@ def test_doctor_reports_every_integration_with_a_fix(cfg, db, monkeypatch):
     cfg.raw["llm"]["ollama_url"] = "http://127.0.0.1:9"     # nothing listens there
     results = connections.run_all(cfg, db)
     by = {r["name"]: r for r in results}
-    assert set(by) == {"Outlook", "Instagram", "Calendly", "Claude API", "Local model (Ollama)", "Voice (ElevenLabs)"}
-    assert all(not r["ok"] and r["fix"] for r in results)
+    assert set(by) == {"Outlook", "Instagram", "Calendly", "Claude API", "Local model (Ollama)", "Voice (ElevenLabs)",
+                       "Memory embeddings", "Speech detection"}
+    assert by["Memory embeddings"]["optional"] and by["Speech detection"]["optional"]
+    accounts = [r for r in results if r["name"] not in {"Memory embeddings", "Speech detection"}]   # local, may pass
+    assert all(not r["ok"] and r["fix"] for r in accounts)
     assert "sz auth outlook" in by["Outlook"]["fix"] and "sz auth instagram" in by["Instagram"]["fix"]
     assert by["Calendly"]["optional"] and by["Voice (ElevenLabs)"]["optional"]
     assert json.loads(db.kv_get("connections"))["results"] == results

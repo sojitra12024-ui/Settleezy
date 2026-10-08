@@ -152,7 +152,7 @@ def text_features(text: str, lang: str = "en") -> dict[str, Any]:
 # -- the analysis ---------------------------------------------------------------------------
 
 def analyse(audio=None, *, text: str = "", words: list[dict] | None = None, lang: str = "en",
-            confidence: float | None = None) -> dict[str, Any]:
+            confidence: float | None = None, use_vad: bool = True) -> dict[str, Any]:
     """audio: 16 kHz mono float array (optional). words: [{"start", "end", "word", "probability"}] from Whisper."""
     import numpy as np
 
@@ -187,6 +187,12 @@ def analyse(audio=None, *, text: str = "", words: list[dict] | None = None, lang
     m["wpm"] = round(tf["words"] / minutes) if talk else None
     if audio is not None and len(audio):
         lv = level_stats(audio)
+        if use_vad:   # Silero counts only real speech (loudness also counts typing, music, a fan)
+            from .vad import speech_seconds
+
+            vs = speech_seconds(audio)
+            if vs is not None:
+                lv["speech_seconds"], lv["speech_detector"] = vs, "silero"
         m.update(lv)
         if speaking is None:
             speaking = max(0.1, lv["speech_seconds"])

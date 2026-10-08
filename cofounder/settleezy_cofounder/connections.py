@@ -161,6 +161,33 @@ def _elevenlabs(cfg: Config) -> Check:
         return Check("Voice (ElevenLabs)", False, str(exc)[:200], "See README: add the voice to My Voices", optional=True)
 
 
+def _memory(cfg: Config) -> Check:
+    from .brain import embedder
+
+    e = embedder(cfg, retry=True)
+    if e.name.startswith("fastembed:"):
+        return Check("Memory embeddings", True, e.name.split(":", 1)[1].split("/")[-1] + " (English + German)", optional=True)
+    if e.mode == "hash":
+        return Check("Memory embeddings", True, "built-in offline embedder (brain.embedder = \"hash\")",
+                     "For better English + German recall: pip install fastembed and set brain.embedder = \"auto\"", optional=True)
+    fix = ("pip install fastembed  (the model downloads once, ~220 MB, then works offline)"
+           if "not installed" in e.note else "Connect to the internet once so the fastembed model can download, then re-run")
+    return Check("Memory embeddings", False, f"using {e.name}: {e.note or 'fallback'}"[:200], fix, optional=True)
+
+
+def _vad(cfg: Config) -> Check:
+    from .vad import make_vad
+
+    try:
+        v = make_vad(cfg)
+    except Exception as exc:
+        return Check("Speech detection", False, str(exc)[:200], 'pip install -e ".[voice]"', optional=True)
+    if v.name == "silero":
+        return Check("Speech detection", True, "Silero VAD (ignores background noise)", optional=True)
+    return Check("Speech detection", False, "loudness threshold (Silero VAD not available)",
+                 'pip install -e ".[voice]" (faster-whisper includes the Silero model)', optional=True)
+
+
 CHECKS: dict[str, Callable[[Config], Check]] = {
     "outlook": _outlook,
     "instagram": _instagram,
@@ -168,6 +195,8 @@ CHECKS: dict[str, Callable[[Config], Check]] = {
     "claude": _claude,
     "ollama": _ollama,
     "elevenlabs": _elevenlabs,
+    "memory": _memory,
+    "vad": _vad,
 }
 
 

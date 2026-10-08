@@ -7,8 +7,9 @@ Memory
     leads, stage changes, meetings, the knowledge base and the pipeline/planner analytics; you can also tell Setz
     "remember that ...". The voice assistant and the "Ask Setz" box put the recalled memories into every answer.
 
-    Embeddings: fastembed (multilingual e5, CPU, English + German) if installed, else Ollama (`bge-m3`), else a
-    built-in hashing embedder that works offline with no downloads. Switching embedders re-indexes automatically.
+    Embeddings: fastembed (paraphrase-multilingual-MiniLM-L12-v2: ONNX on the CPU, English and German in one space,
+    so a German question finds an English note) if installed, else Ollama (`bge-m3`), else a built-in hashing
+    embedder that works offline with no downloads. Switching embedders re-indexes automatically.
 
 Neural network
     `LeadNet` is a small multilayer perceptron (features -> 8 tanh units -> reply probability) trained on your own
@@ -34,6 +35,7 @@ from .db import DB, utcnow
 
 KINDS = ("fact", "preference", "episode", "insight", "conversation")
 HASH_DIM = 512
+FASTEMBED_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"   # 384-d, ~220 MB, 50+ languages
 
 
 # -- embeddings -------------------------------------------------------------------
@@ -63,11 +65,16 @@ def _norm(v: list[float]) -> list[float]:
     return [x / n for x in v]
 
 
+RETRY_AFTER_S = 24 * 3600   # after a failed model download, don't retry on every start (each try takes ~40 s offline)
+
+
 class Embedder:
-    def __init__(self, cfg: Config):
+    def __init__(self, cfg: Config, retry: bool = False):
         self.cfg = cfg
+        self.retry = retry
         self.mode = cfg.get("brain.embedder", "auto")   # auto | fastembed | ollama | hash
         self._fe: Any = None
+        self.note = ""     # why a better embedder wasn't used (shown by `sz doctor`)
         self.name = self._pick()
 
     def _pick(self) -> str:
@@ -75,10 +82,26 @@ class Embedder:
             try:
                 from fastembed import TextEmbedding  # type: ignore
 
-                model = self.cfg.get("brain.fastembed_model", "intfloat/multilingual-e5-small")
-                self._fe = TextEmbedding(model)
+                model = self.cfg.get("brain.fastembed_model", FASTEMBED_MODEL)
+                cache = self.cfg.data_dir / "models" / "fastembed"   # survives reboots (the default is a temp folder)
+                cache.mkdir(parents=True, exist_ok=True)
+                marker = cache / ".download_failed"
+                if marker.exists() and not self.retry and time.time() - marker.stat().st_mtime < RETRY_AFTER_S:
+                    raise RuntimeError(f"model download failed recently ({marker.read_text(encoding='utf-8')[:120]}); "
+                                       "retrying within a day, or now with `sz doctor`")
+                try:
+                    self._fe = TextEmbedding(model, cache_dir=str(cache))
+                except Exception as exc:
+                    marker.write_text(f"{time.strftime('%Y-%m-%d %H:%M')}: {exc}"[:300], encoding="utf-8")
+                    raise
+                marker.unlink(missing_ok=True)
                 return "fastembed:" + model
-            except Exception:
+            except ImportError:
+                self.note = "fastembed not installed (pip install fastembed)"
+                if self.mode == "fastembed":
+                    raise
+            except Exception as exc:   # unsupported model name, or first download failed (offline)
+                self.note = f"fastembed failed: {exc}"[:200]
                 if self.mode == "fastembed":
                     raise
         if self.mode in ("auto", "ollama"):
@@ -86,7 +109,8 @@ class Embedder:
             try:
                 self._ollama(["ping"], model)
                 return "ollama:" + model
-            except Exception:
+            except Exception as exc:
+                self.note = (self.note + "; " if self.note else "") + f"Ollama {model} unavailable ({type(exc).__name__})"
                 if self.mode == "ollama":
                     raise
         return f"hash:{HASH_DIM}"
@@ -101,8 +125,9 @@ class Embedder:
 
     def embed(self, texts: list[str], query: bool = False) -> list[list[float]]:
         if self.name.startswith("fastembed:"):
-            prefix = "query: " if query else "passage: "   # e5 models expect these prefixes
-            return [_norm([float(x) for x in v]) for v in self._fe.embed([prefix + t for t in texts])]
+            if "e5" in self.name:   # e5 models are trained with these prefixes; others must not get them
+                texts = [("query: " if query else "passage: ") + t for t in texts]
+            return [_norm([float(x) for x in v]) for v in self._fe.embed(texts, batch_size=32)]
         if self.name.startswith("ollama:"):
             return self._ollama(texts, self.name.split(":", 1)[1])
         return [_hash_embed(t) for t in texts]
@@ -111,13 +136,14 @@ class Embedder:
 _EMBEDDERS: dict[tuple, Embedder] = {}
 
 
-def embedder(cfg: Config) -> Embedder:
-    """One embedder per process and setting (loading a model per request would be slow)."""
+def embedder(cfg: Config, retry: bool = False) -> Embedder:
+    """One embedder per process and setting (loading a model per request would be slow).
+    retry=True tries the preferred embedder again even after a recent failed download (used by `sz doctor`)."""
     key = (cfg.get("brain.embedder", "auto"), cfg.get("brain.fastembed_model"), cfg.get("brain.ollama_model"),
-           cfg.get("llm.ollama_url"))
+           cfg.get("llm.ollama_url"), str(cfg.data_dir))
     e = _EMBEDDERS.get(key)
-    if e is None:
-        e = _EMBEDDERS[key] = Embedder(cfg)
+    if e is None or (retry and not e.name.startswith("fastembed:")):
+        e = _EMBEDDERS[key] = Embedder(cfg, retry=retry)
     return e
 
 
