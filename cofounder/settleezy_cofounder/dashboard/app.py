@@ -336,6 +336,67 @@ def brain_forget(memory_id: int, x_sz: str | None = Header(default=None)) -> dic
         return {"removed": brain.forget(db, memory_id)}
 
 
+# -- speech coach -------------------------------------------------------------------
+
+_whisper: dict = {}
+
+
+def _whisper_model(cfg):
+    if "m" not in _whisper:
+        from faster_whisper import WhisperModel
+
+        name = cfg.get("voice.whisper_model", "small")
+        try:
+            _whisper["m"] = WhisperModel(name, device="cuda", compute_type="int8_float16")
+        except Exception:
+            _whisper["m"] = WhisperModel(name, device="cpu", compute_type="int8")
+    return _whisper["m"]
+
+
+@app.get("/api/speech")
+def speech_overview() -> dict:
+    from .. import speech
+
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        return {"sessions": speech.sessions(db, 20, "practice") + speech.sessions(db, 10, "file"),
+                "trend": speech.trend(db, 90)}
+
+
+@app.post("/api/speech/analyse")
+async def speech_analyse(request: Request, mode: str = "practice", coach: int = 1, topic: str = "venue partnership pitch",
+                         x_sz: str | None = Header(default=None)) -> dict:
+    """Body: an audio recording (webm/ogg/wav/m4a from the browser's recorder). Returns delivery analysis + coaching."""
+    _guard(x_sz)
+    data = await request.body()
+    if not data:
+        raise HTTPException(400, "empty recording")
+    if len(data) > 40_000_000:
+        raise HTTPException(413, "recording too long")
+    cfg = load_config()
+
+    def work() -> dict:
+        from .. import speech
+
+        audio = speech.decode(data)
+        segs, info = _whisper_model(cfg).transcribe(audio, beam_size=1, vad_filter=True, word_timestamps=True)
+        segs = list(segs)
+        m = speech.analyse(audio, words=speech.words_from_segments(segs), lang=info.language if info.language in ("en", "de") else "en")
+        if coach and m.get("text"):
+            try:
+                m["coaching"] = speech.coach(cfg, m, topic[:80])
+            except Exception as exc:
+                m["coaching"] = f"(AI coaching unavailable: {exc})"
+        with DB(cfg.db_path) as db:
+            m["session_id"] = speech.save(db, m, mode if mode in {"practice", "file"} else "practice", m.get("coaching", ""))
+        return m
+
+    try:
+        return await asyncio.to_thread(work)
+    except (ImportError, RuntimeError) as exc:
+        raise HTTPException(501, f"Speech analysis needs the voice extras on this PC: pip install -e \".[voice]\" ({exc})") from exc
+
+
 # -- pipeline + week planner ---------------------------------------------------
 
 @app.get("/api/pipeline")

@@ -185,6 +185,22 @@ sz week                           sz week --next            sz week --apply   sz
 ```
 Voice: "Hey Setz, plan my week", "how's the pipeline?".
 
+## Speaking coach and voice features
+
+Setz listens to *how* you speak, not just what you say: pace (words per minute), pauses, filler words in English and
+German (ähm, halt, quasi, um, like, you know…), hedging ("I think", "vielleicht"), pitch variation (monotone or
+engaging), loudness, background noise and clarity. You get a 0–100 delivery score with the three most useful tips.
+
+- **Practise a pitch:** "Hey Setz, practise my pitch" (or the *Record a practice pitch* button under Insights, or
+  `sz voice practice`). Speak for 30–90 s. Setz scores your delivery and Claude coaches the content: structure
+  (hook → problem → offer → proof → ask), the line to say instead, one delivery fix. Progress is charted over time.
+- **Recorded calls:** `sz voice analyse call.m4a --coach`.
+- **Ask:** "Hey Setz, how's my speaking?" → your trend over the last 30 days.
+- **Smarter listening:**
+  - Setz measures the room noise at start and sets the mic threshold above it.
+  - With `[voice] barge_in = true` (use a headset) you can talk over Setz and it stops to listen.
+  - Every normal command is measured quietly, so the trend builds up without extra effort.
+
 ## Setz's brain: memory and a neural network
 
 **Memory.** Setz keeps long-term memories (facts, preferences, episodes, insights and your conversations) and finds them

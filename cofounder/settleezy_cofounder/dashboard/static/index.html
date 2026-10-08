@@ -209,6 +209,14 @@ dialog .dhead { display: flex; justify-content: space-between; align-items: cent
 .cat-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
 .ins { padding: 8px 10px; border-radius: 8px; margin-bottom: 6px; font-size: 13px; background: var(--surface-2); border-left: 3px solid var(--accent); }
 .ins.warn { border-left-color: var(--warning); } .ins.tip { border-left-color: var(--good); }
+.coach { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 18px; }
+.spm { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin: 6px 0 10px; }
+.spm div { background: var(--surface-2); border-radius: 8px; padding: 8px 10px; }
+.spm b { display: block; font-size: 18px; font-variant-numeric: tabular-nums; }
+.spm span { font-size: 11.5px; color: var(--text-secondary); }
+.tips li { margin-bottom: 4px; }
+.rec-on { background: var(--critical) !important; border-color: var(--critical) !important; }
+@media (max-width: 1100px) { .coach { grid-template-columns: 1fr; } }
 @media (max-width: 1100px) { .span-8, .span-7, .span-6, .span-5, .span-4 { grid-column: span 12; } .kanban { grid-template-columns: repeat(5, 170px); } .flow { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 600px) { .bar-top, main { padding-left: 16px; padding-right: 16px; } .form-grid { grid-template-columns: 1fr; } .plan-row { grid-template-columns: 70px 1fr; } .plan-row > :last-child { grid-column: 2; } }
 </style>
@@ -371,6 +379,16 @@ dialog .dhead { display: flex; justify-content: space-between; align-items: cent
   <section class="card span-6"><h2>Instagram top posts</h2><div class="scroll" style="max-height:200px"><table id="igposts"></table></div>
     <h2 style="margin-top:14px">Comments waiting for you</h2><div class="scroll" style="max-height:200px"><table id="igc"></table></div></section>
   <section class="card span-6"><h2>Upcoming meetings</h2><div id="upcoming"></div></section>
+  <section class="card span-12"><h2>Speaking coach <small>pace · filler words · pitch · confidence, with AI feedback on your pitch</small></h2>
+    <div class="coach">
+      <div>
+        <div class="toolbar"><select id="sp-topic" aria-label="What are you practising?"><option>venue partnership pitch</option><option>university Buddy platform pitch</option><option>student membership pitch</option><option>investor pitch</option><option>workshop intro</option></select>
+          <button class="primary" id="sp-rec">● Record a practice pitch</button><span class="muted" id="sp-status" style="align-self:center;font-size:12.5px"></span></div>
+        <div id="sp-result"><div class="empty">Record 30–90 seconds as if you were pitching. Setz measures your delivery and coaches the content. You can also say “Hey Setz, practise my pitch”, or run <code>sz voice analyse call.wav --coach</code> for a recorded call.</div></div>
+      </div>
+      <div><div class="legend"><span><i style="background:var(--series-1)"></i>Delivery score</span><span><i style="background:var(--series-2)"></i>Fillers / min</span></div><div class="chart-wrap" style="height:200px"><canvas id="spChart"></canvas></div>
+        <div id="sp-trend" class="muted" style="font-size:12.5px;margin-top:6px"></div></div>
+    </div></section>
   <section class="card span-6"><h2>Import past work</h2>
     <p style="margin-top:0">Bring in contacts, leads and partner lists (CSV / XLSX / JSON) and outreach emails, social posts and strategy notes (MD / TXT / DOCX), for example exported from your Claude projects:</p>
     <pre style="background:var(--surface-2);padding:10px;border-radius:8px;overflow:auto">sz import "C:\Users\you\Downloads\settleezy-exports"</pre>
@@ -783,6 +801,56 @@ function renderWeek(w) {
 }
 const shiftWeek = (days) => { const d = new Date((WK ? WK.week_start : new Date().toISOString().slice(0, 10)) + "T00:00"); d.setDate(d.getDate() + days); wkStart = d.toISOString().slice(0, 10); loadWeek(); };
 
+/* ---------- SPEAKING COACH ---------- */
+let REC = null, recChunks = [], recT0 = 0, recTimer = null;
+function renderSpeech(m) {
+  if (!m) return;
+  const cell = (v, l) => `<div><b>${esc(v)}</b><span>${esc(l)}</span></div>`;
+  const fill = Object.entries(m.fillers || {}).map(([k, n]) => `${k} ×${n}`).join(", ");
+  $("#sp-result").innerHTML = `<div class="spm">${cell(m.score + "/100", "delivery score")}${cell(m.wpm ?? "–", "words / min")}${cell(m.fillers_per_min ?? "–", "fillers / min")}
+    ${cell(m.pitch_variation_st != null ? m.pitch_variation_st + " st" : "–", "pitch variation")}${cell(m.energy || "–", "energy")}${cell(m.clarity != null ? Math.round(m.clarity * 100) + "%" : "–", "clarity")}</div>
+    ${fill ? `<div class="muted" style="font-size:12.5px">Fillers: ${esc(fill)}${Object.keys(m.hedges || {}).length ? " · Hedges: " + esc(Object.keys(m.hedges).join(", ")) : ""}</div>` : ""}
+    <ul class="tips">${(m.tips || []).map((t) => `<li>${esc(t)}</li>`).join("")}</ul>
+    ${m.coaching ? `<div class="md" style="background:var(--surface-2);border-radius:8px;padding:8px 12px">${md(m.coaching)}</div>` : ""}
+    ${m.text ? `<details><summary>Transcript</summary><p style="font-size:13px">${esc(m.text)}</p></details>` : ""}`;
+}
+async function loadSpeech() {
+  const d = await (await fetch("/api/speech")).json(), t = d.trend;
+  const last = d.sessions[0];
+  if (last && !REC && !$("#sp-result").dataset.fresh) renderSpeech({ ...last.metrics, text: last.text, coaching: last.coaching });
+  const ser = (t.series || []).filter((x) => x.mode !== "command");
+  charts.sp?.destroy();
+  if (ser.length) {
+    const o = baseOpts(); o.scales.y1 = { position: "right", beginAtZero: true, grid: { display: false }, ticks: { color: css("--text-muted"), font: { size: 11 } }, border: { display: false } };
+    o.scales.y.max = 100;
+    charts.sp = new Chart($("#spChart"), { type: "line", data: { labels: ser.map((x) => x.at.slice(5, 10)), datasets: [
+      { label: "Delivery score", data: ser.map((x) => x.score), borderColor: css("--series-1"), backgroundColor: css("--series-1"), borderWidth: 2, pointRadius: 3, tension: .25 },
+      { label: "Fillers / min", data: ser.map((x) => x.fillers_per_min), yAxisID: "y1", borderColor: css("--series-2"), backgroundColor: css("--series-2"), borderWidth: 2, pointRadius: 3, tension: .25 }] }, options: o });
+  }
+  $("#sp-trend").textContent = t.sessions ? (t.before && t.before.score != null ? `Score ${fmt(t.before.score)} → ${fmt(t.now.score)} · fillers ${fmt(t.before.fillers_per_min)} → ${fmt(t.now.fillers_per_min)}/min over ${t.sessions} sessions` : `${t.sessions} sessions so far`) : "No sessions yet.";
+}
+async function toggleRecord() {
+  const btn = $("#sp-rec");
+  if (REC) { REC.stop(); return; }
+  if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) return toast("This browser can't record audio");
+  let stream; try { stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, noiseSuppression: false, echoCancellation: false } }); } catch (_) { return toast("Microphone permission denied"); }
+  recChunks = []; REC = new MediaRecorder(stream); recT0 = Date.now();
+  REC.ondataavailable = (e) => e.data.size && recChunks.push(e.data);
+  REC.onstop = async () => {
+    stream.getTracks().forEach((t) => t.stop()); clearInterval(recTimer); btn.classList.remove("rec-on"); btn.textContent = "● Record a practice pitch";
+    REC = null; const blob = new Blob(recChunks, { type: recChunks[0]?.type || "audio/webm" });
+    $("#sp-status").textContent = "Analysing… (transcribing + coaching, ~10–30 s)"; btn.disabled = true;
+    try {
+      const r = await fetch(`/api/speech/analyse?mode=practice&coach=1&topic=${encodeURIComponent($("#sp-topic").value)}`, { method: "POST", headers: { "X-SZ": "1", "Content-Type": blob.type }, body: blob });
+      const j = await r.json(); if (!r.ok) throw new Error(j.detail || r.statusText);
+      $("#sp-result").dataset.fresh = "1"; renderSpeech(j); $("#sp-status").textContent = ""; loadSpeech();
+    } catch (err) { $("#sp-status").textContent = err.message; }
+    btn.disabled = false;
+  };
+  REC.start(); btn.classList.add("rec-on"); btn.textContent = "■ Stop";
+  recTimer = setInterval(() => { const s = Math.round((Date.now() - recT0) / 1000); $("#sp-status").textContent = `Recording… ${s} s`; if (s >= 180) REC && REC.stop(); }, 500);
+}
+
 /* ---------- load ---------- */
 async function refreshOps() { OPS = await (await fetch("/api/ops")).json(); renderToday(DATA, OPS); renderPartners(OPS); renderGrowth(DATA, OPS); loadPipeline().catch(() => {}); loadWeek().catch(() => {}); }
 async function load() {
@@ -793,7 +861,7 @@ async function load() {
   if (!$("#lead-status").options[1]) $("#lead-status").innerHTML += STATUSES.map(s => `<option>${s}</option>`).join("");
   if (!$("#pedit [name=stage]").options[0]) $("#pedit [name=stage]").innerHTML = o.stages.map(([k, n]) => `<option value="${k}">${esc(n)}</option>`).join("");
   renderToday(d, o); renderPartners(o); renderGrowth(d, o); renderLeadsPage(d); renderInsights(d);
-  loadPipeline().catch(() => {}); loadWeek().catch(() => {});
+  loadPipeline().catch(() => {}); loadWeek().catch(() => {}); loadSpeech().catch(() => {});
   document.querySelectorAll("[data-job]").forEach(b => b.disabled = d.running[b.dataset.job] === "running");
 }
 async function poll(job) {
@@ -840,6 +908,7 @@ document.addEventListener("click", async (e) => {
   if (t("[data-seqstop]")) { const r = await post(`/api/leads/${t("[data-seqstop]").dataset.seqstop}/sequence`, { action: "stop" }); toast(`Sequence stopped (${r.removed} steps removed)`); return refreshOps(); }
   if (t("[data-snooze7]")) { await post(`/api/tasks/${t("[data-snooze7]").dataset.snooze7}`, { action: "snooze", days: 7 }); toast("Moved to next week"); return refreshOps(); }
   if (e.target.id === "pl-auto") { e.target.disabled = true; try { const r = await post("/api/pipeline/sequences/auto"); toast(r.started.length ? `Started ${r.started.length} sequences: ${r.started.slice(0, 3).map(x => x.name).join(", ")}${r.started.length > 3 ? "…" : ""}` : "Weekly capacity reached or no leads with contacts"); refreshOps(); } catch (err) { toast(err.message); e.target.disabled = false; } return; }
+  if (e.target.id === "sp-rec") return toggleRecord();
   if (e.target.id === "wk-prev") return shiftWeek(-7);
   if (e.target.id === "wk-next") return shiftWeek(7);
   if (e.target.id === "wk-this") { wkStart = null; return loadWeek(); }

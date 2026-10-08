@@ -6,6 +6,9 @@
   text->speech: ElevenLabs (your chosen voice), or Windows' built-in voices via pyttsx3 if no key is set
   hologram    : every state change (listening / thinking / speaking + loudness envelope) is sent to the
                 dashboard, where the hologram at http://127.0.0.1:8765/hologram animates in sync
+  barge-in    : with voice.barge_in = true (use a headset), start talking while Setz speaks and it stops to listen
+  speech coach: every command is measured quietly (pace, fillers, pitch...); "Hey Setz, practise my pitch" records a
+                pitch and gives a delivery score plus AI coaching (see speech.py, `sz voice practice`)
   brain       : quick intents handled here (brief, new listings, leads); anything else goes to OpenJarvis
                 (which can call this project's tools via MCP), or to Claude if OpenJarvis isn't installed.
 
@@ -43,6 +46,9 @@ class Speaker:
         self.eleven = tts.elevenlabs_enabled(cfg)
         self.engine = None
         self.voices = {"en": None, "de": None}
+        self.barge_in = bool(cfg.get("voice.barge_in", False))
+        self.barge_threshold = float(cfg.get("voice.mic_threshold", 0.012)) * float(cfg.get("voice.barge_factor", 3.0))
+        self.interrupted = False
         if not self.eleven:
             self._init_local()
 
@@ -84,9 +90,31 @@ class Speaker:
         pcm = self.tts.synthesize(self.cfg, text)
         env = self.tts.envelope(pcm)
         publish(self.cfg, "speaking", text, env, 40)
-        sd.play(np.frombuffer(pcm, dtype=np.int16), self.tts.SAMPLE_RATE)
-        sd.wait()
+        samples = np.frombuffer(pcm, dtype=np.int16)
+        sd.play(samples, self.tts.SAMPLE_RATE)
+        self.interrupted = False
+        if self.barge_in:
+            self._watch_for_barge_in(len(samples) / self.tts.SAMPLE_RATE)
+        else:
+            sd.wait()
         publish(self.cfg, "idle")
+
+    def _watch_for_barge_in(self, seconds: float) -> None:
+        """While Setz talks, listen: ~250 ms of the founder's voice above the barge-in level stops playback."""
+        import numpy as np
+        import sounddevice as sd
+
+        loud = 0
+        t0 = time.monotonic()
+        with sd.InputStream(samplerate=SAMPLE_RATE, channels=1, dtype="float32", blocksize=CHUNK // 2) as mic:
+            while time.monotonic() - t0 < seconds + 0.2:
+                block, _ = mic.read(CHUNK // 2)
+                loud = loud + 1 if float(np.sqrt(np.mean(block ** 2))) > self.barge_threshold else 0
+                if loud >= 6 and time.monotonic() - t0 > 0.4:   # ignore the first moment (speaker start-up click)
+                    sd.stop()
+                    self.interrupted = True
+                    return
+        sd.wait()
 
 
 class Ears:
@@ -125,6 +153,27 @@ class Ears:
                     frames = frames[-3:] + [block[:, 0].copy()]
         audio = np.concatenate(frames) if frames else np.zeros(0, dtype="float32")
         return audio, started
+
+    def calibrate(self, seconds: float = 1.5) -> float:
+        """Measure the room's background noise and set the speech threshold above it."""
+        import numpy as np
+        import sounddevice as sd
+
+        audio = sd.rec(int(seconds * SAMPLE_RATE), samplerate=SAMPLE_RATE, channels=1, dtype="float32")
+        sd.wait()
+        noise = float(np.sqrt(np.mean(audio ** 2)))
+        self.threshold = max(self.threshold, noise * 3.5)
+        return noise
+
+    def transcribe_words(self, audio, prompt: str = "") -> tuple[str, str, list[dict]]:
+        """Like transcribe(), plus word timestamps and confidence for the speech analyser."""
+        from .speech import words_from_segments
+
+        segments, info = self.model.transcribe(audio, beam_size=1, vad_filter=True, word_timestamps=True,
+                                               initial_prompt=prompt or None)
+        segments = list(segments)
+        text = " ".join(s.text for s in segments).strip()
+        return text, (info.language if info.language in ("en", "de") else "en"), words_from_segments(segments)
 
     def transcribe(self, audio, prompt: str = "") -> tuple[str, str]:
         segments, info = self.model.transcribe(audio, beam_size=1, vad_filter=True, initial_prompt=prompt or None)
@@ -201,6 +250,18 @@ def _answer(cfg: Config, text: str, lang: str) -> str:
             if not task:
                 return "That's already on your list."
             return f"Added: {task['title']}" + (f", due {task['due']}." if task["due"] else ".")
+        if re.search(r"\b(how(?:'s| is| was) my (?:speaking|voice|delivery|pitch)|speaking (?:stats|score)|wie spreche ich)\b", t):
+            from .speech import trend
+
+            tr = trend(db, 30)
+            if not tr.get("sessions"):
+                return "No practice sessions yet. Say: Hey Setz, practise my pitch."
+            n, b = tr["now"], tr.get("before")
+            msg = (f"Over {tr['sessions']} sessions your delivery score is {n['score']:g}, at {n['wpm'] or 0:g} words per minute "
+                   f"with {n['fillers_per_min'] or 0:g} filler words a minute.")
+            if b and b.get("score") is not None:
+                msg += f" That's {'up' if n['score'] >= b['score'] else 'down'} from {b['score']:g}."
+            return msg
         if re.search(r"\b(plan my week|my week|week plan|this week's plan|next week|meine woche|wochenplan)\b", t):
             from datetime import date, timedelta
 
@@ -342,6 +403,53 @@ def due_announcement(cfg: Config, announced: set[str], now: float | None = None)
     return None
 
 
+PRACTICE = re.compile(r"\b(practi[cs]e|rehearse|coach me|analy[sz]e my (voice|speaking|pitch)|üben|probe)\b", re.I)
+
+
+def practice(cfg: Config, speaker: "Speaker | None" = None, ears: "Ears | None" = None, max_seconds: float = 180,
+             topic: str = "pitch", lang_hint: str = "en", use_ai: bool = True) -> dict:
+    """Record a pitch (stops after 3 s of silence), analyse delivery, coach the content, save and speak the result."""
+    from . import speech
+
+    ears = ears or Ears(cfg)
+    if speaker:
+        speaker.say("Go ahead, I'm listening. Stop for three seconds when you're done." if lang_hint != "de"
+                    else "Leg los, ich höre zu. Mach drei Sekunden Pause, wenn du fertig bist.", lang_hint)
+    publish(cfg, "listening")
+    audio, heard = ears.record_until_silence(max_seconds=max_seconds, silence_seconds=3.0, wait_seconds=10)
+    if not heard:
+        publish(cfg, "idle")
+        return {"error": "I didn't hear anything."}
+    publish(cfg, "thinking", "Analysing your pitch…")
+    text, lang, words = ears.transcribe_words(audio)
+    m = speech.analyse(audio, text=text, words=words, lang=lang)
+    tip = ""
+    if use_ai and text:
+        try:
+            tip = speech.coach(cfg, m, topic)
+        except Exception as exc:  # delivery numbers are still useful without the AI part
+            tip = f"(AI coaching unavailable: {exc})"
+    with DB(cfg.db_path) as db:
+        m["session_id"] = speech.save(db, m, "practice", tip)
+    m["coaching"] = tip
+    if speaker:
+        speaker.say(speech.spoken_summary(m), lang)
+    publish(cfg, "idle")
+    return m
+
+
+def _measure_command(cfg: Config, audio, words: list[dict], text: str, lang: str) -> None:
+    """Quietly keep delivery stats for normal commands (cheap: numpy only)."""
+    try:
+        from . import speech
+
+        m = speech.analyse(audio, text=text, words=words, lang=lang)
+        with DB(cfg.db_path) as db:
+            speech.save(db, m, "command")
+    except Exception:
+        pass
+
+
 def run(cfg: Config, wake_word: bool = True) -> None:
     import numpy as np
     import sounddevice as sd
@@ -360,6 +468,10 @@ def run(cfg: Config, wake_word: bool = True) -> None:
         detector = Model(wakeword_models=[model], inference_framework="onnx")
         threshold = float(cfg.get("voice.wake_threshold", 0.5))
     announced: set[str] = set()
+    if cfg.get("voice.calibrate", True):
+        noise = ears.calibrate()
+        speaker.barge_threshold = max(speaker.barge_threshold, ears.threshold * float(cfg.get("voice.barge_factor", 3.0)))
+        print(f"(room noise {noise:.4f}, speech threshold {ears.threshold:.4f})")
     publish(cfg, "idle")
     speaker.say({"push": "Setz here. Press enter and speak."}.get(mode, "Setz is listening. Say: Hey Setz."))
     while True:
@@ -392,7 +504,9 @@ def run(cfg: Config, wake_word: bool = True) -> None:
             speaker.say("Yes?" if lang == "en" else "Ja?", lang)
             publish(cfg, "listening")
             audio, heard = ears.record_until_silence(wait_seconds=6)
-            command, lang = ears.transcribe(audio) if heard else ("", lang)
+            if heard:
+                command, lang, words = ears.transcribe_words(audio)
+                _measure_command(cfg, audio, words, command, lang)
         if not command:
             publish(cfg, "idle")
             continue
@@ -402,6 +516,12 @@ def run(cfg: Config, wake_word: bool = True) -> None:
             speaker.say("Bye." if lang == "en" else "Tschüss.", lang)
             publish(cfg, "idle")
             return
+        if PRACTICE.search(command):
+            m = practice(cfg, speaker, ears, lang_hint=lang,
+                         topic="university pitch" if re.search(r"uni|buddy", command, re.I) else "venue partnership pitch")
+            if m.get("coaching"):
+                print(m["coaching"])
+            continue
         try:
             reply = answer(cfg, command, lang)
         except Exception as exc:

@@ -412,9 +412,50 @@ def cmd_dashboard(args) -> None:
 
 
 def cmd_voice(args) -> None:
-    from .voice import run
+    cfg = load_config()
+    if args.action == "practice":
+        from .voice import practice
 
-    run(load_config(), wake_word=not args.no_wake)
+        m = practice(cfg, max_seconds=args.seconds, topic=args.topic, use_ai=not args.no_ai)
+        _print_speech(m)
+    elif args.action == "analyse":
+        from . import speech
+
+        if not args.file:
+            sys.exit("usage: sz voice analyse recording.wav [--coach]")
+        audio = speech.decode(args.file)
+        from faster_whisper import WhisperModel
+
+        model = WhisperModel(cfg.get("voice.whisper_model", "small"), device="auto", compute_type="int8")
+        segs, info = model.transcribe(audio, word_timestamps=True, vad_filter=True)
+        segs = list(segs)
+        m = speech.analyse(audio, words=speech.words_from_segments(segs), lang=info.language if info.language in ("en", "de") else "en")
+        m["coaching"] = speech.coach(cfg, m, args.topic) if args.coach else ""
+        with DB(cfg.db_path) as db:
+            speech.save(db, m, "file", m["coaching"])
+        _print_speech(m)
+    elif args.action == "stats":
+        from . import speech
+
+        with DB(cfg.db_path) as db:
+            _print(speech.trend(db, 60))
+    else:
+        from .voice import run
+
+        run(cfg, wake_word=not args.no_wake)
+
+
+def _print_speech(m: dict) -> None:
+    if m.get("error"):
+        sys.exit(m["error"])
+    print(f"Delivery score {m['score']}/100  ·  {m['duration_s']} s  ·  {m.get('wpm') or '–'} wpm  ·  "
+          f"fillers {m.get('fillers_per_min') or 0}/min {m.get('fillers') or ''}")
+    print(f"Pitch {m.get('pitch_hz', '–')} Hz, variation {m.get('pitch_variation_st', '–')} st ({m.get('energy')})  ·  "
+          f"pauses {m.get('pauses')} ({m.get('long_pauses')} long)  ·  clarity {m.get('clarity') or '–'}  ·  hedges {m.get('hedges') or 'none'}")
+    for t in m.get("tips", []):
+        print("  - " + t)
+    if m.get("coaching"):
+        print("\n" + m["coaching"])
 
 
 def cmd_mcp(args) -> None:
@@ -542,8 +583,14 @@ def main(argv: list[str] | None = None) -> None:
     db_.add_argument("--port", type=int, default=None)
     db_.set_defaults(fn=cmd_dashboard)
 
-    v = sub.add_parser("voice", help="Setz, the hands-free voice assistant ('Hey Setz')")
+    v = sub.add_parser("voice", help="Setz voice: sz voice | sz voice practice | sz voice analyse call.wav --coach | sz voice stats")
+    v.add_argument("action", nargs="?", default="run", choices=["run", "practice", "analyse", "stats"])
+    v.add_argument("file", nargs="?")
     v.add_argument("--no-wake", action="store_true", help="push-to-talk with Enter instead of the wake word")
+    v.add_argument("--seconds", type=float, default=180, help="practice: maximum length")
+    v.add_argument("--topic", default="venue partnership pitch", help="what you're practising, for the AI coach")
+    v.add_argument("--no-ai", action="store_true", help="practice: delivery numbers only, no AI coaching")
+    v.add_argument("--coach", action="store_true", help="analyse: add AI coaching on the content")
     v.set_defaults(fn=cmd_voice)
 
     sub.add_parser("mcp", help="run the MCP server (used by OpenJarvis)").set_defaults(fn=cmd_mcp)

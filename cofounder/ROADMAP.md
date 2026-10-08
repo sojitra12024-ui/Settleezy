@@ -41,13 +41,12 @@ This roadmap fills the gaps in a student-membership business. It is ordered by *
   - [Remotion](https://github.com/remotion-dev/remotion) for code-generated Reels (e.g. a "What €10 buys you in Berlin" template). Free for companies of up to about 3 people; check its license page as you grow.
 - **What Setz adds on top:** a weekly content plan in the growth review, then designs and captions created as **drafts** in Postiz. Nothing posts until you approve it.
 
-### 4. Find every venue near every campus: OpenStreetMap
-- **Why:** competitor sites only show venues that already discount. OpenStreetMap shows **every café, restaurant, supermarket, gym and Späti within walking distance of each university**. It is open data, so there's no scraping-ToS risk.
-- **How:**
-  - query the public Overpass API with `around:<radius>,<lat>,<lon>` for `amenity=cafe|restaurant` and `shop=supermarket`
-  - store each venue's distance to the nearest campus
-  - pitch with it: "you're 4 minutes from TU Berlin's main campus"
-- **Python:** `overpy` wraps the Overpass API. Keep queries small and set a timeout (it's a shared public service).
+### 4. ✅ Find every venue near every campus: OpenStreetMap (built: `sz leadgen`)
+- Built in October 2026: `leadgen.py` asks the public Overpass API (with two mirrors as fallback) for cafés,
+  restaurants, supermarkets, bakeries, gyms, cinemas, copyshops and bookshops within 800 m of 15 campuses. It stores
+  each venue's distance, address and contacts, scores walking distance, and plans walking visit routes.
+- Possible upgrade: [osmnx](https://github.com/gboeing/osmnx) (MIT) for real walking-network distances instead of
+  straight-line distance, and for pulling student residences (`building=dormitory`) as housing-partner leads.
 
 ### 5. Real numbers from the app, no typing: product analytics
 - **Why:** the dashboard asks you to type in paying members and trials. Pulling them from the app gives exact trial → paid conversion, churn and savings per member.
@@ -70,18 +69,78 @@ This roadmap fills the gaps in a student-membership business. It is ordered by *
 | Glue between everything | [n8n](https://github.com/n8n-io/n8n) (free for internal use under its fair-code licence) or [Activepieces](https://github.com/activepieces/activepieces) (MIT core) | e.g. a new app signup triggers a welcome email, adds the student to Listmonk and updates the dashboard. Setz can call these flows as tools |
 | Scheduling page for students and partners | Calendly (already connected) or [Cal.diy](https://github.com/calcom/cal.diy), the MIT community fork of Cal.com, if you want to self-host | Booking links in outreach emails; bookings flow into today's plan |
 
-## Next: make Setz itself smarter
+## Next: make Setz itself smarter (brain + voice)
+
+Already built (October 2026):
+- long-term semantic memory (`brain.py`, SQLite + embeddings)
+- a neural lead-reply model
+- a speech analyser (`speech.py`)
+- barge-in, noise calibration
+- pipeline and week planner
+
+The list below is the researched upgrade path. Stars and licences were checked on GitHub in October 2026; anything
+marked *(check)* wasn't confirmed and needs a look before you install.
+
+**Hardware rule:** qwen2.5:7b already uses about 5 of the RTX 3060's 6 GB. Everything below runs on the **CPU**
+(ONNX or int8 builds), or uses the GPU only while the LLM is idle.
+
+### Brain (memory, reasoning, learning)
+
+| Order | Project | Licence | What it adds to Setz | How |
+|---|---|---|---|---|
+| 1 | [fastembed](https://github.com/qdrant/fastembed) | Apache-2.0 | Multilingual embeddings (`multilingual-e5-small`), so memory recall works across English and German | **Supported now:** `pip install fastembed` and `brain.embedder = "auto"` |
+| 2 | [sqlite-vec](https://github.com/asg017/sqlite-vec) | MIT/Apache | Vector search *inside* the existing SQLite database. Today's search reads every memory, which is fine up to ~20k; this scales further | Swap `brain._scan` for a `vec0` virtual table |
+| 3 | [mem0](https://github.com/mem0ai/mem0) | Apache-2.0 | Extracts facts from emails and chats automatically ("Anna prefers WhatsApp") instead of only from structured records | Local mode with Ollama + sqlite-vec; write its facts into `memories` |
+| 4 | [pydantic-ai](https://github.com/pydantic/pydantic-ai) | MIT | Typed tool calling and validated outputs across Ollama and Claude: fewer parsing bugs in triage and extraction | Replace the hand-parsed JSON in `llm.py` callers |
+| 5 | [scikit-learn](https://github.com/scikit-learn/scikit-learn) / [CatBoost](https://github.com/catboost/catboost) | BSD / Apache | Calibrated probabilities and better handling of categories (district, source) once there are 200+ outcomes | Train alongside `LeadNet`; keep whichever cross-validates better |
+| later | [Graphiti](https://github.com/getzep/graphiti) or [cognee](https://github.com/topoteretes/cognee) | Apache-2.0 | A time-aware knowledge graph (who knows whom, how a partnership evolved) | Only if flat memories aren't enough; Graphiti needs a graph database |
+| later | [LangGraph](https://github.com/langchain-ai/langgraph) | MIT | Durable, resumable multi-step flows (sequences with approval steps) with SQLite checkpoints | If sequences grow beyond to-dos |
+
+Skip for now:
+- **Letta, CrewAI and AutoGen:** whole agent platforms that would duplicate Setz's deterministic sub-agents.
+- **basic-memory:** AGPL licence.
+
+### Voice
+
+| Order | Project | Licence | What it adds | Notes |
+|---|---|---|---|---|
+| 1 | [silero-vad](https://github.com/snakers4/silero-vad) | MIT | Real speech detection instead of an energy threshold: fewer false wakes, cleaner barge-in | Under 1 ms per chunk on CPU; drop-in for `record_until_silence` |
+| 2 | [RealtimeSTT](https://github.com/KoljaB/RealtimeSTT) | MIT | Streaming faster-whisper + VAD + wake word: Setz starts thinking while you're still talking | Replaces `Ears` |
+| 3 | [smart-turn](https://github.com/pipecat-ai/smart-turn) | BSD | Detects that you've *finished* a thought (not just paused), so Setz stops cutting you off | Small model, CPU |
+| 4 | [kokoro-onnx](https://github.com/thewh1teagle/kokoro-onnx) via [RealtimeTTS](https://github.com/KoljaB/RealtimeTTS) | MIT | Free offline voice as a fallback to ElevenLabs | German voices are limited *(check)*; [Piper](https://github.com/OHF-Voice/piper1-gpl) (GPL-3.0) has good German voices |
+| 5 | [openWakeWord](https://github.com/dscripka/openWakeWord) | Apache (code) | A trained "Hey Setz" model: lighter than Whisper phrase spotting | Already supported (`wake_mode = "openwakeword"`); pre-trained models are non-commercial *(check)*, but your own trained model is fine |
+| 6 | [whisperX](https://github.com/m-bain/whisperX) + [pyannote](https://github.com/pyannote/pyannote-audio) | BSD / MIT | Analyse recorded partner calls per speaker (your talk ratio, their objections) | Run offline after calls; pyannote models need a free Hugging Face token |
+| 7 | [SpeechBrain](https://github.com/speechbrain/speechbrain) emotion model | Apache-2.0 | Model-based emotion/arousal on practice pitches (today: pitch + loudness heuristics) | After a session, never in the live loop |
+| later | [Pipecat](https://github.com/pipecat-ai/pipecat) | BSD | A full voice-agent framework (VAD, interruptions, turn-taking) if the custom loop gets hard to maintain | Runs locally; preferred over LiveKit, which needs a WebRTC server |
+
+Licence notes:
+- [Parselmouth](https://github.com/YannickJadoul/Parselmouth) (Praat-quality pitch, jitter, shimmer) is **GPL-3.0**. Keep it out of the package and use it only as a separate script.
+- openSMILE's licence is **not for commercial use**.
+- Setz's analyser uses its own numpy pitch tracker for this reason.
+
+### Dashboard and visualisation
+- [3d-force-graph](https://github.com/vasturiano/3d-force-graph) (MIT): a 3D memory graph from `/api/brain`. The current
+  command center maps memories onto the 2D brain.
+- [sigma.js](https://github.com/jacomyal/sigma.js) (MIT): a fast WebGL view of the lead/partner/university network.
+- [MapLibre GL](https://github.com/maplibre/maplibre-gl-js): heatmaps and clustering if the Leaflet campus map gets
+  crowded.
+
+### Scheduling and operations
+- [OR-Tools](https://github.com/google/or-tools) (Apache): constraint-based week planning (energy levels, travel
+  between campuses) and multi-day visit routes (VRP). It would replace the greedy planner once the rules get complex.
+- [caldav](https://github.com/python-caldav/caldav) (Apache) / Microsoft Graph `Calendars.ReadWrite`: write the
+  planned week straight into your calendar instead of importing the `.ics` file. Setz deliberately keeps read-only
+  calendar access today.
+
+### Other tools that still apply
 
 | Need | Project | Why |
 |---|---|---|
-| Long-term memory of people and preferences | [Mem0](https://github.com/mem0ai/mem0) | Setz remembers "Anna at Café Kranz prefers WhatsApp, renewal talks in January" across sessions and channels |
-| See what the AI costs and where it fails | [Langfuse](https://github.com/langfuse/langfuse) (MIT core) | Traces every draft and analysis, with cost per day and quality checks; keeps the Claude bill predictable |
-| Better competitor and venue-website reading | [Crawl4AI](https://github.com/unclecode/crawl4ai) | LLM-ready Markdown from JavaScript-heavy sites (UNiDAYS, Student Beans) instead of hand-tuned patterns |
-| Agent that can operate websites | [browser-use](https://github.com/browser-use/browser-use) | Fill in partner-portal forms, check listings in the app store, etc. Use for occasional tasks, always with your confirmation, and never for logging into other people's accounts |
-| Natural voice with interruptions | [Pipecat](https://github.com/pipecat-ai/pipecat) (BSD-2) | Talk over Setz, interrupt it, have real back-and-forth; works with local Whisper |
-| Offline German/English voice (backup for ElevenLabs) | [Piper](https://github.com/OHF-Voice/piper1-gpl) (GPL-3.0, active fork; the old rhasspy repo is archived) | Setz keeps talking without internet or ElevenLabs credits; German voices available |
-| Meeting notes → follow-ups | [Meetily](https://github.com/Zackriya-Solutions/meetily) (local transcription) or **Granola** (already connected to your Claude account) | After every partner or university call: summary, agreed next steps, follow-up draft and to-dos created automatically |
-| Your Notion workspace | Notion's hosted MCP server (`https://mcp.notion.com/mcp`); the old open-source server is no longer maintained | Setz reads and writes your Notion docs (playbooks, partner notes) |
+| See what the AI costs and where it fails | [Langfuse](https://github.com/langfuse/langfuse) (MIT core) | Traces every draft and analysis with cost per day; keeps the Claude bill predictable |
+| Better competitor and venue-website reading | [Crawl4AI](https://github.com/unclecode/crawl4ai) | LLM-ready Markdown from JavaScript-heavy sites (UNiDAYS, Student Beans) |
+| Agent that can operate websites | [browser-use](https://github.com/browser-use/browser-use) | Occasional form-filling, always with your confirmation |
+| Meeting notes → follow-ups | [Meetily](https://github.com/Zackriya-Solutions/meetily) or **Granola** (already connected to your Claude account) | Summary, next steps, follow-up draft and to-dos after every call |
+| Your Notion workspace | Notion's hosted MCP server (`https://mcp.notion.com/mcp`) | Setz reads and writes playbooks and partner notes |
 
 ## Later: run the company
 
