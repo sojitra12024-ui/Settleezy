@@ -15,10 +15,11 @@ if (-not (Get-Command ollama -ErrorAction SilentlyContinue)) {
 
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install --upgrade pip
-.\.venv\Scripts\python.exe -m pip install -e ".[voice,dev]"
+# voice = speech + Silero VAD, brain = multilingual memory, notify = Windows pop-ups + phone push, widget = always-on-top window
+.\.venv\Scripts\python.exe -m pip install -e ".[voice,brain,notify,widget,dev]"
 
 ollama pull qwen2.5:7b-instruct
 
 .\.venv\Scripts\sz.exe init
 Write-Host ""
-Write-Host "Done. Next: edit config.toml and .env, then run:  .\.venv\Scripts\sz.exe auth outlook" -ForegroundColor Green
+Write-Host "Done. Next: edit config.toml and .env, then run:  .\.venv\Scripts\sz.exe auth outlook  and  .\.venv\Scripts\sz.exe doctor" -ForegroundColor Green

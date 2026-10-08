@@ -39,11 +39,13 @@ Settleezy helps students in Berlin, especially international students, save mone
 ### 2. Install the co-founder
 ```powershell
 git clone https://github.com/sojitra12024-ui/Settleezy.git
-cd Settleezy\cofounder
+cd Settleezy
+git checkout claude/practical-wright-pz08jt   # until the pull request is merged into main
+cd cofounder
 Set-ExecutionPolicy -Scope CurrentUser RemoteSigned   # once, if PowerShell blocks scripts
 .\scripts\install.ps1
 ```
-This creates `.venv`, installs everything (including voice), downloads the local model `qwen2.5:7b-instruct` (about 4.7 GB, which fits your 6 GB GPU), and creates `config.toml` and `.env`.
+This creates `.venv`, installs everything (voice, multilingual memory, pop-ups/phone push, the widget), downloads the local model `qwen2.5:7b-instruct` (about 4.7 GB, which fits your 6 GB GPU), and creates `config.toml` and `.env`.
 
 Open **`config.toml`** and set your name and **every email address you send from** under `[me]`. Adjust `[growth] goals`.
 Then fill in the TODO lines in **`knowledge/settleezy.md`** (website, how members redeem, what listing costs a venue, ...). Drafts only state facts from that file, so the more you fill in, the better the outreach.
