@@ -241,6 +241,46 @@ Booking needs the `Calendars.ReadWrite` permission (README step 3), then run `sz
 in `[scheduling]`; set `[outlook] calendar_write = false` to keep the calendar read-only. Instagram DMs can't be read
 (Meta restricts that API), so Setz uses the comments it can see.
 
+## Always on: app, pop-ups, phone and widget
+
+**It's always running.** `register_tasks.ps1` starts the dashboard at logon with no time limit and restarts it if it
+ever stops. Add `-Widget` (floating window) and `-Voice` ("Hey Setz") to start those too.
+
+**Pop-ups wherever you are.** Setz notifies you about:
+- new meeting requests
+- leads that replied
+- meetings starting in 10 minutes
+- the agents' top alerts
+- venues it found
+- failed jobs
+
+They appear:
+- as **Windows notifications** (`pip install -e ".[notify]"`), even over other apps
+- as browser pop-ups when the dashboard tab is in the background
+- in the 🔔 bell, which keeps the history
+
+The dashboard and command center update live the moment a job finishes. Quiet hours (22:00–07:30) keep pop-ups
+silent. Test it with `sz notify`.
+
+**Floating Setz widget.** `sz widget` opens a small always-on-top window with the animated robot, what Setz is doing
+or saying, the latest notification and an ask box. It stays in front while you work in other apps (install with
+`pip install -e ".[widget]"`; without it the widget opens as a small Edge app window).
+
+**Install it as an app.** In Edge/Chrome click *Install app* in the dashboard header. Setz gets its own window, a taskbar
+icon and shortcuts to the command center and Lead finder.
+
+**Setz on your phone.** Use [Tailscale](https://tailscale.com) (free): a private network between *your* devices that
+gives you HTTPS and opens nothing to the internet.
+1. Install Tailscale on the laptop and the phone and sign in with the same account.
+2. On the laptop: `tailscale serve --bg 8765`. It prints an address like `https://laptop.tailXXXX.ts.net`.
+3. Open that address on the phone and use *Add to Home Screen* / *Install app*.
+4. In the 🔔 bell, tap **Enable pop-ups**. With `pip install -e ".[notify]"` on the laptop, Setz then sends real push
+   notifications to the phone, even when the app is closed.
+
+Tailscale identifies you, so no PIN is needed. To add one anyway, set `[dashboard] access_pin`. Any device that isn't
+the laptop must then enter it once (5 tries per 5 minutes). On plain home Wi-Fi without Tailscale you can set
+`host = "0.0.0.0"` (a PIN is then required), but browsers allow push notifications only over HTTPS.
+
 ## Lead generation, pipeline and your week
 
 **Find leads near campuses.** `sz leadgen scan` asks OpenStreetMap for every café, restaurant, supermarket, bakery,

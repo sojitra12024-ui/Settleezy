@@ -16,7 +16,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from fastapi import FastAPI, Header, HTTPException, Request
-from fastapi.responses import FileResponse, Response, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response, StreamingResponse
 
 from .. import jobs, tts
 from ..config import load_config
@@ -31,11 +31,149 @@ _voice_state: dict = {"state": "idle", "text": "", "envelope": [], "frame_ms": 4
 _subscribers: set[asyncio.Queue] = set()
 _loop: asyncio.AbstractEventLoop | None = None
 _agent_subs: set[asyncio.Queue] = set()
+_notify_subs: set[asyncio.Queue] = set()
+_login_tries: dict[str, list[float]] = {}
 
 
 def _guard(x_sz: str | None) -> None:
     if x_sz != "1":
         raise HTTPException(403, "missing X-SZ header")
+
+
+# -- access: the laptop itself is always allowed; phones/other devices need the PIN ---------------------------
+
+LOOPBACK = {"127.0.0.1", "::1", "localhost", "testclient"}
+OPEN_PATHS = {"/login", "/manifest.webmanifest", "/sw.js", "/static/icon-192.png", "/static/icon-512.png", "/static/icon.svg"}
+
+
+def _session_secret(cfg) -> bytes:
+    import secrets
+
+    path = cfg.data_dir / "session_secret"
+    if not path.exists():
+        path.write_text(secrets.token_hex(32), encoding="utf-8")
+    return path.read_text(encoding="utf-8").strip().encode()
+
+
+def _session_value(cfg) -> str:
+    import hashlib
+    import hmac
+
+    return hmac.new(_session_secret(cfg), str(cfg.get("dashboard.access_pin", "")).encode(), hashlib.sha256).hexdigest()
+
+
+def _is_remote(request: Request) -> bool:
+    """Requests through Tailscale Serve / a proxy, or from another device on the network."""
+    h = request.headers
+    return bool(h.get("tailscale-user-login") or h.get("x-forwarded-for")) or (request.client is not None and request.client.host not in LOOPBACK)
+
+
+@app.middleware("http")
+async def access_control(request: Request, call_next):
+    if not _is_remote(request) or request.url.path in OPEN_PATHS:
+        return await call_next(request)
+    import hmac
+
+    cfg = load_config()
+    pin = str(cfg.get("dashboard.access_pin", "") or "")
+    if not pin:
+        if request.headers.get("tailscale-user-login"):   # your own tailnet, identified by Tailscale
+            return await call_next(request)
+        return HTMLResponse("Setz: remote access needs [dashboard] access_pin in config.toml (see README: phone access).", 403)
+    if hmac.compare_digest(request.cookies.get("sz_session", ""), _session_value(cfg)):
+        return await call_next(request)
+    if request.url.path.startswith("/api/"):
+        return Response('{"detail":"login required"}', 401, media_type="application/json")
+    return RedirectResponse("/login?next=" + request.url.path, 303)
+
+
+LOGIN_HTML = """<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Setz login</title><meta name="theme-color" content="#030810"><link rel="manifest" href="/manifest.webmanifest">
+<style>:root{color-scheme:dark}body{margin:0;min-height:100vh;display:grid;place-items:center;background:radial-gradient(ellipse at 50% 30%,#0b1d2c,#030810 70%);
+color:#e2f6ff;font:15px/1.5 system-ui,sans-serif}form{display:grid;gap:12px;width:min(320px,calc(100% - 32px));text-align:center}
+b{letter-spacing:.35em;font-size:20px}input{font:inherit;font-size:22px;text-align:center;letter-spacing:.3em;padding:12px;border-radius:10px;
+border:1px solid rgba(94,232,255,.4);background:rgba(94,232,255,.06);color:#e2f6ff}button{font:inherit;padding:11px;border-radius:10px;border:0;
+background:linear-gradient(135deg,#1b6fd0,#12a5c8);color:#fff;font-weight:600}p{color:#9cc3d2;font-size:13px;margin:0}.e{color:#ff8a8a}</style></head>
+<body><form method="post" action="/login"><b>SETZ</b><p>Enter your dashboard PIN</p>
+<input name="pin" type="password" inputmode="numeric" autocomplete="current-password" autofocus aria-label="PIN">
+<input type="hidden" name="next" value="__NEXT__"><button>Open</button><p class="e">__ERR__</p></form></body></html>"""
+
+
+@app.get("/login")
+def login_page(next: str = "/", err: str = "") -> HTMLResponse:
+    nxt = next if next.startswith("/") and not next.startswith("//") else "/"
+    return HTMLResponse(LOGIN_HTML.replace("__NEXT__", nxt.replace('"', "")).replace("__ERR__", "Wrong PIN" if err else ""))
+
+
+@app.post("/login")
+async def login_submit(request: Request) -> Response:
+    import hmac
+    from urllib.parse import parse_qs
+
+    ip = request.headers.get("x-forwarded-for", request.client.host if request.client else "?").split(",")[0]
+    now = time.time()
+    tries = [t for t in _login_tries.get(ip, []) if now - t < 300]
+    if len(tries) >= 5:
+        return HTMLResponse("Too many attempts. Wait 5 minutes.", 429)
+    form = {k: v[0] for k, v in parse_qs((await request.body()).decode()).items()}
+    cfg = load_config()
+    pin = str(cfg.get("dashboard.access_pin", "") or "")
+    nxt = form.get("next", "/")
+    nxt = nxt if nxt.startswith("/") and not nxt.startswith("//") else "/"
+    if not pin or not hmac.compare_digest(form.get("pin", ""), pin):
+        _login_tries[ip] = tries + [now]
+        return RedirectResponse(f"/login?err=1&next={nxt}", 303)
+    resp = RedirectResponse(nxt, 303)
+    resp.set_cookie("sz_session", _session_value(cfg), max_age=90 * 86400, httponly=True, samesite="strict",
+                    secure=request.headers.get("x-forwarded-proto", request.url.scheme) == "https")
+    return resp
+
+
+# -- installable app (PWA) ------------------------------------------------------------------------------------
+
+@app.get("/manifest.webmanifest")
+def manifest() -> Response:
+    data = {"name": "Setz · Settleezy HQ", "short_name": "Setz", "start_url": "/", "scope": "/", "display": "standalone",
+            "background_color": "#030810", "theme_color": "#030810", "description": "Settleezy's AI chief of staff",
+            "icons": [{"src": "/static/icon-192.png", "sizes": "192x192", "type": "image/png"},
+                      {"src": "/static/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"},
+                      {"src": "/static/icon.svg", "sizes": "any", "type": "image/svg+xml"}],
+            "shortcuts": [{"name": "Command center", "url": "/command"}, {"name": "Lead finder", "url": "/#leads"},
+                          {"name": "Hologram", "url": "/hologram"}]}
+    return Response(json.dumps(data), media_type="application/manifest+json")
+
+
+@app.get("/sw.js")
+def service_worker() -> FileResponse:
+    return FileResponse(STATIC / "sw.js", media_type="text/javascript", headers={"Service-Worker-Allowed": "/", "Cache-Control": "no-cache"})
+
+
+@app.on_event("startup")
+async def _startup() -> None:
+    global _loop
+    _loop = asyncio.get_running_loop()
+    threading.Thread(target=_watch_loop, daemon=True).start()
+
+
+def _watch_loop() -> None:
+    """Background: remind about meetings 10 minutes before they start (pop-up on every screen)."""
+    from datetime import datetime as _dt
+
+    while True:
+        try:
+            cfg = load_config()
+            mins = int(cfg.get("notifications.meeting_reminder_minutes", 10))
+            with DB(cfg.db_path) as db:
+                now = _dt.now()
+                soon = (now + timedelta(minutes=mins)).strftime("%Y-%m-%dT%H:%M")
+                for e in db.q("SELECT * FROM events WHERE start > ? AND start <= ?", (now.strftime("%Y-%m-%dT%H:%M"), soon)):
+                    from ..notify import notify
+
+                    notify(cfg, db, f"In {mins} min: {e['title']}", f"{e['start'][11:16]}–{e['end'][11:16]} · {e['location'] or ''}".strip(" ·"),
+                           kind="meeting", url="/#today", key=f"remind:{e['id']}:{e['start']}")
+        except Exception:
+            pass
+        time.sleep(60)
 
 
 @app.get("/")
@@ -770,6 +908,111 @@ def run_job(job: str, x_sz: str | None = Header(default=None)) -> dict:
     return {"started": True}
 
 
+# -- notifications -----------------------------------------------------------------
+
+def _notify_fanout(event: dict) -> None:
+    for q in list(_notify_subs):
+        try:
+            q.put_nowait(event)
+        except asyncio.QueueFull:
+            pass
+
+
+def broadcast_notify(event: dict) -> None:
+    """Thread-safe: deliver a notification / refresh event to every open page."""
+    event = {**event, "at": time.time()}
+    try:
+        running = asyncio.get_running_loop()
+    except RuntimeError:
+        running = None
+    if _loop is not None and running is not _loop:
+        _loop.call_soon_threadsafe(_notify_fanout, event)
+    else:
+        _notify_fanout(event)
+
+
+@app.post("/api/notify/event")
+def notify_event(body: dict, x_sz: str | None = Header(default=None)) -> dict:
+    """Other Setz processes (scheduler jobs, voice) hand events to the open pages through here."""
+    _guard(x_sz)
+    if body.get("type") not in {"notification", "refresh"}:
+        raise HTTPException(400, "bad event")
+    broadcast_notify({k: body.get(k) for k in ("type", "id", "title", "body", "kind", "url", "quiet", "what") if k in body})
+    return {"ok": True, "listeners": len(_notify_subs)}
+
+
+@app.get("/api/notify/stream")
+async def notify_stream(request: Request) -> StreamingResponse:
+    q: asyncio.Queue = asyncio.Queue(maxsize=100)
+    _notify_subs.add(q)
+
+    async def gen():
+        try:
+            yield ": connected\n\n"
+            while not await request.is_disconnected():
+                try:
+                    yield f"data: {json.dumps(await asyncio.wait_for(q.get(), timeout=15))}\n\n"
+                except asyncio.TimeoutError:
+                    yield ": keep-alive\n\n"
+        finally:
+            _notify_subs.discard(q)
+
+    return StreamingResponse(gen(), media_type="text/event-stream", headers={"Cache-Control": "no-cache"})
+
+
+@app.get("/api/notifications")
+def notifications(limit: int = 40) -> dict:
+    from ..notify import recent
+
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        return recent(db, max(1, min(limit, 200)))
+
+
+@app.post("/api/notifications/read")
+def notifications_read(body: dict | None = None, x_sz: str | None = Header(default=None)) -> dict:
+    _guard(x_sz)
+    from ..notify import mark_read
+
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        mark_read(db, [int(i) for i in (body or {}).get("ids", [])] or None)
+    return {"ok": True}
+
+
+@app.post("/api/notifications/test")
+def notifications_test(x_sz: str | None = Header(default=None)) -> dict:
+    _guard(x_sz)
+    from ..notify import notify
+
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        nid = notify(cfg, db, "Setz is connected", "Notifications reach this device. 👋", kind="success", key=f"test:{time.time()}")
+    return {"id": nid}
+
+
+@app.get("/api/push/key")
+def push_key() -> dict:
+    from ..notify import vapid_keys
+
+    keys = vapid_keys(load_config())
+    return {"publicKey": keys["public"] if keys else None}
+
+
+@app.post("/api/push/subscribe")
+async def push_subscribe(request: Request, x_sz: str | None = Header(default=None)) -> dict:
+    _guard(x_sz)
+    from ..notify import save_subscription
+
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        try:
+            save_subscription(db, await request.json(), request.headers.get("user-agent", ""))
+        except (ValueError, KeyError) as exc:
+            raise HTTPException(400, str(exc)) from exc
+    return {"ok": True}
+
+
 # -- voice + hologram -------------------------------------------------------
 
 def _fanout(state: dict) -> None:
@@ -885,4 +1128,8 @@ def ask(body: dict, x_sz: str | None = Header(default=None)) -> dict:
 def serve(port: int = 8765) -> None:
     import uvicorn
 
-    uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
+    cfg = load_config()
+    host = str(cfg.get("dashboard.host", "127.0.0.1"))
+    if host not in LOOPBACK and not cfg.get("dashboard.access_pin"):
+        raise RuntimeError("dashboard.host exposes Setz to your network: set [dashboard] access_pin first (or use Tailscale, see README)")
+    uvicorn.run(app, host=host, port=port, log_level="warning")

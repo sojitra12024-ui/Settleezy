@@ -153,8 +153,56 @@ MORNING = ["doctor", "mail", "calendly", "instagram", "track", "ops", "agents", 
 
 
 def run_job(cfg: Config, name: str) -> Any:
+    from .notify import notify, refresh
+
     with DB(cfg.db_path) as db:
-        result = JOBS[name](cfg, db)
+        db.kv_set(f"running:{name}", utcnow())
+        try:
+            result = JOBS[name](cfg, db)
+        except Exception as exc:
+            db.kv_set(f"last_error:{name}", f"{utcnow()} {type(exc).__name__}: {exc}"[:500])
+            notify(cfg, db, f"Setz job failed: {name}", f"{type(exc).__name__}: {exc}"[:300], kind="alert", url="/command",
+                   key=f"jobfail:{name}:{utcnow()[:13]}")   # at most one pop-up per job per hour
+            raise
+        finally:
+            db.x("DELETE FROM kv WHERE key=?", (f"running:{name}",))
         db.kv_set(f"last_run:{name}", utcnow())
         db.kv_set(f"last_result:{name}", json.dumps(result, default=str, ensure_ascii=False)[:4000])
+        _notify_after(cfg, db, name, result)
+        refresh(cfg, name)
         return result
+
+
+def _notify_after(cfg: Config, db: DB, name: str, result: Any) -> None:
+    """Turn what a job found into pop-ups (each only once). Never breaks the job."""
+    try:
+        _notify_findings(cfg, db, name, result)
+    except Exception as exc:
+        db.kv_set("last_error:notify", f"{utcnow()} {name}: {type(exc).__name__}: {exc}"[:500])
+
+
+def _notify_findings(cfg: Config, db: DB, name: str, result: Any) -> None:
+    from .notify import notify
+
+    if name in ("mail", "track"):
+        from .scheduling import _ensure as ensure_requests
+
+        ensure_requests(db)   # the table may not exist before the first mail sync
+        for r in db.q("SELECT * FROM meeting_requests WHERE status='open' AND detected_at >= datetime('now','-1 day')"):
+            notify(cfg, db, f"Meeting request: {r['who']}", f"{r['subject']} · slots are ready to book", kind="meeting",
+                   url="/#today", key=f"mreq:{r['id']}")
+        for e in db.q("SELECT e.id, l.name FROM lead_events e JOIN leads l ON l.id=e.lead_id WHERE e.to_status='replied' "
+                      "AND e.at >= datetime('now','-1 day')"):
+            notify(cfg, db, f"{e['name']} replied 🎉", "Book a call while they're warm.", kind="lead", url="/#pipeline",
+                   key=f"replied:{e['id']}")
+    if name == "agents":
+        synth = json.loads(db.kv_get("setz:synthesis", "{}") or "{}")
+        for f in [p for p in synth.get("priorities", []) if p.get("severity") == "alert"][:2]:
+            notify(cfg, db, f["title"], f.get("detail", ""), kind="alert", url="/command",
+                   key=f"alert:{f.get('agent')}:{f.get('key', f['title'])}:{utcnow()[:10]}")
+    if name == "igdiscover" and isinstance(result, dict) and result.get("new"):
+        notify(cfg, db, f"{result['new']} new venues found on Instagram", f"{result.get('venues', 0)} venues · {result.get('brands', 0)} brands",
+               kind="lead", url="/#leads", key=f"igd:{utcnow()[:13]}")
+    if name == "leadgen" and isinstance(result, dict) and result.get("new"):
+        notify(cfg, db, f"{result['new']} new venues near campuses", "Open the Lead finder to filter them.", kind="lead",
+               url="/#leads", key=f"leadgen:{utcnow()[:10]}")

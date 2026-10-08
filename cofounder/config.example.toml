@@ -114,6 +114,15 @@ manual_kpis = ["paying_members", "trial_members", "app_downloads", "workshop_sig
 
 [dashboard]
 port = 8765
+# Phone / other devices: the safest way is Tailscale (README: "Setz on your phone"), which needs no change here.
+# access_pin = "482915"      # PIN asked on any device that isn't this laptop (required if host isn't 127.0.0.1)
+# host = "0.0.0.0"           # only for plain home-Wi-Fi access without Tailscale (no HTTPS, so no phone push)
+
+[notifications]
+desktop = true               # Windows pop-ups (pip install -e ".[notify]")
+push = true                  # phone push when the app is installed and notifications are enabled on the phone
+quiet_hours = ["22:00", "07:30"]   # pop-ups stay silent; everything still lands in the bell
+meeting_reminder_minutes = 10
 
 [agents]
 ai_briefing = true          # Setz writes the team briefing with Claude when an API key is set (otherwise a plain summary)

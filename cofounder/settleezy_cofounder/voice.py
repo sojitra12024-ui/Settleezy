@@ -291,6 +291,13 @@ def _answer(cfg: Config, text: str, lang: str) -> str:
 
             res = find(cfg, db, text, discover=True)
             db.kv_set("leadfinder:last", json.dumps({"q": text}, ensure_ascii=False))   # the dashboard opens this search
+            try:   # pop-up with a link to the full list, on every screen
+                from .notify import notify
+
+                notify(cfg, db, f"{res['total']} leads: {text[:60]}", "Tap to open the full list with contacts.", kind="voice",
+                       url="/#leads", key=f"voicefind:{text}:{time.time():.0f}", desktop=False)
+            except Exception:
+                pass
             return spoken(res)
         if re.search(r"\b(plan my week|my week|week plan|this week's plan|next week|meine woche|wochenplan)\b", t):
             from datetime import date, timedelta

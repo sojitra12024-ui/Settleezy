@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="manifest" href="/manifest.webmanifest"><meta name="theme-color" content="#030810"><link rel="icon" href="/static/icon.svg" type="image/svg+xml">
 <title>Setz Command Center</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -524,5 +525,6 @@ function stream() {
 setInterval(() => { $("#clock").textContent = new Date().toLocaleString("de-DE", { timeZone: "Europe/Berlin", weekday: "short", hour: "2-digit", minute: "2-digit", second: "2-digit" }); }, 1000);
 load(); stream(); setInterval(load, 60000);
 </script>
+<script src="/static/live.js"></script>
 </body>
 </html>

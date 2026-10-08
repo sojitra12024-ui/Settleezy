@@ -31,7 +31,10 @@ class Item:
 
 
 def _age_days(iso: str) -> float:
-    return (datetime.now(timezone.utc) - datetime.fromisoformat(iso.replace("Z", "+00:00"))).total_seconds() / 86400
+    dt = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+    if dt.tzinfo is None:   # imported/legacy rows without a timezone: treat as UTC instead of crashing
+        dt = dt.replace(tzinfo=timezone.utc)
+    return (datetime.now(timezone.utc) - dt).total_seconds() / 86400
 
 
 def _latest_per_conversation(db: DB, since_days: int):

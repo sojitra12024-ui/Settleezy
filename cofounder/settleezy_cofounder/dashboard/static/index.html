@@ -4,12 +4,16 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Settleezy HQ</title>
+<link rel="manifest" href="/manifest.webmanifest"><meta name="theme-color" content="#030810">
+<link rel="icon" href="/static/icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/static/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Setz">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
 <script src="/static/hologram.js"></script>
+<script src="/static/live.js"></script>
 <style>
 :root {
   color-scheme: light;
@@ -230,6 +234,14 @@ dialog .dhead { display: flex; justify-content: space-between; align-items: cent
 .mr .slots button { font-size: 12.5px; } .mr .slots button.prop { border-color: var(--good); color: var(--good-text); }
 .mr .acts { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
 @media (max-width: 700px) { .mr { grid-template-columns: 1fr; } }
+.bell-wrap { position: relative; } #bell { position: relative; }
+.bell-n { position: absolute; top: -5px; right: -6px; min-width: 18px; height: 18px; border-radius: 99px; background: var(--critical); color: #fff; font-size: 11px; line-height: 18px; padding: 0 5px; font-weight: 600; }
+.bell-panel { position: absolute; right: 0; top: calc(100% + 8px); width: min(380px, calc(100vw - 32px)); max-height: 70vh; overflow: auto; z-index: 30;
+  background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 12px 40px rgba(0,0,0,.18); padding: 10px 12px; }
+.bell-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
+.nt { display: grid; grid-template-columns: 22px 1fr; gap: 8px; padding: 8px 0; border-top: 1px solid var(--border); font-size: 13px; cursor: pointer; }
+.nt.unread b::after { content: " •"; color: var(--accent); } .nt .when { font-size: 11.5px; color: var(--text-muted); }
+@media (max-width: 600px) { .bell-panel { position: fixed; left: 16px; right: 16px; top: 64px; width: auto; } }
 .coach { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 18px; }
 .spm { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin: 6px 0 10px; }
 .spm div { background: var(--surface-2); border-radius: 8px; padding: 8px 10px; }
@@ -261,6 +273,10 @@ dialog .dhead { display: flex; justify-content: space-between; align-items: cent
       <button data-job="drafts">Write drafts</button>
       <button data-job="brief" class="primary">New brief</button>
       <a href="/command"><button title="Setz command center: agents, brain, analysis">Command center ↗</button></a>
+      <button id="install-app" hidden title="Install Setz as an app on this device">Install app</button>
+      <div class="bell-wrap"><button id="bell" aria-label="Notifications" aria-haspopup="true" aria-expanded="false">🔔<span class="bell-n" id="bell-n" hidden></span></button>
+        <div class="bell-panel" id="bell-panel" hidden><div class="bell-head"><b>Notifications</b><span><button class="small" id="notif-enable">Enable pop-ups</button> <button class="small" id="notif-read">Mark all read</button></span></div>
+          <div id="bell-list"></div></div></div>
       <button id="theme" title="Toggle light/dark theme" aria-label="Toggle theme">◐</button>
     </div>
   </div>
@@ -680,6 +696,20 @@ async function loadLeads() {
   }).join("") : `<tr><td class="empty">No leads match. Run “Scan competitors”, <code>sz import</code>, or add one below.</td></tr>`;
 }
 
+/* ---------- NOTIFICATIONS ---------- */
+const NICON = { meeting: "📅", calendar: "📅", lead: "✨", alert: "▲", partner: "🤝", voice: "🎙", job: "⚙", success: "✓", info: "•" };
+async function loadBell() {
+  const r = await (await fetch("/api/notifications")).json();
+  $("#bell-n").hidden = !r.unread; $("#bell-n").textContent = r.unread > 99 ? "99+" : r.unread;
+  $("#bell-list").innerHTML = r.items.length ? r.items.map((n) => `<div class="nt ${n.read ? "" : "unread"}" data-nurl="${esc(n.url || "/")}" data-nid="${n.id}">
+    <span aria-hidden="true">${NICON[n.kind] || "•"}</span><div><b>${esc(n.title)}</b><div>${esc(n.body || "")}</div><div class="when">${esc(new Date(n.at).toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" }))}</div></div></div>`).join("")
+    : `<div class="empty">Nothing yet. Setz will tell you about meeting requests, replies, meetings starting soon and alerts.</div>`;
+  const st = SetzLive.state(); $("#notif-enable").textContent = st === "granted" ? "Pop-ups on ✓" : "Enable pop-ups"; $("#notif-enable").disabled = st === "granted";
+}
+SetzLive.onNotification(() => loadBell());
+let refreshTimer; SetzLive.onRefresh(() => { clearTimeout(refreshTimer); refreshTimer = setTimeout(() => load(), 800); });   // a job finished: update now
+document.addEventListener("setz-installable", () => { $("#install-app").hidden = false; });
+
 /* ---------- MEETING REQUESTS ---------- */
 let MR = null;
 const slotLabel = (iso, end) => { const s = new Date(iso), e = end ? new Date(end) : null;
@@ -978,7 +1008,7 @@ async function load() {
   if (!$("#lead-status").options[1]) $("#lead-status").innerHTML += STATUSES.map(s => `<option>${s}</option>`).join("");
   if (!$("#pedit [name=stage]").options[0]) $("#pedit [name=stage]").innerHTML = o.stages.map(([k, n]) => `<option value="${k}">${esc(n)}</option>`).join("");
   renderToday(d, o); renderPartners(o); renderGrowth(d, o); renderLeadsPage(d); renderInsights(d);
-  loadPipeline().catch(() => {}); loadWeek().catch(() => {}); loadSpeech().catch(() => {}); loadMeetings().catch(() => {}); checkVoiceFinder();
+  loadPipeline().catch(() => {}); loadWeek().catch(() => {}); loadSpeech().catch(() => {}); loadMeetings().catch(() => {}); loadBell().catch(() => {}); checkVoiceFinder();
   document.querySelectorAll("[data-job]").forEach(b => b.disabled = d.running[b.dataset.job] === "running");
 }
 async function poll(job) {
@@ -1025,6 +1055,12 @@ document.addEventListener("click", async (e) => {
   if (t("[data-seqstop]")) { const r = await post(`/api/leads/${t("[data-seqstop]").dataset.seqstop}/sequence`, { action: "stop" }); toast(`Sequence stopped (${r.removed} steps removed)`); return refreshOps(); }
   if (t("[data-snooze7]")) { await post(`/api/tasks/${t("[data-snooze7]").dataset.snooze7}`, { action: "snooze", days: 7 }); toast("Moved to next week"); return refreshOps(); }
   if (e.target.id === "pl-auto") { e.target.disabled = true; try { const r = await post("/api/pipeline/sequences/auto"); toast(r.started.length ? `Started ${r.started.length} sequences: ${r.started.slice(0, 3).map(x => x.name).join(", ")}${r.started.length > 3 ? "…" : ""}` : "Weekly capacity reached or no leads with contacts"); refreshOps(); } catch (err) { toast(err.message); e.target.disabled = false; } return; }
+  if (e.target.closest("#bell")) { const p = $("#bell-panel"); p.hidden = !p.hidden; $("#bell").setAttribute("aria-expanded", !p.hidden); if (!p.hidden) loadBell(); return; }
+  if (e.target.id === "notif-enable") { try { const r = await SetzLive.enable(); toast(r.push ? "Pop-ups and phone push are on" : "Pop-ups are on for this device"); loadBell(); } catch (err) { toast(err.message); } return; }
+  if (e.target.id === "notif-read") { await post("/api/notifications/read"); return loadBell(); }
+  if (t("[data-nurl]")) { const n = t("[data-nurl]"); post("/api/notifications/read", { ids: [Number(n.dataset.nid)] }); $("#bell-panel").hidden = true; location.href = n.dataset.nurl; const h = n.dataset.nurl.split("#")[1]; if (h) showPage(h); return; }
+  if (e.target.id === "install-app") { if (await SetzLive.install()) $("#install-app").hidden = true; return; }
+  if (!e.target.closest(".bell-wrap") && !$("#bell-panel").hidden) $("#bell-panel").hidden = true;
   if (e.target.id === "sp-rec") return toggleRecord();
   if (t("[data-lf]")) return runFinder(t("[data-lf]").dataset.lf);
   const mb = t("[data-mr-book]");

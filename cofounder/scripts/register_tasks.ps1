@@ -3,7 +3,8 @@
 #   .\scripts\register_tasks.ps1            # default schedule
 #   .\scripts\register_tasks.ps1 -Speak     # also read the morning brief aloud
 #   .\scripts\register_tasks.ps1 -Voice     # also start Setz ("Hey Setz") at logon
-param([switch]$Speak, [switch]$Voice)
+#   .\scripts\register_tasks.ps1 -Widget    # also open the always-on-top Setz widget at logon
+param([switch]$Speak, [switch]$Voice, [switch]$Widget)
 $ErrorActionPreference = "Stop"
 $root = Split-Path $PSScriptRoot -Parent
 $sz = Join-Path $root ".venv\Scripts\sz.exe"
@@ -11,11 +12,17 @@ if (-not (Test-Path $sz)) { throw "Run .\scripts\install.ps1 first." }
 $log = Join-Path $root "data\logs"
 New-Item -ItemType Directory -Force -Path $log | Out-Null
 
-function Add-SzTask($name, $arguments, $trigger, [switch]$Hidden) {
+function Add-SzTask($name, $arguments, $trigger, [switch]$Hidden, [switch]$Forever) {
     $cmd = "/c `"`"$sz`" $arguments >> `"$log\$name.log`" 2>&1`""
     $action = New-ScheduledTaskAction -Execute "cmd.exe" -Argument $cmd -WorkingDirectory $root
-    $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -DontStopIfGoingOnBatteries -AllowStartIfOnBatteries `
-        -ExecutionTimeLimit (New-TimeSpan -Hours 2) -MultipleInstances IgnoreNew
+    if ($Forever) {
+        # always-on (dashboard, voice, widget): no time limit, restart automatically if it ever stops
+        $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -DontStopIfGoingOnBatteries -AllowStartIfOnBatteries `
+            -ExecutionTimeLimit ([TimeSpan]::Zero) -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) -MultipleInstances IgnoreNew
+    } else {
+        $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -DontStopIfGoingOnBatteries -AllowStartIfOnBatteries `
+            -ExecutionTimeLimit (New-TimeSpan -Hours 2) -MultipleInstances IgnoreNew
+    }
     if ($Hidden) { $settings.Hidden = $true }
     Register-ScheduledTask -TaskPath "\Settleezy\" -TaskName $name -Action $action -Trigger $trigger -Settings $settings -Force | Out-Null
     Write-Host "scheduled: $name"
@@ -42,7 +49,8 @@ Add-SzTask "growth-review"   "run growth"      (New-ScheduledTaskTrigger -Weekly
 Add-SzTask "campus-leadgen"  "run leadgen"     (New-ScheduledTaskTrigger -Weekly -DaysOfWeek Sunday -At 9:00pm) -Hidden
 Add-SzTask "pipeline-start"  "run pipeline"    (New-ScheduledTaskTrigger -Weekly -DaysOfWeek Monday -At 7:30am) -Hidden
 Add-SzTask "ig-discover"     "run igdiscover"  (New-ScheduledTaskTrigger -Weekly -DaysOfWeek Tuesday,Friday -At 12:15pm) -Hidden
-Add-SzTask "dashboard"       "dashboard"       (New-ScheduledTaskTrigger -AtLogOn) -Hidden
-if ($Voice) { Add-SzTask "voice" "voice" (New-ScheduledTaskTrigger -AtLogOn) -Hidden }
+Add-SzTask "dashboard"       "dashboard"       (New-ScheduledTaskTrigger -AtLogOn) -Hidden -Forever
+if ($Voice) { Add-SzTask "voice" "voice" (New-ScheduledTaskTrigger -AtLogOn) -Hidden -Forever }
+if ($Widget) { Add-SzTask "widget" "widget" (New-ScheduledTaskTrigger -AtLogOn) -Forever }
 
 Write-Host "`nDashboard: http://127.0.0.1:8765  (starts at logon; run '.venv\Scripts\sz.exe dashboard' now to open it immediately)" -ForegroundColor Green

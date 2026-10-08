@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import sys
 
@@ -513,6 +514,60 @@ def cmd_dashboard(args) -> None:
     serve(args.port)
 
 
+def cmd_notify(args) -> None:
+    from .notify import notify
+
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        nid = notify(cfg, db, "Setz test", " ".join(args.text) or "Notifications work on this device.", kind="success",
+                     key=f"cli-test:{__import__('time').time()}")
+    print(f"sent #{nid}: dashboard pop-up, Windows notification and phone push (where enabled)")
+
+
+def cmd_widget(args) -> None:
+    """Small always-on-top Setz window: the robot, what it's doing, the latest notification, an ask box."""
+    import shutil as _sh
+    import subprocess
+    import time as _t
+
+    import httpx
+
+    cfg = load_config()
+    port = int(cfg.get("dashboard.port", 8765))
+    base = f"http://127.0.0.1:{port}"
+    try:
+        httpx.get(base + "/api/notifications", timeout=2)
+    except httpx.HTTPError:   # start the dashboard in the background first
+        subprocess.Popen([sys.executable, "-m", "settleezy_cofounder.cli", "dashboard"],
+                         creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0), start_new_session=True)
+        for _ in range(30):
+            _t.sleep(0.5)
+            try:
+                httpx.get(base + "/api/notifications", timeout=1)
+                break
+            except httpx.HTTPError:
+                continue
+    url = base + "/hologram?mini=1"
+    try:
+        import webview  # pywebview: a real always-on-top window
+
+        webview.create_window("Setz", url, width=330, height=430, on_top=True, resizable=True, background_color="#030810")
+        webview.start()
+        return
+    except ImportError:
+        pass
+    browser = next((b for b in [_sh.which("msedge"), r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+                                r"C:\Program Files\Microsoft\Edge\Application\msedge.exe", _sh.which("chrome"), _sh.which("chromium"),
+                                _sh.which("google-chrome")] if b and (os.path.exists(b) or _sh.which(b))), None)
+    if browser:
+        subprocess.Popen([browser, f"--app={url}", "--window-size=330,430"])
+        print("Opened Setz in a small app window. For always-on-top, install: pip install pywebview")
+    else:
+        import webbrowser
+
+        webbrowser.open(url)
+
+
 def cmd_voice(args) -> None:
     cfg = load_config()
     if args.action == "practice":
@@ -716,6 +771,10 @@ def main(argv: list[str] | None = None) -> None:
     v.add_argument("--coach", action="store_true", help="analyse: add AI coaching on the content")
     v.set_defaults(fn=cmd_voice)
 
+    sub.add_parser("widget", help="small always-on-top Setz window (robot, live notifications, ask box)").set_defaults(fn=cmd_widget)
+    nt = sub.add_parser("notify", help="send a test notification to every screen: sz notify")
+    nt.add_argument("text", nargs="*")
+    nt.set_defaults(fn=cmd_notify)
     sub.add_parser("mcp", help="run the MCP server (used by OpenJarvis)").set_defaults(fn=cmd_mcp)
 
     args = p.parse_args(argv)
