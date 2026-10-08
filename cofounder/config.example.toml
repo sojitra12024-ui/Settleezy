@@ -99,6 +99,30 @@ ai_briefing = true          # Setz writes the team briefing with Claude when an 
 stage_stuck_days = 7        # onboarding step older than this -> flagged + auto to-do
 checkin_days = 30           # live partner without contact for this long -> "check in"
 
+[leadgen]
+# Venues within walking distance of each campus, from OpenStreetMap (free, no key). `sz leadgen scan` or weekly.
+radius_m = 800
+include_chains = false      # skip McDonald's, Rewe & co. (they decide centrally; pitch them as brands instead)
+# Add or replace campuses (defaults: FU, HU x2, TU, UdK, HTW x2, BHT, HWR, Charité, ASH, Hertie, ESMT, CODE, SRH):
+# [[leadgen.campuses]]
+# name = "IU Berlin"
+# lat = 52.5070
+# lon = 13.4500
+
+[pipeline]
+partner_goal_per_month = 6  # Setz works back from this to weekly targets for contacts, replies and meetings
+# new_sequences_per_week = 15   # default: what the goal needs at your conversion rates (5..25)
+# Custom outreach cadence (days after start). channel: email | instagram | linkedin | call | visit
+# [[pipeline.sequence]]
+# day = 0
+# channel = "email"
+# title = "Send first outreach email"
+# minutes = 15
+
+[planner]
+days_per_week = 5
+max_meeting_hours_per_day = 4   # more than this on a day -> Setz suggests moving or shortening meetings
+
 # Your daily routine. Setz lays it around today's meetings, fills each block with the right people/tasks,
 # and (with `sz voice`) announces each block when it starts. days: 0 = Monday ... 6 = Sunday.
 [routine]

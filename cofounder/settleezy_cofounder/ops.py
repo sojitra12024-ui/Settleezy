@@ -204,7 +204,10 @@ def parse_due(text: str, today: date | None = None) -> tuple[str | None, str]:
 
 
 def add_task(db: DB, title: str, *, due: str | None = None, priority: int = 2, source: str = "manual", notes: str = "",
-             lead_id: int | None = None, partner_id: int | None = None, dedupe_key: str | None = None) -> int | None:
+             lead_id: int | None = None, partner_id: int | None = None, dedupe_key: str | None = None,
+             category: str | None = None, est_minutes: int | None = None) -> int | None:
+    from .planner import estimate, infer_category
+
     if due is None and source in {"manual", "voice"}:
         due, title = parse_due(title)
     if re.search(r"\b(urgent|asap|dringend|wichtig)\b", title, re.I):
@@ -212,16 +215,41 @@ def add_task(db: DB, title: str, *, due: str | None = None, priority: int = 2, s
     if dedupe_key is None and db.one("SELECT 1 FROM tasks WHERE status='open' AND lower(title)=lower(?) AND due IS ?",
                                      (title.strip(), due)):
         return None   # the same open to-do already exists
+    category = category or infer_category(title)
+    est_minutes = est_minutes or estimate(title, category)
     cur = db.x(
-        "INSERT OR IGNORE INTO tasks(title,notes,due,priority,source,lead_id,partner_id,dedupe_key,created_at) VALUES(?,?,?,?,?,?,?,?,?)",
-        (title.strip(), notes, due, priority, source, lead_id, partner_id, dedupe_key, utcnow()),
+        "INSERT OR IGNORE INTO tasks(title,notes,due,priority,source,lead_id,partner_id,dedupe_key,created_at,category,est_minutes) "
+        "VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+        (title.strip(), notes, due, priority, source, lead_id, partner_id, dedupe_key, utcnow(), category, est_minutes),
     )
     return cur.lastrowid if cur.rowcount else None
+
+
+TASK_EDITABLE = {"title", "notes", "due", "priority", "category", "est_minutes"}
+
+
+def update_task(db: DB, tid: int, **fields: Any) -> dict:
+    from .planner import CATEGORIES
+
+    data = {k: v for k, v in fields.items() if k in TASK_EDITABLE}
+    if "category" in data and data["category"] not in CATEGORIES:
+        raise ValueError(f"category must be one of {list(CATEGORIES)}")
+    if "due" in data and data["due"]:
+        date.fromisoformat(data["due"])   # validates YYYY-MM-DD
+    if data:
+        db.x(f"UPDATE tasks SET {', '.join(f'{k}=?' for k in data)} WHERE id=?", [*data.values(), tid])
+    row = db.one("SELECT * FROM tasks WHERE id=?", (tid,))
+    if not row:
+        raise ValueError(f"no task {tid}")
+    return dict(row)
 
 
 def set_task(db: DB, tid: int, action: str, days: int = 1) -> None:
     if action == "done":
         db.x("UPDATE tasks SET status='done', done_at=? WHERE id=?", (utcnow(), tid))
+        from .pipeline import on_task_done
+
+        on_task_done(db, tid)   # finishing an outreach step moves the lead along the pipeline
     elif action == "reopen":
         db.x("UPDATE tasks SET status='open', done_at=NULL WHERE id=?", (tid,))
     elif action == "snooze":
@@ -345,6 +373,12 @@ def today_plan(cfg: Config, db: DB, now: datetime | None = None) -> dict:
         "calls": [],
         "review": [t["title"] for t in todo][:6],
     }
+    try:   # the week planner decides which to-dos go into which block today
+        from .planner import plan_week, scheduled_on
+
+        sched = scheduled_on(plan_week(cfg, db, now=now), day)
+    except Exception:
+        sched = {}
     items = []
     for m in meetings:
         items.append({"type": "meeting", "start": m["start"][11:16], "end": m["end"][11:16], "title": m["title"],
@@ -353,7 +387,8 @@ def today_plan(cfg: Config, db: DB, now: datetime | None = None) -> dict:
         s, e = _hm(b["start"]), _hm(b["end"])
         clash = [m for m in meetings if _hm(m["start"][11:16]) < e and _hm(m["end"][11:16]) > s]
         items.append({"type": "block", "start": b["start"], "end": b["end"], "title": b["title"], "focus": b.get("focus", ""),
-                      "suggestions": by_focus.get(b.get("focus", ""), []), "clash": [m["title"] for m in clash]})
+                      "suggestions": by_focus.get(b.get("focus", ""), []), "clash": [m["title"] for m in clash],
+                      "scheduled": sched.get(b["title"], [])})
     items.sort(key=lambda x: (x["start"], 0 if x["type"] == "meeting" else 1))
     cur = now.hour * 60 + now.minute
     active = [i for i in items if _hm(i["start"]) <= cur < _hm(i["end"])]

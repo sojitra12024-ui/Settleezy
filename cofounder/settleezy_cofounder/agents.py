@@ -194,7 +194,22 @@ def _hunter(cfg: Config, db: DB, rep: Report) -> None:
                                     "Run lead enrichment"))
     if rate is not None and funnel["sent"] >= 10 and rate < 15:
         rep.findings.append(Finding("low-reply", f"Outreach reply rate is {rate}%", "Try the other subject-line angle from the playbook.", "warn"))
-    rep.summary = f"{len(replied)} warm leads, {len(hot)} strong leads ready to pitch."
+    from . import pipeline as pl
+
+    stale, hyg = pl.stale(db), pl.hygiene(db)
+    behind = [t for t in pl.targets(cfg, db) if not t["on_track"]]
+    fc = pl.forecast(cfg, db)
+    rep.metrics.update({"Stale deals": len(stale), "Partners forecast": f"{fc['won_this_month']}+{fc['expected_from_pipeline']:g}/{fc['goal_month']:g}"})
+    for l in stale[:3]:
+        rep.findings.append(Finding(f"stale:{l['id']}:{l['status']}", f"{l['name']}: {l['status']} for {l['days_in_stage']:.0f} days",
+                                    l["suggestion"], "warn", f"{l['name']}: {l['suggestion']}"))
+    if len(hyg) >= 3:
+        rep.findings.append(Finding("hygiene", f"{len(hyg)} active deals have no next step",
+                                    ", ".join(l["name"] for l in hyg[:5]), "warn"))
+    if behind and behind[0]["stage"] == "contacted" and pl.started_this_week(db) < pl.capacity(cfg, db):
+        rep.findings.append(Finding(f"behind:{behind[0]['stage']}", f"Behind on first contacts: {behind[0]['actual_week']} of "
+                                    f"{behind[0]['target_week']:g} this week", "Auto-start outreach sequences on the Pipeline tab.", "warn"))
+    rep.summary = f"{len(replied)} warm leads, {len(hot)} strong leads ready to pitch, {len(stale)} stale deals."
 
 
 def _nova(cfg: Config, db: DB, rep: Report) -> None:
@@ -292,6 +307,14 @@ def _chrono(cfg: Config, db: DB, rep: Report) -> None:
         rep.findings.append(Finding("clashes", f"{len(clashes)} routine blocks overlap meetings", ", ".join(c["title"] for c in clashes), "info"))
     if overdue:
         rep.findings.append(Finding("overdue", f"{len(overdue)} overdue to-dos", ", ".join(t["title"] for t in overdue[:4]), "alert"))
+    from .planner import plan_week
+
+    week = plan_week(cfg, db)
+    rep.metrics["Week load"] = f"{week['totals']['meeting_hours']:g} h meetings"
+    for ins in week["insights"]:
+        if ins["kind"] in {"meetings", "overflow", "fragmented"}:
+            rep.findings.append(Finding(f"week:{ins['kind']}:{week['week_start']}", ins["text"][:90], ins["text"],
+                                        "warn" if ins["severity"] == "warn" else "info"))
     rep.summary = f"{len(meetings)} meetings, {len(plan['tasks_today'])} to-dos today, {len(overdue)} overdue."
 
 

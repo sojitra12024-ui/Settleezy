@@ -162,12 +162,25 @@ class DB:
         self.conn.executescript(SCHEMA)
         self._migrate()
 
+    MIGRATIONS = {
+        "drafts": {"sent_at": "TEXT", "replied_at": "TEXT"},
+        "leads": {"lat": "REAL", "lon": "REAL", "address": "TEXT", "campus": "TEXT", "distance_m": "INTEGER",
+                  "next_step": "TEXT", "next_step_due": "TEXT", "stage_changed_at": "TEXT",
+                  "sequence_started": "TEXT"},
+        "tasks": {"est_minutes": "INTEGER", "category": "TEXT"},
+    }
+
     def _migrate(self) -> None:
         """Add columns introduced after the first release (SQLite has no ADD COLUMN IF NOT EXISTS)."""
-        have = {r["name"] for r in self.conn.execute("PRAGMA table_info(drafts)")}
-        for col in ("sent_at", "replied_at"):
-            if col not in have:
-                self.conn.execute(f"ALTER TABLE drafts ADD COLUMN {col} TEXT")
+        for table, cols in self.MIGRATIONS.items():
+            have = {r["name"] for r in self.conn.execute(f"PRAGMA table_info({table})")}
+            for col, typ in cols.items():
+                if col not in have:
+                    self.conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {typ}")
+        self.conn.execute(
+            "CREATE TABLE IF NOT EXISTS lead_events (id INTEGER PRIMARY KEY AUTOINCREMENT, lead_id INTEGER, "
+            "from_status TEXT, to_status TEXT, at TEXT)")
+        self.conn.execute("CREATE INDEX IF NOT EXISTS ix_lead_events ON lead_events(lead_id, at)")
         self.conn.commit()
 
     def close(self) -> None:

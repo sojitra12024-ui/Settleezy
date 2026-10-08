@@ -82,6 +82,8 @@ def cmd_plan(args) -> None:
                 print(f"{mark} {i['start']}-{i['end']}  [meeting] {i['title']}")
             else:
                 print(f"{mark} {i['start']}-{i['end']}  {i['title']}" + (f"  (clash: {', '.join(i['clash'])})" if i["clash"] else ""))
+                for it in i.get("scheduled", []):
+                    print(f"      ☐ {it['start']} {it['title']} ({it['minutes']} min)")
                 for sug in i["suggestions"][:4]:
                     print(f"      · {sug}")
         print("\n" + focus_now(cfg, db))
@@ -286,6 +288,93 @@ def cmd_leads(args) -> None:
             _print(leads.upsert(db, args.name, args.kind_new, source="manual", website=args.website or "", email=args.email or ""))
 
 
+def cmd_leadgen(args) -> None:
+    from . import leadgen
+
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        if args.action == "scan":
+            _print(leadgen.discover(cfg, db, args.campus, force=args.force))
+        elif args.action == "coverage":
+            for c in leadgen.coverage(cfg, db):
+                print(f"{c['campus'][:32]:<32} found {c['found']:>4}  with email {c['with_email']:>3}  active {c['active']:>3}  partners {c['partners']:>3}")
+        else:
+            for l in leadgen.near_campus(db, args.campus, args.limit, status=args.status):
+                print(f"#{l['id']:<5} {l['score']:>4.0f}  {l['distance_m'] or 0:>4} m  {l['status']:<9} {l['name'][:34]:<34} {l['category'][:22]:<22} {l['email'] or ''}")
+
+
+def cmd_pipeline(args) -> None:
+    from . import pipeline as pl
+
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        a = args.action
+        if a == "start":
+            print(pl.start_sequence(cfg, db, int(args.args[0])), "sequence steps added")
+        elif a == "auto":
+            _print(pl.auto_start(cfg, db, int(args.args[0]) if args.args else None))
+        elif a == "next":
+            _print(pl.set_next_step(db, int(args.args[0]), " ".join(args.args[1:]))["next_step_due"])
+        elif a == "stale":
+            for l in pl.stale(db):
+                print(f"#{l['id']:<5} {l['status']:<9} {l['days_in_stage']:>5.1f}d  {l['name'][:34]:<34} → {l['suggestion']}")
+        elif a == "routes":
+            for r in pl.routes(cfg, db, args.args[0] if args.args else None):
+                print(f"{r['campus']}: {len(r['stops'])} stops, {r['walk_km']} km (~{r['walk_min']} min walk)")
+                print("   " + " → ".join(s["name"] for s in r["stops"]))
+                print("   " + r["maps_url"])
+        else:
+            print("Stage counts:", ", ".join(f"{k} {v}" for k, v in pl.summary(cfg, db)["counts"].items()))
+            print("\nConversion")
+            for c in pl.conversion(db):
+                print(f"  {c['step']:<20} {c['rate']:.0%}{' (assumed)' if c['assumed'] else ' of ' + str(c['sample'])}"
+                      + (f", median {c['median_days']} days" if c["median_days"] is not None else ""))
+            print("\nThis week vs target")
+            for t in pl.targets(cfg, db):
+                print(f"  {t['stage']:<10} {t['actual_week']:>3} / {t['target_week']:<5g} {'✓' if t['on_track'] else '✗ behind'}")
+            f = pl.forecast(cfg, db)
+            print(f"\nPartners this month: {f['won_this_month']} won + {f['expected_from_pipeline']} expected from pipeline "
+                  f"(goal {f['goal_month']:g})")
+            h = pl.hygiene(db)
+            if h:
+                print(f"\n{len(h)} active leads have no next step: " + ", ".join(f"#{l['id']} {l['name']}" for l in h[:8]))
+
+
+def cmd_week(args) -> None:
+    from datetime import date, timedelta
+
+    from . import planner
+
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        start = date.fromisoformat(args.start) if args.start else None
+        if args.next:
+            start = planner.week_start_for(date.today()) + timedelta(days=7)
+        plan = planner.plan_week(cfg, db, start)
+        if args.ics:
+            from pathlib import Path
+
+            Path(args.ics).write_text(planner.to_ics(plan), encoding="utf-8")
+            print("calendar file ->", args.ics)
+            return
+        if args.apply:
+            print(planner.apply_plan(db, plan), "to-dos got a planned day")
+        for d in plan["days"]:
+            L = d["load"]
+            print(f"\n{d['weekday']} {d['date']}  ·  meetings {L['meeting_min'] / 60:.1f} h  ·  planned {L['scheduled_min'] / 60:.1f} h"
+                  f" of {L['free_min'] / 60:.1f} h free{'  (past)' if d['past'] else ''}")
+            rows = [(m["start"], f"[meeting] {m['title']}") for m in d["meetings"]]
+            rows += [(i["start"], f"{i['title']} ({i['minutes']}m)") for b in d["blocks"] for i in b["items"]]
+            for t, txt in sorted(rows):
+                print(f"   {t}  {txt}")
+        if plan["overflow"]:
+            print("\nDoesn't fit: " + "; ".join(f"#{o['task_id']} {o['title']} ({o['minutes']}m)" for o in plan["overflow"]))
+        if plan["insights"]:
+            print("\nSetz suggests:")
+            for i in plan["insights"]:
+                print(f"  - {i['text']}")
+
+
 def cmd_dashboard(args) -> None:
     from .dashboard.app import serve
 
@@ -392,6 +481,26 @@ def main(argv: list[str] | None = None) -> None:
     l.add_argument("--website")
     l.add_argument("--email")
     l.set_defaults(fn=cmd_leads)
+
+    lg = sub.add_parser("leadgen", help="campus venues from OpenStreetMap: sz leadgen scan [--campus TU] | list | coverage")
+    lg.add_argument("action", nargs="?", default="list", choices=["scan", "list", "coverage"])
+    lg.add_argument("--campus")
+    lg.add_argument("--status")
+    lg.add_argument("--limit", type=int, default=40)
+    lg.add_argument("--force", action="store_true", help="scan again even if done today")
+    lg.set_defaults(fn=cmd_leadgen)
+
+    pp = sub.add_parser("pipeline", help="sz pipeline | stale | routes [campus] | start <lead> | auto [n] | next <lead> <text>")
+    pp.add_argument("action", nargs="?", default="show", choices=["show", "stale", "routes", "start", "auto", "next"])
+    pp.add_argument("args", nargs="*")
+    pp.set_defaults(fn=cmd_pipeline)
+
+    wk = sub.add_parser("week", help="plan the week: time-block to-dos around meetings, load and suggestions")
+    wk.add_argument("--next", action="store_true", help="plan next week")
+    wk.add_argument("--start", help="any date in the week to plan (YYYY-MM-DD)")
+    wk.add_argument("--apply", action="store_true", help="give undated/overdue to-dos their planned day")
+    wk.add_argument("--ics", help="write the plan as a calendar file to import into Outlook")
+    wk.set_defaults(fn=cmd_week)
 
     db_ = sub.add_parser("dashboard", help="open the local dashboard")
     db_.add_argument("--port", type=int, default=None)

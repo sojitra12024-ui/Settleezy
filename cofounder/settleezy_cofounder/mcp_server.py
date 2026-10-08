@@ -258,6 +258,72 @@ def agent_reports() -> str:
         return json.dumps({"reports": ag.latest(db), "setz": json.loads(db.kv_get("setz:synthesis", "{}"))}, ensure_ascii=False, default=str)
 
 
+@server.tool()
+def pipeline_status() -> str:
+    """Sales pipeline: stage counts, conversion rates, this week vs target, partner forecast, stale deals and deals
+    without a next step."""
+    from . import pipeline as pl
+
+    cfg, db = _db()
+    with db:
+        s = pl.summary(cfg, db)
+        return json.dumps({k: s[k] for k in ("counts", "conversion", "targets", "forecast", "stale", "hygiene", "sequence_capacity")},
+                          ensure_ascii=False, default=str)
+
+
+@server.tool()
+def set_lead_next_step(lead_id: int, text: str) -> str:
+    """Set a lead's next step (natural-language date allowed, e.g. 'send the offer on Friday'); also adds a to-do."""
+    from .pipeline import set_next_step
+
+    cfg, db = _db()
+    with db:
+        lead = set_next_step(db, lead_id, text)
+        return f"Next step for {lead['name']}: {lead['next_step']} (due {lead['next_step_due']})"
+
+
+@server.tool()
+def start_outreach_sequence(lead_id: int = 0) -> str:
+    """Start the multi-touch outreach sequence for one lead, or (lead_id=0) for the best new leads up to weekly capacity."""
+    from . import pipeline as pl
+
+    cfg, db = _db()
+    with db:
+        if lead_id:
+            return f"{pl.start_sequence(cfg, db, lead_id)} steps added to the to-do list"
+        return json.dumps(pl.auto_start(cfg, db), ensure_ascii=False)
+
+
+@server.tool()
+def find_campus_leads(campus: str = "") -> str:
+    """Find cafés, restaurants, supermarkets, gyms etc. near Berlin campuses on OpenStreetMap and add them as leads."""
+    from .leadgen import discover
+
+    cfg, db = _db()
+    with db:
+        return json.dumps(discover(cfg, db, campus or None), ensure_ascii=False)
+
+
+@server.tool()
+def plan_week(next_week: bool = False) -> str:
+    """Time-block open to-dos into the routine around meetings for this (or next) week; returns per-day plan,
+    load, what doesn't fit and recommendations."""
+    from datetime import date, timedelta
+
+    from . import planner
+
+    cfg, db = _db()
+    with db:
+        start = planner.week_start_for(date.today()) + timedelta(days=7) if next_week else None
+        plan = planner.plan_week(cfg, db, start)
+        return json.dumps({
+            "week_start": plan["week_start"], "totals": plan["totals"], "insights": [i["text"] for i in plan["insights"]],
+            "overflow": plan["overflow"],
+            "days": [{"date": d["date"], "load": d["load"], "meetings": [(m["start"], m["title"]) for m in d["meetings"]],
+                      "work": [(i["start"], i["title"]) for b in d["blocks"] for i in b["items"]]} for d in plan["days"]],
+        }, ensure_ascii=False, default=str)
+
+
 def main() -> None:
     server.run("stdio")
 

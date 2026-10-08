@@ -165,7 +165,51 @@ details summary { cursor: pointer; color: var(--text-secondary); font-size: 12px
 dialog { border: 1px solid var(--border); border-radius: 12px; background: var(--surface-1); color: var(--text-primary); width: min(680px, calc(100% - 32px)); padding: 18px 20px; }
 dialog::backdrop { background: rgba(0,0,0,.45); }
 dialog .dhead { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
-@media (max-width: 1100px) { .span-8, .span-7, .span-6, .span-5, .span-4 { grid-column: span 12; } .kanban { grid-template-columns: repeat(5, 170px); } }
+/* pipeline */
+.flow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; align-items: stretch; }
+.flow .st { background: var(--surface-2); border-radius: 10px; padding: 10px 12px; position: relative; }
+.flow .st b { display: block; font-size: 24px; font-variant-numeric: tabular-nums; }
+.flow .st span { font-size: 12px; color: var(--text-secondary); text-transform: capitalize; }
+.flow .rate { font-size: 12px; color: var(--text-secondary); margin-top: 6px; }
+.flow .rate b { display: inline; font-size: 13px; color: var(--text-primary); }
+.tag { font-size: 10.5px; border: 1px solid var(--border); border-radius: 99px; padding: 0 6px; color: var(--text-muted); margin-left: 4px; }
+.tgt { display: grid; grid-template-columns: 90px 1fr 84px; gap: 10px; align-items: center; font-size: 13px; margin-bottom: 10px; }
+.tgt .bar { margin: 0; position: relative; height: 10px; }
+.tgt .bar .pace { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--text-muted); }
+.tgt .n { text-align: right; font-variant-numeric: tabular-nums; color: var(--text-secondary); }
+.tgt.behind .bar i { background: var(--warning); }
+#map { height: 440px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface-2); }
+.leaflet-container { font: 12px/1.4 Inter, system-ui, sans-serif; }
+.stale { color: var(--warn-text); font-weight: 500; }
+.att { padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.att:last-child { border-bottom: 0; }
+.att .why { font-size: 12.5px; color: var(--text-secondary); }
+.routes { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.route { background: var(--surface-2); border-radius: 10px; padding: 10px 12px; font-size: 12.5px; }
+.route ol { margin: 6px 0 8px; padding-left: 18px; }
+.route a { color: var(--accent); text-decoration: none; font-weight: 500; }
+.seqbar { display: inline-flex; gap: 2px; vertical-align: middle; margin-right: 6px; }
+.seqbar i { width: 10px; height: 6px; border-radius: 2px; background: var(--track); }
+.seqbar i.on { background: var(--series-3); }
+/* schedule */
+.week { display: grid; grid-template-columns: repeat(5, minmax(170px, 1fr)); gap: 10px; overflow-x: auto; }
+.day { background: var(--surface-2); border-radius: 10px; padding: 10px; min-height: 200px; }
+.day.past { opacity: .55; }
+.day.today { outline: 2px solid var(--accent); outline-offset: -2px; }
+.day h3 { margin: 0 0 2px; font-size: 13px; display: flex; justify-content: space-between; }
+.day .load { font-size: 11.5px; color: var(--text-secondary); margin-bottom: 6px; }
+.day .lbar { display: flex; height: 6px; border-radius: 99px; overflow: hidden; background: var(--track); margin-bottom: 8px; }
+.day .lbar i { display: block; height: 100%; }
+.slot { background: var(--surface-1); border: 1px solid var(--border); border-left: 3px solid var(--series-1); border-radius: 6px; padding: 5px 7px; margin-bottom: 5px; font-size: 12px; display: grid; grid-template-columns: 1fr auto; gap: 4px; }
+.slot.meeting { background: var(--accent-soft); border-left-color: var(--accent); }
+.slot .t { color: var(--text-muted); font-variant-numeric: tabular-nums; font-size: 11px; }
+.slot.late .t::after { content: " · overdue"; color: var(--critical-text); }
+.slot input { width: 14px; height: 14px; padding: 0; margin: 2px 0 0; }
+.cat-legend { display: flex; flex-wrap: wrap; gap: 10px; font-size: 12px; color: var(--text-secondary); }
+.cat-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+.ins { padding: 8px 10px; border-radius: 8px; margin-bottom: 6px; font-size: 13px; background: var(--surface-2); border-left: 3px solid var(--accent); }
+.ins.warn { border-left-color: var(--warning); } .ins.tip { border-left-color: var(--good); }
+@media (max-width: 1100px) { .span-8, .span-7, .span-6, .span-5, .span-4 { grid-column: span 12; } .kanban { grid-template-columns: repeat(5, 170px); } .flow { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 600px) { .bar-top, main { padding-left: 16px; padding-right: 16px; } .form-grid { grid-template-columns: 1fr; } .plan-row { grid-template-columns: 70px 1fr; } .plan-row > :last-child { grid-column: 2; } }
 </style>
 </head>
@@ -186,6 +230,8 @@ dialog .dhead { display: flex; justify-content: space-between; align-items: cent
   <nav class="tabsbar" role="tablist">
     <button data-page="today" role="tab">Today <span class="count" id="c-today"></span></button>
     <button data-page="partners" role="tab">Partners <span class="count" id="c-partners"></span></button>
+    <button data-page="pipeline" role="tab">Pipeline <span class="count" id="c-pipeline"></span></button>
+    <button data-page="schedule" role="tab">Schedule</button>
     <button data-page="growth" role="tab">Growth</button>
     <button data-page="leads" role="tab">Leads & competitors</button>
     <button data-page="insights" role="tab">Insights & connections</button>
@@ -247,6 +293,34 @@ dialog .dhead { display: flex; justify-content: space-between; align-items: cent
       </form></details></section>
   <section class="card span-4"><h2>Live partners by type</h2><div id="p-kinds"></div>
     <h2 style="margin-top:16px">Lead pipeline</h2><div class="funnel" id="funnel"></div></section>
+</section>
+
+<!-- ================= PIPELINE ================= -->
+<section class="page" id="page-pipeline">
+  <section class="kpis span-12" id="pl-kpis"></section>
+  <section class="card span-7"><h2>Funnel <small>conversion from your own stage history; "assumed" until 5+ leads pass a stage</small></h2><div class="flow" id="pl-flow"></div></section>
+  <section class="card span-5"><h2>This week vs target <small id="pl-goal"></small></h2><div id="pl-targets"></div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px"><button class="primary" id="pl-auto">Auto-start outreach sequences</button><span class="muted" style="font-size:12px" id="pl-cap"></span></div></section>
+  <section class="card span-8"><h2>Campus map <span class="seg"><select id="pl-campus" aria-label="Campus"><option value="">All campuses</option></select><button data-job="leadgen" title="Find venues near every campus on OpenStreetMap">Scan campuses (OSM)</button></span></h2><div id="map" role="img" aria-label="Map of leads near Berlin campuses"></div>
+    <div class="legend" style="margin-top:8px" id="map-legend"></div></section>
+  <section class="card span-4"><h2>Campus coverage <small>venues found → partners</small></h2><div class="scroll" style="max-height:470px"><table id="pl-coverage"></table></div></section>
+  <section class="card span-8"><h2>Active deals <small>every deal needs a next step</small></h2><div class="scroll" style="max-height:520px"><table id="pl-board"></table></div></section>
+  <section class="card span-4"><h2>Needs attention</h2><div class="scroll" style="max-height:520px" id="pl-attn"></div></section>
+  <section class="card span-12"><h2>Visit routes <small>walking loops from campus through venues worth a visit</small></h2><div class="routes" id="pl-routes"></div></section>
+</section>
+
+<!-- ================= SCHEDULE ================= -->
+<section class="page" id="page-schedule">
+  <section class="kpis span-12" id="wk-kpis"></section>
+  <section class="card span-12"><h2><span>Week of <span id="wk-title"></span></span><span class="seg">
+      <button id="wk-prev" aria-label="Previous week">‹</button><button id="wk-this">This week</button><button id="wk-next" aria-label="Next week">›</button>
+      <button id="wk-apply" title="Give undated and overdue to-dos the day they were planned on">Apply to to-dos</button>
+      <a id="wk-ics" href="/api/week.ics" download><button>Download .ics</button></a></span></h2>
+    <div class="cat-legend" id="wk-legend" style="margin-bottom:10px"></div>
+    <div class="week" id="wk-grid"></div></section>
+  <section class="card span-6"><h2>Setz suggests</h2><div id="wk-insights"></div></section>
+  <section class="card span-6"><h2>Load per day <small>hours</small></h2><div class="legend"><span><i style="background:var(--series-2)"></i>Meetings</span><span><i style="background:var(--series-1)"></i>Planned work</span><span><i style="background:var(--track)"></i>Free</span></div><div class="chart-wrap" style="height:220px"><canvas id="wkChart"></canvas></div></section>
+  <section class="card span-12"><h2>Doesn't fit this week <small id="wk-over-n"></small></h2><div class="scroll" style="max-height:300px"><table id="wk-overflow"></table></div></section>
 </section>
 
 <!-- ================= GROWTH ================= -->
@@ -378,6 +452,7 @@ function showPage(p) {
   try { localStorage.setItem("sz-page", p); } catch (_) {}
   history.replaceState(null, "", "#" + p);
   requestAnimationFrame(() => Object.values(charts).forEach(c => c.resize()));
+  if (p === "pipeline") drawMap();
 }
 
 /* ---------- TODAY ---------- */
@@ -400,7 +475,8 @@ function renderToday(d, o) {
   $("#plan").innerHTML = o.plan.items.length ? o.plan.items.map(i => {
     const isNow = cur && cur.start === i.start && cur.title === i.title;
     const right = i.type === "meeting" ? `<button class="small" data-prep="${esc(i.event_id)}">Prep</button>` : "";
-    const sugg = (i.suggestions || []).slice(0, 4).map(s => `<span>${esc(s)}</span>`).join("");
+    const sugg = (i.scheduled || []).map(x => `<span title="${esc(x.minutes)} min">☐ ${esc(x.start)} ${esc(x.title)}</span>`).join("")
+      + (i.suggestions || []).slice(0, (i.scheduled || []).length ? 2 : 4).map(s => `<span>${esc(s)}</span>`).join("");
     return `<div class="plan-row ${i.type === "meeting" ? "meeting" : ""} ${isNow ? "now" : ""}"><div class="time">${esc(i.start)}–${esc(i.end)}</div>
       <div><div class="title">${i.type === "meeting" ? "📅 " : ""}${esc(i.title)}${isNow ? '<span class="badge-now">now</span>' : ""}</div>
       ${i.type === "meeting" ? `<div class="muted" style="font-size:12px">${esc(i.detail || i.source)}</div>` : ""}
@@ -581,8 +657,134 @@ async function ask(text) {
 }
 $("#ask").addEventListener("submit", (e) => { e.preventDefault(); const t = $("#ask-input").value.trim(); if (t) ask(t); });
 
+/* ---------- PIPELINE ---------- */
+let PL = null, MAP = null, MAPLAYER = null;
+const STATUS_COLOR = { new: "--text-muted", drafted: "--series-5", contacted: "--series-1", replied: "--series-4", meeting: "--series-2", partner: "--series-3", lost: "--critical" };
+function loadLeaflet() {
+  if (window.L) return Promise.resolve();
+  if (loadLeaflet.p) return loadLeaflet.p;
+  const css = document.createElement("link"); css.rel = "stylesheet"; css.href = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"; document.head.appendChild(css);
+  return loadLeaflet.p = new Promise((res, rej) => { const sc = document.createElement("script"); sc.src = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"; sc.onload = res; sc.onerror = rej; document.head.appendChild(sc); });
+}
+async function loadPipeline() {
+  PL = await (await fetch("/api/pipeline")).json();
+  renderPipeline(PL);
+  if (page === "pipeline") drawMap();
+}
+function renderPipeline(p) {
+  const c = p.counts, f = p.forecast, active = c.contacted + c.replied + c.meeting;
+  $("#c-pipeline").textContent = active || "";
+  const camp = p.coverage.reduce((a, x) => a + x.found, 0);
+  $("#pl-kpis").innerHTML = [
+    kpi("Active deals", active, `${c.drafted} drafted · ${c.new} new leads`),
+    kpi("Partners this month", `${f.won_this_month} / ${fmt(f.goal_month)}`, `+${fmt(f.expected_from_pipeline)} expected from pipeline`),
+    kpi("Gap to goal", fmt(f.gap), f.gap > 0 ? "partners still uncovered" : "pipeline covers the goal"),
+    kpi("Sequences running", p.sequences.filter(x => x.total > x.done).length, `${p.sequences.filter(x => x.due_now).length} steps due now`),
+    kpi("Stale deals", p.stale.length, `${p.hygiene.length} without a next step`),
+    kpi("Campus venues", camp, `${p.coverage.filter(x => x.found).length} of ${p.coverage.length} campuses scanned`),
+  ].join("");
+  const conv = Object.fromEntries(p.conversion.map(x => [x.from, x]));
+  $("#pl-flow").innerHTML = ["contacted", "replied", "meeting", "partner"].map(s => {
+    const r = conv[s];
+    return `<div class="st"><span>${s}</span><b>${fmt(c[s])}</b>${r ? `<div class="rate">→ <b>${Math.round(r.rate * 100)}%</b> ${r.assumed ? '<span class="tag">assumed</span>' : `<span class="tag">n=${r.sample}</span>`}${r.median_days != null ? `<br>median ${fmt(r.median_days)} days` : ""}</div>` : `<div class="rate">signed</div>`}</div>`;
+  }).join("");
+  const pace = Math.min(1, (((new Date().getDay() + 6) % 7) + 1) / 5);
+  $("#pl-goal").textContent = `goal ${fmt(f.goal_month)} partners / month`;
+  $("#pl-targets").innerHTML = p.targets.map(t => {
+    const max = Math.max(t.target_week, t.actual_week, 1), pct = Math.round(100 * t.actual_week / max);
+    return `<div class="tgt ${t.on_track ? "" : "behind"}"><span style="text-transform:capitalize">${t.stage}</span><div class="bar"><i style="width:${Math.max(pct, t.actual_week ? 3 : 0)}%"></i><span class="pace" style="left:${Math.round(100 * t.target_week * pace / max)}%" title="where you should be by today"></span></div><span class="n">${t.actual_week} / ${fmt(t.target_week)}</span></div>`;
+  }).join("") + `<div class="muted" style="font-size:12px">The line marks where you should be by today. Targets are worked back from the goal using your conversion rates.</div>`;
+  const cap = p.sequence_capacity;
+  $("#pl-cap").textContent = `${cap.started_this_week} of ${cap.per_week} started this week`;
+  $("#pl-auto").disabled = cap.started_this_week >= cap.per_week;
+  const sel = $("#pl-campus"); if (sel.options.length <= 1) sel.innerHTML += p.coverage.map(x => `<option>${esc(x.campus)}</option>`).join("");
+  $("#pl-coverage").innerHTML = `<tr><th>Campus</th><th>Found</th><th>✉</th><th>Active</th><th>Partners</th></tr>` + p.coverage.map(x =>
+    `<tr><td>${esc(x.campus)}</td><td>${x.found}</td><td>${x.with_email}</td><td>${x.active}</td><td>${x.partners ? `<b>${x.partners}</b>` : 0}</td></tr>`).join("");
+  const seqs = Object.fromEntries(p.sequences.map(x => [x.lead_id, x]));
+  $("#pl-board").innerHTML = p.board.length ? `<tr><th>Lead</th><th>Stage</th><th>In stage</th><th>Next step</th><th></th></tr>` + p.board.map(l => {
+    const sq = seqs[l.id], ot = l.open_task, otTitle = ot ? (ot.title.includes(": ") ? ot.title.split(": ").slice(1).join(": ") : ot.title) : "";
+    const nxt = ot ? `${esc(otTitle)} <span class="muted">· ${esc(ot.due || "")}</span>` : l.next_step ? `${esc(l.next_step)} <span class="muted">· ${esc(l.next_step_due || "")}</span>` : `<span class="stale">none</span>`;
+    const bar = sq ? `<span class="seqbar" title="sequence ${sq.done}/${sq.total}">${Array.from({ length: sq.total }, (_, i) => `<i class="${i < sq.done ? "on" : ""}"></i>`).join("")}</span>` : "";
+    return `<tr><td><b>${esc(l.name)}</b><div class="muted" style="font-size:12px">${esc(l.kind)}${l.campus ? " · " + esc(l.campus) : ""}${l.email ? " · ✉" : ""}</div></td>
+      <td><select data-lead="${l.id}" aria-label="Stage">${STATUSES.map(s => `<option ${s === l.status ? "selected" : ""}>${s}</option>`).join("")}</select></td>
+      <td class="${l.stale ? "stale" : ""}">${l.days_in_stage == null ? "–" : fmt(l.days_in_stage) + " d"}</td>
+      <td>${bar}${nxt}</td>
+      <td style="white-space:nowrap"><button class="small" data-nextstep="${l.id}">Next step</button> ${sq && sq.total > sq.done ? `<button class="small" data-seqstop="${l.id}">Stop seq.</button>` : ["drafted", "contacted"].includes(l.status) ? `<button class="small" data-seqstart="${l.id}">Sequence</button>` : ""}</td></tr>`;
+  }).join("") : `<tr><td class="empty">No active deals yet. Start outreach sequences or move leads to "contacted".</td></tr>`;
+  $("#pl-attn").innerHTML = (p.stale.map(l => `<div class="att"><b>${esc(l.name)}</b> <span class="stale">${esc(l.status)} ${fmt(l.days_in_stage)} d</span><div class="why">${esc(l.suggestion)}</div></div>`).join("")
+    + (p.hygiene.length ? `<div class="att"><b>No next step</b><div class="why">${p.hygiene.map(h => esc(h.name)).join(", ")}</div></div>` : "")) || `<div class="empty">Nothing is stuck. 👌</div>`;
+  $("#pl-routes").innerHTML = p.routes.length ? p.routes.map(r => `<div class="route"><b>${esc(r.campus)}</b> <span class="muted">· ${r.stops.length} stops · ${fmt(r.walk_km)} km · ~${r.walk_min} min</span>
+    <ol>${r.stops.map(s => `<li>${esc(s.name)} <span class="muted">${esc(s.category || "")}</span></li>`).join("")}</ol><a href="${esc(r.maps_url)}" target="_blank" rel="noopener">Open walking route ↗</a></div>`).join("")
+    : `<div class="empty">No routes yet. Click "Scan campuses (OSM)" to find venues near each campus.</div>`;
+  $("#map-legend").innerHTML = Object.entries(STATUS_COLOR).map(([k, v]) => `<span><i style="background:${css(v)}"></i>${k}</span>`).join("") + `<span><i style="background:transparent;border:2px solid ${css("--text-primary")};border-radius:99px"></i>campus</span>`;
+}
+async function drawMap() {
+  if (!PL) return;
+  try { await loadLeaflet(); } catch (_) { $("#map").innerHTML = `<div class="empty" style="padding:16px">Map library could not load (offline?).</div>`; return; }
+  if (!MAP) {
+    MAP = L.map("map", { scrollWheelZoom: false }).setView([52.505, 13.39], 11);
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "&copy; OpenStreetMap contributors" }).addTo(MAP);
+  }
+  MAPLAYER?.remove(); MAPLAYER = L.layerGroup().addTo(MAP);
+  const sel = $("#pl-campus").value;
+  for (const c of PL.coverage) {
+    if (sel && c.campus !== sel) continue;
+    L.circleMarker([c.lat, c.lon], { radius: 9, color: css("--text-primary"), weight: 2, fillOpacity: 0 }).bindTooltip(`${c.campus}: ${c.found} venues, ${c.partners} partners`).addTo(MAPLAYER);
+  }
+  const pts = [];
+  for (const l of PL.map) {
+    if (sel && l.campus !== sel) continue;
+    pts.push([l.lat, l.lon]);
+    L.circleMarker([l.lat, l.lon], { radius: 4 + Math.round(l.score / 25), color: css(STATUS_COLOR[l.status] || "--text-muted"), weight: 1, fillOpacity: .75 })
+      .bindPopup(`<b>${esc(l.name)}</b><br>${esc(l.category || "")}<br>${esc(l.status)} · score ${fmt(l.score)}`).addTo(MAPLAYER);
+  }
+  setTimeout(() => { MAP.invalidateSize(); if (pts.length && sel) MAP.fitBounds(pts, { padding: [20, 20], maxZoom: 16 }); }, 50);
+}
+
+/* ---------- SCHEDULE ---------- */
+let WK = null, wkStart = null;
+const CATS = { inbox: "--series-4", outreach: "--series-1", partners: "--series-3", content: "--series-5", calls: "--series-2", visits: "--series-2", review: "--text-muted", admin: "--text-muted" };
+async function loadWeek() {
+  WK = await (await fetch("/api/week" + (wkStart ? "?start=" + wkStart : ""))).json();
+  renderWeek(WK);
+}
+function renderWeek(w) {
+  const t = w.totals, today = new Date().toISOString().slice(0, 10);
+  $("#wk-title").textContent = new Date(w.week_start + "T00:00").toLocaleDateString(undefined, { day: "numeric", month: "long" });
+  $("#wk-ics").href = "/api/week.ics?start=" + w.week_start;
+  $("#wk-kpis").innerHTML = [
+    kpi("Meetings", fmt(t.meeting_hours) + " h", w.days.reduce((a, d) => a + d.meetings.length, 0) + " meetings"),
+    kpi("Focus time", fmt(t.focus_hours) + " h", "free inside your routine blocks"),
+    kpi("Planned work", fmt(t.scheduled_hours) + " h", t.tasks_scheduled + " to-dos scheduled"),
+    kpi("Doesn't fit", fmt(t.overflow_hours) + " h", t.tasks_overflow + (t.tasks_overflow === 1 ? " to-do" : " to-dos")),
+    kpi("Utilisation", t.focus_hours ? Math.round(100 * t.scheduled_hours / t.focus_hours) + "%" : "–", "planned ÷ focus time"),
+  ].join("");
+  $("#wk-legend").innerHTML = Object.entries(CATS).filter(([k]) => !["visits", "admin"].includes(k)).map(([k, v]) => `<span><i style="background:${css(v)}"></i>${k}${k === "calls" ? " / visits" : k === "review" ? " / admin" : ""}</span>`).join("") + `<span><i style="background:var(--accent-soft);border:1px solid var(--accent)"></i>meeting</span>`;
+  $("#wk-grid").innerHTML = w.days.map(d => {
+    const L = d.load, tot = Math.max(L.meeting_min + L.free_min, 1);
+    const rows = [...d.meetings.map(m => ({ t: m.start, h: `<div class="slot meeting"><div><div class="t">${esc(m.start)}–${esc(m.end)}</div>${esc(m.title)}</div><span></span></div>` })),
+      ...d.blocks.flatMap(b => b.items.map(i => ({ t: i.start, h: `<div class="slot ${i.late ? "late" : ""}" style="border-left-color:${css(CATS[i.category] || "--series-1")}" title="${esc(b.title)} · ${esc(i.category)}"><div><div class="t">${esc(i.start)} · ${i.minutes}m</div>${esc(i.title)}</div>${d.past ? "<span></span>" : `<input type="checkbox" data-done="${i.task_id}" aria-label="Done">`}</div>` })))].sort((a, b) => a.t.localeCompare(b.t));
+    return `<div class="day ${d.past ? "past" : ""} ${d.date === today ? "today" : ""}"><h3><span>${esc(d.weekday)}</span><span class="muted">${esc(d.date.slice(8))}.${esc(d.date.slice(5, 7))}.</span></h3>
+      <div class="load">${fmt(L.meeting_min / 60)} h meetings · ${fmt(L.scheduled_min / 60)}/${fmt(L.free_min / 60)} h planned</div>
+      <div class="lbar"><i style="width:${100 * L.meeting_min / tot}%;background:${css("--series-2")}"></i><i style="width:${100 * L.scheduled_min / tot}%;background:${css("--series-1")}"></i></div>
+      ${rows.map(r => r.h).join("") || `<div class="empty">${d.past ? "Past" : "Nothing planned"}</div>`}</div>`;
+  }).join("");
+  $("#wk-insights").innerHTML = w.insights.length ? w.insights.map(i => `<div class="ins ${esc(i.severity)}">${esc(i.text)}</div>`).join("") : `<div class="empty">The week looks balanced.</div>`;
+  $("#wk-over-n").textContent = w.overflow.length ? `${w.overflow.length} to-dos · ${fmt(t.overflow_hours)} h` : "";
+  $("#wk-overflow").innerHTML = w.overflow.length ? `<tr><th>To-do</th><th>Due</th><th>Est.</th><th>Why</th><th></th></tr>` + w.overflow.map(o =>
+    `<tr><td>${o.priority >= 3 ? "❗ " : ""}${esc(o.title)}</td><td>${esc(o.due || "–")}</td><td>${o.minutes} min</td><td class="muted">${esc(o.reason)}</td>
+     <td style="white-space:nowrap"><button class="small" data-snooze7="${o.task_id}">Next week</button> <button class="small" data-del="${o.task_id}">Drop</button></td></tr>`).join("") : `<tr><td class="empty">Everything fits. 🎯</td></tr>`;
+  charts.wk?.destroy();
+  const o = baseOpts(); o.scales.x.stacked = true; o.scales.y.stacked = true; o.plugins.legend.display = false;
+  charts.wk = new Chart($("#wkChart"), { type: "bar", data: { labels: w.days.map(d => d.weekday.slice(0, 3)), datasets: [
+    { label: "Meetings", data: w.days.map(d => +(d.load.meeting_min / 60).toFixed(1)), backgroundColor: css("--series-2"), borderRadius: 3 },
+    { label: "Planned work", data: w.days.map(d => +(d.load.scheduled_min / 60).toFixed(1)), backgroundColor: css("--series-1"), borderRadius: 3 },
+    { label: "Free", data: w.days.map(d => +((d.load.free_min - d.load.scheduled_min) / 60).toFixed(1)), backgroundColor: css("--track"), borderRadius: 3 }] }, options: o });
+}
+const shiftWeek = (days) => { const d = new Date((WK ? WK.week_start : new Date().toISOString().slice(0, 10)) + "T00:00"); d.setDate(d.getDate() + days); wkStart = d.toISOString().slice(0, 10); loadWeek(); };
+
 /* ---------- load ---------- */
-async function refreshOps() { OPS = await (await fetch("/api/ops")).json(); renderToday(DATA, OPS); renderPartners(OPS); renderGrowth(DATA, OPS); }
+async function refreshOps() { OPS = await (await fetch("/api/ops")).json(); renderToday(DATA, OPS); renderPartners(OPS); renderGrowth(DATA, OPS); loadPipeline().catch(() => {}); loadWeek().catch(() => {}); }
 async function load() {
   const [d, o] = await Promise.all([fetch("/api/summary").then(r => r.json()), fetch("/api/ops").then(r => r.json())]);
   DATA = d; OPS = o;
@@ -591,6 +793,7 @@ async function load() {
   if (!$("#lead-status").options[1]) $("#lead-status").innerHTML += STATUSES.map(s => `<option>${s}</option>`).join("");
   if (!$("#pedit [name=stage]").options[0]) $("#pedit [name=stage]").innerHTML = o.stages.map(([k, n]) => `<option value="${k}">${esc(n)}</option>`).join("");
   renderToday(d, o); renderPartners(o); renderGrowth(d, o); renderLeadsPage(d); renderInsights(d);
+  loadPipeline().catch(() => {}); loadWeek().catch(() => {});
   document.querySelectorAll("[data-job]").forEach(b => b.disabled = d.running[b.dataset.job] === "running");
 }
 async function poll(job) {
@@ -632,6 +835,15 @@ document.addEventListener("click", async (e) => {
   if (t("[data-advance]")) { try { const p = await post(`/api/partners/${t("[data-advance]").dataset.advance}`, { advance: true }); toast(`${p.name}: ${p.stage === "live" ? "live 🎉" : "next step"}`); refreshOps(); } catch (err) { toast(err.message); } return; }
   if (t("[data-logcontact]")) { await post(`/api/partners/${t("[data-logcontact]").dataset.logcontact}`, { log_contact: true }); toast("Contact logged"); return refreshOps(); }
   if (t("[data-pedit]")) return openPartnerEdit(t("[data-pedit]").dataset.pedit);
+  if (t("[data-nextstep]")) { const id = t("[data-nextstep]").dataset.nextstep, txt = prompt("Next step (e.g. 'send the offer sheet on Friday')"); if (txt) { try { await post(`/api/leads/${id}/next-step`, { text: txt }); toast("Next step set and added to to-dos"); refreshOps(); } catch (err) { toast(err.message); } } return; }
+  if (t("[data-seqstart]")) { try { const r = await post(`/api/leads/${t("[data-seqstart]").dataset.seqstart}/sequence`, {}); toast(`Sequence started: ${r.steps} steps on your to-do list`); refreshOps(); } catch (err) { toast(err.message); } return; }
+  if (t("[data-seqstop]")) { const r = await post(`/api/leads/${t("[data-seqstop]").dataset.seqstop}/sequence`, { action: "stop" }); toast(`Sequence stopped (${r.removed} steps removed)`); return refreshOps(); }
+  if (t("[data-snooze7]")) { await post(`/api/tasks/${t("[data-snooze7]").dataset.snooze7}`, { action: "snooze", days: 7 }); toast("Moved to next week"); return refreshOps(); }
+  if (e.target.id === "pl-auto") { e.target.disabled = true; try { const r = await post("/api/pipeline/sequences/auto"); toast(r.started.length ? `Started ${r.started.length} sequences: ${r.started.slice(0, 3).map(x => x.name).join(", ")}${r.started.length > 3 ? "…" : ""}` : "Weekly capacity reached or no leads with contacts"); refreshOps(); } catch (err) { toast(err.message); e.target.disabled = false; } return; }
+  if (e.target.id === "wk-prev") return shiftWeek(-7);
+  if (e.target.id === "wk-next") return shiftWeek(7);
+  if (e.target.id === "wk-this") { wkStart = null; return loadWeek(); }
+  if (e.target.id === "wk-apply") { const r = await post("/api/week/apply", { start: WK && WK.week_start }); toast(`${r.updated} to-dos got their planned day`); return refreshOps(); }
   const pr = t("[data-prep]");
   if (pr) {
     $("#dlg-title").textContent = "Meeting prep"; $("#dlg-body").innerHTML = `<div class="empty">Preparing…</div>`; $("#dlg").showModal();
@@ -652,6 +864,7 @@ document.addEventListener("change", async (e) => {
   if (e.target.id === "trend-key" || e.target.id === "trend-days") loadTrend();
   if (e.target.id === "lead-kind" || e.target.id === "lead-status") loadLeads();
   if (e.target.id === "p-filter") renderPartnerTable(OPS);
+  if (e.target.id === "pl-campus") drawMap();
 });
 let qTimer; $("#lead-q").addEventListener("input", () => { clearTimeout(qTimer); qTimer = setTimeout(loadLeads, 250); });
 $("#todo-form").addEventListener("submit", async (e) => { e.preventDefault(); const v = $("#todo-input").value.trim(); if (!v) return;
@@ -666,7 +879,7 @@ $("#p-form").addEventListener("submit", async (e) => { e.preventDefault();
 
 try { const t = localStorage.getItem("sz-theme"); if (t) document.documentElement.dataset.theme = t; } catch (_) {}
 let startPage = (location.hash || "").slice(1); try { startPage = startPage || localStorage.getItem("sz-page") || "today"; } catch (_) { startPage = startPage || "today"; }
-const PAGES = ["today", "partners", "growth", "leads", "insights"];
+const PAGES = ["today", "partners", "pipeline", "schedule", "growth", "leads", "insights"];
 showPage(PAGES.includes(startPage) ? startPage : "today");
 window.addEventListener("hashchange", () => { const h = location.hash.slice(1); if (PAGES.includes(h) && h !== page) showPage(h); });
 load();

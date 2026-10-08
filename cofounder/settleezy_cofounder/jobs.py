@@ -100,6 +100,19 @@ def _growth(cfg: Config, db: DB) -> Any:
     return {"chars": len(review(cfg, db))}
 
 
+def _leadgen(cfg: Config, db: DB) -> Any:
+    from .leadgen import discover
+
+    return discover(cfg, db)
+
+
+def _pipeline(cfg: Config, db: DB) -> Any:
+    """Weekly: start outreach sequences for the best new leads, up to this week's capacity."""
+    from .pipeline import auto_start
+
+    return {"sequences_started": auto_start(cfg, db)}
+
+
 JOBS: dict[str, Callable[[Config, DB], Any]] = {
     "mail": _mail,
     "track": _track,
@@ -114,6 +127,8 @@ JOBS: dict[str, Callable[[Config, DB], Any]] = {
     "brief": _brief,
     "learn": _learn,
     "growth": _growth,
+    "leadgen": _leadgen,
+    "pipeline": _pipeline,
 }
 
 # What `sz morning` runs, in order. Sources that aren't configured are skipped, not fatal.

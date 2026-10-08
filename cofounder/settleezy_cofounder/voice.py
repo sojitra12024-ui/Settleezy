@@ -159,6 +159,27 @@ def answer(cfg: Config, text: str, lang: str) -> str:
             if not task:
                 return "That's already on your list."
             return f"Added: {task['title']}" + (f", due {task['due']}." if task["due"] else ".")
+        if re.search(r"\b(plan my week|my week|week plan|this week's plan|next week|meine woche|wochenplan)\b", t):
+            from datetime import date, timedelta
+
+            from .planner import plan_week, spoken_week, week_start_for
+
+            start = week_start_for(date.today()) + timedelta(days=7) if re.search(r"next week|nächste woche", t) else None
+            return spoken_week(plan_week(cfg, db, start))
+        if re.search(r"\b(pipeline|deals?|forecast|conversion|sales)\b", t):
+            from . import pipeline as pl
+
+            c, f = pl.summary(cfg, db)["counts"], pl.forecast(cfg, db)
+            behind = [x for x in pl.targets(cfg, db) if not x["on_track"]]
+            stale = pl.stale(db)
+            msg = (f"{c['contacted'] + c['replied'] + c['meeting']} active deals: {c['contacted']} contacted, {c['replied']} replied, "
+                   f"{c['meeting']} in meetings. {f['won_this_month']} partners signed this month of {f['goal_month']:g}, "
+                   f"and about {f['expected_from_pipeline']:g} more expected from the pipeline.")
+            if behind:
+                msg += f" You're behind on {behind[0]['stage']}: {behind[0]['actual_week']} of {behind[0]['target_week']:g} this week."
+            if stale:
+                msg += f" Most urgent: {stale[0]['name']}, {stale[0]['suggestion']}."
+            return msg
         if re.search(r"\b(to-?dos?|tasks?|aufgaben)\b", t):
             items = ops.tasks(db, "today")
             if not items:

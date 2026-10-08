@@ -15,7 +15,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from fastapi import FastAPI, Header, HTTPException, Request
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, Response, StreamingResponse
 
 from .. import jobs, tts
 from ..config import load_config
@@ -280,10 +280,109 @@ def task_action(task_id: int, body: dict, x_sz: str | None = Header(default=None
     cfg = load_config()
     with DB(cfg.db_path) as db:
         try:
+            if body.get("action") == "edit":
+                from ..ops import update_task
+
+                return update_task(db, task_id, **(body.get("fields") or {}))
             set_task(db, task_id, body.get("action", ""), int(body.get("days", 1)))
         except ValueError as exc:
             raise HTTPException(400, str(exc)) from exc
     return {"ok": True}
+
+
+# -- pipeline + week planner ---------------------------------------------------
+
+@app.get("/api/pipeline")
+def pipeline_summary() -> dict:
+    from .. import pipeline as pl
+
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        return pl.summary(cfg, db)
+
+
+@app.post("/api/leads/{lead_id}/next-step")
+def lead_next_step(lead_id: int, body: dict, x_sz: str | None = Header(default=None)) -> dict:
+    _guard(x_sz)
+    from ..pipeline import set_next_step
+
+    text = (body.get("text") or "").strip()
+    if not text:
+        raise HTTPException(400, "text is required")
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        try:
+            return set_next_step(db, lead_id, text, body.get("due") or None)
+        except ValueError as exc:
+            raise HTTPException(404, str(exc)) from exc
+
+
+@app.post("/api/leads/{lead_id}/sequence")
+def lead_sequence(lead_id: int, body: dict, x_sz: str | None = Header(default=None)) -> dict:
+    _guard(x_sz)
+    from ..pipeline import start_sequence, stop_sequence
+
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        try:
+            if body.get("action") == "stop":
+                return {"removed": stop_sequence(db, lead_id)}
+            return {"steps": start_sequence(cfg, db, lead_id)}
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+
+
+@app.post("/api/pipeline/sequences/auto")
+def sequences_auto(body: dict | None = None, x_sz: str | None = Header(default=None)) -> dict:
+    _guard(x_sz)
+    from ..pipeline import auto_start
+
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        return {"started": auto_start(cfg, db, (body or {}).get("limit"))}
+
+
+def _week(start: str | None):
+    from datetime import date as _date
+
+    from .. import planner
+
+    cfg = load_config()
+    db = DB(cfg.db_path)
+    try:
+        return planner.plan_week(cfg, db, _date.fromisoformat(start) if start else None), db
+    except ValueError as exc:
+        db.close()
+        raise HTTPException(400, str(exc)) from exc
+
+
+@app.get("/api/week")
+def week(start: str | None = None) -> dict:
+    plan, db = _week(start)
+    db.close()
+    return plan
+
+
+@app.get("/api/week.ics")
+def week_ics(start: str | None = None) -> Response:
+    from ..planner import to_ics
+
+    plan, db = _week(start)
+    db.close()
+    return Response(to_ics(plan), media_type="text/calendar",
+                    headers={"Content-Disposition": f'attachment; filename="setz-week-{plan["week_start"]}.ics"'})
+
+
+@app.post("/api/week/apply")
+def week_apply(body: dict | None = None, x_sz: str | None = Header(default=None)) -> dict:
+    _guard(x_sz)
+    from ..planner import apply_plan
+
+    plan, db = _week((body or {}).get("start"))
+    try:
+        return {"updated": apply_plan(db, plan)}
+    finally:
+        db.close()
 
 
 @app.post("/api/partners")

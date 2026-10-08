@@ -39,6 +39,8 @@ Add-SzTask "instagram-sync"  "run instagram"   (New-ScheduledTaskTrigger -Daily 
 Add-SzTask "afternoon-drafts" "run drafts"     (New-ScheduledTaskTrigger -Weekly -DaysOfWeek $weekdays -At 2:30pm) -Hidden
 Add-SzTask "relearn-voice"   "run learn"       (New-ScheduledTaskTrigger -Weekly -DaysOfWeek Sunday -At 8:00pm) -Hidden
 Add-SzTask "growth-review"   "run growth"      (New-ScheduledTaskTrigger -Weekly -DaysOfWeek Monday -At 7:15am) -Hidden
+Add-SzTask "campus-leadgen"  "run leadgen"     (New-ScheduledTaskTrigger -Weekly -DaysOfWeek Sunday -At 9:00pm) -Hidden
+Add-SzTask "pipeline-start"  "run pipeline"    (New-ScheduledTaskTrigger -Weekly -DaysOfWeek Monday -At 7:30am) -Hidden
 Add-SzTask "dashboard"       "dashboard"       (New-ScheduledTaskTrigger -AtLogOn) -Hidden
 if ($Voice) { Add-SzTask "voice" "voice" (New-ScheduledTaskTrigger -AtLogOn) -Hidden }
 

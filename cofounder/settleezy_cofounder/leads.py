@@ -35,14 +35,25 @@ def category_weight(text: str) -> float:
 
 
 def score(lead: dict) -> float:
-    sources = json.loads(lead.get("sources") or "[]")
+    # Only competitor listings prove discount appetite; map/seed discovery does not.
+    sources = [x for x in json.loads(lead.get("sources") or "[]") if not x.startswith(("osm:", "seed:", "import"))]
     s = KIND_BASE.get(lead.get("kind", ""), 15)
     s += 40 * category_weight(f"{lead.get('category', '')} {lead.get('name', '')}")
     s += min(len(sources), 3) * 6          # on several competitor platforms = proven discount appetite
     s += 8 if lead.get("email") else 0
     s += 4 if lead.get("instagram") else 0
     s += 4 if lead.get("website") else 0
+    d = lead.get("distance_m")
+    if d is not None:   # walking distance to a campus: students pass by every day
+        s += 10 if d <= 300 else 7 if d <= 600 else 4 if d <= 1000 else 0
     return round(min(s, 100), 1)
+
+
+def rescore(db: DB, lead_id: int) -> float:
+    lead = dict(db.one("SELECT * FROM leads WHERE id=?", (lead_id,)))
+    sc = score(lead)
+    db.x("UPDATE leads SET score=? WHERE id=?", (sc, lead_id))
+    return sc
 
 
 def _norm_name(name: str) -> str:
@@ -144,11 +155,20 @@ def set_status(db: DB, lead_id: int, status: str, note: str = "") -> None:
     valid = {"new", "drafted", "contacted", "replied", "meeting", "partner", "lost"}
     if status not in valid:
         raise ValueError(f"status must be one of {sorted(valid)}")
+    old = db.one("SELECT status FROM leads WHERE id=?", (lead_id,))
+    now = utcnow()
     db.x(
         "UPDATE leads SET status=?, notes=trim(coalesce(notes,'') || ' ' || ?), updated_at=?, "
+        "stage_changed_at=CASE WHEN status != ? THEN ? ELSE coalesce(stage_changed_at, ?) END, "
         "last_contact_at=CASE WHEN ? IN ('contacted','replied','meeting') THEN ? ELSE last_contact_at END WHERE id=?",
-        (status, note, utcnow(), status, utcnow(), lead_id),
+        (status, note, now, status, now, now, status, now, lead_id),
     )
+    if old and old["status"] != status:  # stage history powers conversion rates and velocity
+        db.x("INSERT INTO lead_events(lead_id,from_status,to_status,at) VALUES(?,?,?,?)", (lead_id, old["status"], status, now))
+        if status in {"replied", "meeting", "partner", "lost"}:   # they answered (or it's over): stop the outreach sequence
+            from .pipeline import stop_sequence
+
+            stop_sequence(db, lead_id)
     if status == "partner":  # a signed lead becomes a service partner with an onboarding checklist
         from .ops import ensure_partner_from_lead
 

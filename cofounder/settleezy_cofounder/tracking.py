@@ -29,8 +29,7 @@ def track_drafts(cfg: Config, db: DB) -> dict[str, int]:
                 db.x("UPDATE drafts SET sent_at=? WHERE id=?", (mine[0]["sent_at"], d["id"]))
                 sent += 1
                 if d["lead_id"]:
-                    db.x("UPDATE leads SET status='contacted', last_contact_at=?, updated_at=? WHERE id=? AND status IN ('new','drafted')",
-                         (mine[0]["sent_at"], utcnow(), d["lead_id"]))
+                    _advance_lead(db, d["lead_id"], "contacted", {"new", "drafted"})
                 d = db.one("SELECT * FROM drafts WHERE id=?", (d["id"],))
         if d["sent_at"]:
             theirs = [m for m in thread if m["folder"] == "inbox" and not m["automated"] and m["from_addr"] not in me
@@ -39,9 +38,16 @@ def track_drafts(cfg: Config, db: DB) -> dict[str, int]:
                 db.x("UPDATE drafts SET replied_at=? WHERE id=?", (theirs[0]["sent_at"], d["id"]))
                 replied += 1
                 if d["lead_id"]:
-                    db.x("UPDATE leads SET status='replied', updated_at=? WHERE id=? AND status IN ('new','drafted','contacted')",
-                         (utcnow(), d["lead_id"]))
+                    _advance_lead(db, d["lead_id"], "replied", {"new", "drafted", "contacted"})
     return {"newly_sent": sent, "newly_replied": replied}
+
+
+def _advance_lead(db: DB, lead_id: int, status: str, from_statuses: set[str]) -> None:
+    from .leads import set_status
+
+    row = db.one("SELECT status FROM leads WHERE id=?", (lead_id,))
+    if row and row["status"] in from_statuses:
+        set_status(db, lead_id, status)
 
 
 def draft_funnel(db: DB, days: int = 30) -> dict[str, dict[str, int]]:

@@ -151,6 +151,40 @@ sz growth                   co-founder weekly review now
 sz voice                    Setz: say "Hey Setz …" (or --no-wake for push-to-talk); hologram at /hologram
 ```
 
+## Lead generation, pipeline and your week
+
+**Find leads near campuses.** `sz leadgen scan` asks OpenStreetMap for every café, restaurant, supermarket, bakery,
+gym, cinema, copyshop and bookshop within 800 m of 15 Berlin campuses and adds them as leads with address,
+distance and any website/email/Instagram on the map. Venues close to a campus score higher. Chains are skipped.
+Nothing to install: it uses the free Overpass API (with two mirrors as fallback), at most once a day per campus, and
+runs by itself every Sunday night. Then `sz run enrich` finds missing emails from each website's Impressum.
+
+**Pipeline.** Every stage change is recorded, so Setz knows your real conversion rates (contacted → replied →
+meeting → partner) and how long each step takes. From `[pipeline] partner_goal_per_month` it works back to how
+many first contacts, replies and meetings you need *this week*, forecasts how many partners the current pipeline will
+bring, flags deals stuck too long in a stage and every deal without a next step.
+
+- **Outreach sequences:** day 0 email → day 2 Instagram DM → day 5 follow-up → day 9 visit → day 14 last email
+  (universities get their own cadence). Each step becomes a to-do on its day; ticking off the first one marks the lead
+  as contacted; a reply stops the rest automatically. "Auto-start" (or every Monday 07:30) starts sequences for your
+  best new leads up to the weekly capacity your goal needs.
+- **Visit routes:** a walking loop from each campus through the best venues to visit, with a Google Maps link.
+
+**Your week.** `sz week` (or the Schedule tab) time-blocks your open to-dos into your routine around real meetings:
+outreach into the outreach block, visits into the calls block, overdue and high-priority first, long tasks split
+into 30+ minute chunks. It shows the load per day, what doesn't fit, and suggestions: days with too many meetings,
+no 90-minute focus stretch, the weekday your emails get the most replies, visits to batch near one campus, pipeline
+targets you're behind on. "Apply to to-dos" gives undated to-dos their planned day; "Download .ics" imports the plan
+into Outlook. Today's plan on the Today tab shows the to-dos scheduled into each block.
+
+```
+sz leadgen scan [--campus TU]     sz leadgen coverage       sz leadgen list --campus HTW
+sz pipeline                       sz pipeline stale         sz pipeline routes TU
+sz pipeline auto                  sz pipeline start 42      sz pipeline next 42 send the agreement on Friday
+sz week                           sz week --next            sz week --apply   sz week --ics week.ics
+```
+Voice: "Hey Setz, plan my week", "how's the pipeline?".
+
 ## What's next
 See [`ROADMAP.md`](ROADMAP.md) for researched open-source projects that could be added next: a WhatsApp + Instagram DM inbox, partner impact reports, a content engine, OpenStreetMap venue discovery, app analytics, CRM, e-signatures, newsletters, memory and more, ranked by business impact.
 
