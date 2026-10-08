@@ -32,6 +32,12 @@ def _ops(cfg: Config, db: DB) -> Any:
     return {"auto_tasks_created": sync_auto_tasks(cfg, db)}
 
 
+def _agents(cfg: Config, db: DB) -> Any:
+    from .agents import run
+
+    return run(cfg, db)
+
+
 def _doctor(cfg: Config, db: DB) -> Any:
     from .connections import run_all
 
@@ -98,6 +104,7 @@ JOBS: dict[str, Callable[[Config, DB], Any]] = {
     "mail": _mail,
     "track": _track,
     "ops": _ops,
+    "agents": _agents,
     "doctor": _doctor,
     "calendly": _calendly,
     "instagram": _instagram,
@@ -110,7 +117,7 @@ JOBS: dict[str, Callable[[Config, DB], Any]] = {
 }
 
 # What `sz morning` runs, in order. Sources that aren't configured are skipped, not fatal.
-MORNING = ["doctor", "mail", "calendly", "instagram", "track", "ops", "drafts", "brief"]
+MORNING = ["doctor", "mail", "calendly", "instagram", "track", "ops", "agents", "drafts", "brief"]
 
 
 def run_job(cfg: Config, name: str) -> Any:

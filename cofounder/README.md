@@ -12,6 +12,8 @@ Settleezy helps students in Berlin, especially international students, save mone
 | **Watches competitors** | Groupon, vspots, Top10 Berlin, UNiDAYS, Student Beans: new Berlin listings, stored in a database |
 | **Builds your lead list** | Every merchant/brand found becomes a scored lead; it finds email/Instagram from their website and Impressum; plus 30+ Berlin universities and student-service seeds |
 | **Thinks like a co-founder** | Weekly growth review: scoreboard, what's working, competitor read, 3 experiments, next week's marketing plan (`playbook/berlin-growth-playbook.md` is its strategy; `knowledge/settleezy.md` is what it knows about Settleezy) |
+| **A team of specialist agents** | Nine agents each watch one area and **report to Setz**: **Hermes** (inbox & follow-ups), **Atlas** (service partners), **Scout** (competitor watch), **Hunter** (leads & outreach), **Nova** (Instagram & content), **Quant** (growth analyst: goal forecasts, week-over-week drops), **Chrono** (schedule, prep, overdue to-dos), **Campus** (international students, university intake calendar, Buddy platform) and **Sentinel** (connections & stale data). Setz merges their reports into one briefing and priority list and turns alerts into to-dos. Runs every 2 hours, or `sz agents run` |
+| **Command center** | http://127.0.0.1:8765/command: a mission-control screen showing Setz's neural "brain" with the nine agents orbiting it (pulses fly in as each one reports), the agent roster with status lights, Setz's briefing and priorities, goal gauges, a live thought stream of findings, charts (members, Instagram, competitor activity, operations), an ask-Setz console, and a report drawer per agent with one-click to-dos |
 | **Runs your day** | **Today's plan**: your daily routine (config `[routine]`) laid around today's meetings, with the right people and tasks slotted into each block, plus "focus now". **To-dos** you can add by typing or voice ("Hey Setz, remind me to send HTW the deck on Friday"); Setz also adds its own (stuck onboarding, renewals, follow-up after every meeting). **Who to reach out to**: everyone you should contact now, ranked, each with the reason and a one-click draft |
 | **Tracks your service partners** | Every partner moves through onboarding: agreed → agreement signed → member offer set up → listed in the app → launch promo → live. A **health score** flags stuck steps, partners you haven't spoken to in 30 days, live partners without redemptions, and renewals due. Shows partners onboarded this week/month, average days to go live, and live partners by type (venues, universities on the Buddy platform, housing, brands, services) |
 | **Prepares you for meetings** | One-page prep for any meeting: who's coming, what you know about them (lead/partner record), recent emails, and a suggested goal, agenda, ask and objections |
@@ -127,6 +129,7 @@ Logs are in `data\logs\`.
 
 ## Everyday commands
 ```
+sz agents run               run the agent team; Setz briefs you   (sz agents | sz agents run --agent atlas)
 sz plan                     today's plan: routine + meetings + what to do in each block
 sz todo add call Kranz tomorrow       sz todo        sz todo done 3        sz todo snooze 3 2
 sz reach                    who to contact now, and why
@@ -147,6 +150,9 @@ sz leads export             data\leads.csv
 sz growth                   co-founder weekly review now
 sz voice                    Setz: say "Hey Setz …" (or --no-wake for push-to-talk); hologram at /hologram
 ```
+
+## What's next
+See [`ROADMAP.md`](ROADMAP.md) for researched open-source projects that could be added next: a WhatsApp + Instagram DM inbox, partner impact reports, a content engine, OpenStreetMap venue discovery, app analytics, CRM, e-signatures, newsletters, memory and more, ranked by business impact.
 
 ## Tuning
 - **Competitor patterns:** `competitors.toml`. Run `sz scrape --inspect --site groupon` after any change. If a site only renders with JavaScript, set `render = true` and run `pip install -e ".[render]"` then `playwright install chromium`.

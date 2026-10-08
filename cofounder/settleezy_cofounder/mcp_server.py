@@ -236,6 +236,28 @@ def weekly_scorecard() -> str:
         return json.dumps(scorecard(cfg, db), ensure_ascii=False)
 
 
+@server.tool()
+def run_agents(agents: str = "") -> str:
+    """Run Setz's specialist agents (comma-separated subset or all): hermes (inbox), atlas (partners), scout (competitors),
+    hunter (leads), nova (Instagram), quant (growth analyst), chrono (schedule), campus (universities/intake), sentinel (systems)."""
+    from . import agents as ag
+
+    cfg, db = _db()
+    with db:
+        only = [a.strip() for a in agents.split(",") if a.strip()] or None
+        return json.dumps(ag.run(cfg, db, only), ensure_ascii=False, default=str)
+
+
+@server.tool()
+def agent_reports() -> str:
+    """Latest report from every specialist agent plus Setz's synthesis (briefing, priorities)."""
+    from . import agents as ag
+
+    cfg, db = _db()
+    with db:
+        return json.dumps({"reports": ag.latest(db), "setz": json.loads(db.kv_get("setz:synthesis", "{}"))}, ensure_ascii=False, default=str)
+
+
 def main() -> None:
     server.run("stdio")
 

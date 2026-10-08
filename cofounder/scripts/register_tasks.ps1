@@ -31,6 +31,9 @@ Add-SzTask "mail-sync"       "run mail"        $t -Hidden
 $t2 = New-ScheduledTaskTrigger -Daily -At 8:15am
 $t2.Repetition = (New-ScheduledTaskTrigger -Once -At 8:15am -RepetitionInterval (New-TimeSpan -Hours 6) -RepetitionDuration (New-TimeSpan -Hours 13)).Repetition
 Add-SzTask "competitor-scan" "run scrape"      $t2 -Hidden
+$t3 = New-ScheduledTaskTrigger -Daily -At 8:30am
+$t3.Repetition = (New-ScheduledTaskTrigger -Once -At 8:30am -RepetitionInterval (New-TimeSpan -Hours 2) -RepetitionDuration (New-TimeSpan -Hours 11)).Repetition
+Add-SzTask "agents"          "run agents"      $t3 -Hidden
 Add-SzTask "lead-enrich"     "run enrich"      (New-ScheduledTaskTrigger -Daily -At 1:00pm) -Hidden
 Add-SzTask "instagram-sync"  "run instagram"   (New-ScheduledTaskTrigger -Daily -At 6:00pm) -Hidden
 Add-SzTask "afternoon-drafts" "run drafts"     (New-ScheduledTaskTrigger -Weekly -DaysOfWeek $weekdays -At 2:30pm) -Hidden

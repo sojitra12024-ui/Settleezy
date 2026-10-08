@@ -29,6 +29,7 @@ _running: dict[str, str] = {}
 _voice_state: dict = {"state": "idle", "text": "", "envelope": [], "frame_ms": 40, "at": 0}
 _subscribers: set[asyncio.Queue] = set()
 _loop: asyncio.AbstractEventLoop | None = None
+_agent_subs: set[asyncio.Queue] = set()
 
 
 def _guard(x_sz: str | None) -> None:
@@ -39,6 +40,11 @@ def _guard(x_sz: str | None) -> None:
 @app.get("/")
 def index() -> FileResponse:
     return FileResponse(STATIC / "index.html")
+
+
+@app.get("/command")
+def command_page() -> FileResponse:
+    return FileResponse(STATIC / "command.html")
 
 
 @app.get("/hologram")
@@ -323,6 +329,61 @@ def prep(event_id: str, ai: int = 0) -> dict:
             return {"markdown": meeting_prep(cfg, db, event_id, LLM(cfg) if ai else None)}
         except ValueError as exc:
             raise HTTPException(404, str(exc)) from exc
+
+
+# -- Setz's agent team -------------------------------------------------------
+
+@app.get("/api/agents")
+def agents_overview() -> dict:
+    from .. import agents
+
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        return {
+            "agents": [{"key": a.key, "name": a.name, "role": a.role, "icon": a.icon} for a in agents.AGENTS.values()],
+            "reports": agents.latest(db),
+            "setz": json.loads(db.kv_get("setz:synthesis", "{}")),
+            "activity": agents.activity(db, 50),
+            "running": _running.get("agents") == "running",
+        }
+
+
+@app.post("/api/agents/run")
+def agents_run(x_sz: str | None = Header(default=None)) -> dict:
+    _guard(x_sz)
+    return run_job("agents", x_sz)
+
+
+@app.post("/api/agents/event")
+async def agents_event(body: dict, x_sz: str | None = Header(default=None)) -> dict:
+    _guard(x_sz)
+    event = {"agent": str(body.get("agent", ""))[:40], "status": str(body.get("status", ""))[:10],
+             "summary": str(body.get("summary", ""))[:300], "at": time.time()}
+    for q in list(_agent_subs):
+        try:
+            q.put_nowait(event)
+        except asyncio.QueueFull:
+            pass
+    return {"ok": True}
+
+
+@app.get("/api/agents/stream")
+async def agents_stream(request: Request) -> StreamingResponse:
+    q: asyncio.Queue = asyncio.Queue(maxsize=50)
+    _agent_subs.add(q)
+
+    async def gen():
+        try:
+            yield ": connected\n\n"
+            while not await request.is_disconnected():
+                try:
+                    yield f"data: {json.dumps(await asyncio.wait_for(q.get(), timeout=15))}\n\n"
+                except asyncio.TimeoutError:
+                    yield ": keep-alive\n\n"
+        finally:
+            _agent_subs.discard(q)
+
+    return StreamingResponse(gen(), media_type="text/event-stream", headers={"Cache-Control": "no-cache"})
 
 
 # -- tracking ---------------------------------------------------------------

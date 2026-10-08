@@ -92,6 +92,9 @@ manual_kpis = ["paying_members", "trial_members", "app_downloads", "workshop_sig
 [dashboard]
 port = 8765
 
+[agents]
+ai_briefing = true          # Setz writes the team briefing with Claude when an API key is set (otherwise a plain summary)
+
 [partners]
 stage_stuck_days = 7        # onboarding step older than this -> flagged + auto to-do
 checkin_days = 30           # live partner without contact for this long -> "check in"

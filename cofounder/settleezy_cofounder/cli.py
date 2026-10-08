@@ -161,6 +161,25 @@ def cmd_scorecard(args) -> None:
             print(f"{r['metric']:<24} this week {r['this_week']:>4}   last week {r['last_week']:>4}   ({r['delta']:+d})")
 
 
+def cmd_agents(args) -> None:
+    from . import agents
+
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        if args.action == "run":
+            res = agents.run(cfg, db, args.agent or None, publish_events=True)
+            for a in res["agents"]:
+                print(f"{a['status'].upper():<6} {agents.AGENTS[a['agent']].name:<9} {a['summary']}")
+            print("\nSetz:", res["setz"]["briefing"])
+            if res["setz"]["todos_created"]:
+                print(f"(+{res['setz']['todos_created']} to-dos from agent alerts)")
+        else:
+            reps = agents.latest(db)
+            for key, a in agents.AGENTS.items():
+                r = reps.get(key)
+                print(f"{a.name:<9} {a.role:<38} {(r['status'] + ' · ' + r['summary']) if r else 'not run yet'}")
+
+
 def cmd_import(args) -> None:
     from .importer import run
 
@@ -335,6 +354,10 @@ def main(argv: list[str] | None = None) -> None:
     pr.add_argument("--no-ai", action="store_true")
     pr.set_defaults(fn=cmd_prep)
     sub.add_parser("scorecard", help="this week vs last week").set_defaults(fn=cmd_scorecard)
+    ag = sub.add_parser("agents", help="Setz's specialist agents: sz agents | sz agents run [--agent atlas --agent scout]")
+    ag.add_argument("action", nargs="?", default="list", choices=["list", "run"])
+    ag.add_argument("--agent", action="append", help="hermes, atlas, scout, hunter, nova, quant, chrono, campus, sentinel")
+    ag.set_defaults(fn=cmd_agents)
     im = sub.add_parser("import", help="import exported contacts/leads (CSV/XLSX/JSON) and outreach/social docs (MD/TXT/DOCX)")
     im.add_argument("folder")
     im.set_defaults(fn=cmd_import)

@@ -43,7 +43,7 @@ def _ops_data(cfg: Config, db: DB) -> dict:
     try:
         plan = today_plan(cfg, db)
         return {"plan": plan["items"], "tasks": tasks(db, "today")[:10], "reach_out": reach_out(cfg, db, 10),
-                "partners": partner_stats(cfg, db)}
+                "partners": partner_stats(cfg, db), "setz": json.loads(db.kv_get("setz:synthesis", "{}"))}
     except Exception:  # the brief must never fail because of one section
         return {"plan": [], "tasks": [], "reach_out": [], "partners": {}}
 
@@ -82,6 +82,8 @@ Be concrete (name the person/lead/listing). Include at most one growth/marketing
 
 def render(data: dict, actions: str) -> str:
     L = [f"# Daily brief — {data['date']}", ""]
+    if (data.get("setz") or {}).get("briefing"):
+        L += ["> **Setz:** " + data["setz"]["briefing"].replace("\n", " "), ""]
     L.append("## Today's plan")
     if data.get("plan"):
         for i in data["plan"]:
