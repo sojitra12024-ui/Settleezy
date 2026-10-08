@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
+import re
 import threading
 import time
 from datetime import datetime, timedelta
@@ -195,6 +196,68 @@ def leads(q: str = "", kind: str = "", status: str = "", limit: int = 300) -> li
     params.append(min(limit, 1000))
     with DB(cfg.db_path) as db:
         return [dict(r) for r in db.q(sql, params)]
+
+
+@app.get("/api/leads/find")
+def leads_find(q: str, discover: int = 0, limit: int = 0) -> dict:
+    """Natural-language lead search: 'vegan cafés near HU with email, not contacted'."""
+    from ..leadquery import find, parse
+
+    cfg = load_config()
+    lq = parse(q)
+    if limit:
+        lq.limit = max(1, min(limit, 1000))
+    with DB(cfg.db_path) as db:
+        return find(cfg, db, lq, discover=bool(discover)) | {"question": q}
+
+
+@app.get("/api/leads/find/last")
+def leads_find_last() -> dict:
+    """The last lead search asked by voice ("Hey Setz, find me …"), so the dashboard can show the full list."""
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        return json.loads(db.kv_get("leadfinder:last", "{}") or "{}")
+
+
+@app.get("/api/leads/find.csv")
+def leads_find_csv(q: str) -> Response:
+    from ..leadquery import find, parse, to_csv
+
+    cfg = load_config()
+    lq = parse(q)
+    lq.limit = 5000
+    with DB(cfg.db_path) as db:
+        res = find(cfg, db, lq)
+    name = re.sub(r"[^a-z0-9]+", "-", q.lower()).strip("-")[:50] or "leads"   # headers must be ASCII
+    return Response("\ufeff" + to_csv(res["results"]), media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="setz-{name}.csv"'})
+
+
+@app.post("/api/leads/enrich")
+def leads_enrich(body: dict, x_sz: str | None = Header(default=None)) -> dict:
+    """Read website + menu + Impressum for the given lead ids (max 25): email, phone, owner, address, price level."""
+    _guard(x_sz)
+    from ..leadintel import enrich_lead, profile
+    from ..scraping.fetcher import Fetcher
+
+    ids = [int(i) for i in (body.get("ids") or [])][:25]
+    if not ids:
+        raise HTTPException(400, "ids required")
+    cfg = load_config()
+    out = {}
+    with DB(cfg.db_path) as db:
+        f = Fetcher(db, min_delay=float(cfg.get("scraping.min_delay_seconds", 4)))
+        try:
+            for i in ids:
+                try:
+                    res = enrich_lead(db, f, i)
+                except ValueError as exc:
+                    res = {"error": str(exc)}
+                row = db.one("SELECT * FROM leads WHERE id=?", (i,))
+                out[i] = {"found": res, "lead": profile(db, dict(row)) if row else None}
+        finally:
+            f.close()
+    return out
 
 
 @app.post("/api/leads")

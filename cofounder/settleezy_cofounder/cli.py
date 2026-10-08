@@ -288,6 +288,48 @@ def cmd_leads(args) -> None:
             _print(leads.upsert(db, args.name, args.kind_new, source="manual", website=args.website or "", email=args.email or ""))
 
 
+def cmd_find(args) -> None:
+    from .leadquery import find, parse, to_csv
+
+    cfg = load_config()
+    q = " ".join(args.question)
+    lq = parse(q)
+    if args.limit:
+        lq.limit = args.limit
+    with DB(cfg.db_path) as db:
+        res = find(cfg, db, lq, discover=args.discover)
+        if args.enrich:
+            from .leadintel import enrich_lead, profile
+            from .scraping.fetcher import Fetcher
+
+            f = Fetcher(db, min_delay=float(cfg.get("scraping.min_delay_seconds", 4)))
+            try:
+                for i, p in enumerate(res["results"]):
+                    if p["website"] and (not p["email"] or not p["phone"]):
+                        enrich_lead(db, f, p["id"])
+                        res["results"][i] = profile(db, dict(db.one("SELECT * FROM leads WHERE id=?", (p["id"],))))
+            finally:
+                f.close()
+    if args.csv:
+        from pathlib import Path
+
+        Path(args.csv).write_text(to_csv(res["results"]), encoding="utf-8-sig")
+        print(f"{len(res['results'])} leads -> {args.csv}")
+        return
+    print(f"Understood: {', '.join(res['understood']) or '(free text)'}   ·   {res['total']} match"
+          + (f", showing {len(res['results'])}" if res["total"] > len(res["results"]) else ""))
+    for p in res["results"]:
+        dist = f"{p['distance_m']} m from {p['campus'].split(' (')[0]}" if p["distance_m"] is not None else ""
+        print(f"\n#{p['id']} {p['name']}  ·  {p['category']}{' / ' + p['subcategory'] if p['subcategory'] else ''}  ·  {p['price'] or '–'}"
+              f"  ·  join {p['join_likelihood']:.0%} ({p['likelihood']})")
+        print(f"     {p['address'] or 'no address'}{' · ' + p['district'] if p['district'] else ''}{' · ' + dist if dist else ''}")
+        print(f"     ✉ {p['email'] or '–'}   ☎ {p['phone'] or '–'}   IG {p['instagram'] or '–'}"
+              f"{' (' + format(p['ig_followers'], ',') + ')' if p['ig_followers'] else ''}{'   owner ' + p['owner'] if p['owner'] else ''}")
+        print(f"     on: {', '.join(p['platforms']) or '–'}   ·   {'contacted ' + (p['last_contact'] or '') if p['contacted_before'] else 'never contacted'}")
+    if res["missing_contacts"]:
+        print(f"\n{res['missing_contacts']} have no email/phone yet: add --enrich to read their website + Impressum.")
+
+
 def cmd_leadgen(args) -> None:
     from . import leadgen
 
@@ -550,6 +592,14 @@ def main(argv: list[str] | None = None) -> None:
     l.add_argument("--website")
     l.add_argument("--email")
     l.set_defaults(fn=cmd_leads)
+
+    fd = sub.add_parser("find", help='find leads in plain words: sz find "vegan cafés near HU with email, not contacted"')
+    fd.add_argument("question", nargs="+")
+    fd.add_argument("--csv", help="write the full list to a CSV file (opens in Excel)")
+    fd.add_argument("--enrich", action="store_true", help="read website + Impressum for results missing email/phone")
+    fd.add_argument("--discover", action="store_true", help="scan OpenStreetMap around the campus if there are few results")
+    fd.add_argument("--limit", type=int, default=0)
+    fd.set_defaults(fn=cmd_find)
 
     lg = sub.add_parser("leadgen", help="campus venues from OpenStreetMap: sz leadgen scan [--campus TU] | list | coverage")
     lg.add_argument("action", nargs="?", default="list", choices=["scan", "list", "coverage"])

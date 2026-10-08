@@ -357,6 +357,41 @@ def lead_model() -> str:
         return json.dumps(g["model"] or "not trained yet: needs ~20 contacted leads with outcomes", ensure_ascii=False)
 
 
+@server.tool()
+def find_leads(question: str, limit: int = 30) -> str:
+    """Find leads in plain words (English or German), e.g. 'vegan cafés near HU with email, not contacted',
+    'cheap restaurants in Kreuzberg within 500 m', 'popular bars only on Instagram'. Returns name, address, district,
+    distance to campus, category/sub-category, price level, email, phone, Instagram + followers, owner (Impressum),
+    platforms it is listed on, whether it was contacted before and the likelihood of joining."""
+    from .leadquery import find, parse
+
+    cfg, db = _db()
+    with db:
+        q = parse(question)
+        q.limit = max(1, min(limit, 200))
+        res = find(cfg, db, q, discover=True)
+        return json.dumps({"understood": res["understood"], "total": res["total"],
+                           "results": [{k: v for k, v in p.items() if k not in ("history", "lat", "lon")} for p in res["results"]]},
+                          ensure_ascii=False, default=str)
+
+
+@server.tool()
+def enrich_leads(lead_ids: str) -> str:
+    """Read the website, menu and Impressum of these leads (comma-separated ids, max 10) to fill in email, phone,
+    owner/managing director, legal address and price level."""
+    from .leadintel import enrich_lead
+    from .scraping.fetcher import Fetcher
+
+    cfg, db = _db()
+    with db:
+        f = Fetcher(db, min_delay=float(cfg.get("scraping.min_delay_seconds", 4)))
+        try:
+            return json.dumps({i: enrich_lead(db, f, int(i)) for i in lead_ids.split(",")[:10] if i.strip().isdigit()},
+                              ensure_ascii=False, default=str)
+        finally:
+            f.close()
+
+
 def main() -> None:
     server.run("stdio")
 

@@ -64,12 +64,12 @@ def _scrape(cfg: Config, db: DB) -> Any:
 
 
 def _enrich(cfg: Config, db: DB) -> Any:
-    from .leads import enrich
+    from .leadintel import enrich_batch
     from .scraping.fetcher import Fetcher
 
     f = Fetcher(db, min_delay=float(cfg.get("scraping.min_delay_seconds", 4)))
-    try:
-        return {"enriched": enrich(db, f, int(cfg.get("scraping.enrich_per_run", 20)))}
+    try:   # website + menu + Impressum: email, phone, owner, legal address, price level
+        return enrich_batch(db, f, int(cfg.get("scraping.enrich_per_run", 20)))
     finally:
         f.close()
 

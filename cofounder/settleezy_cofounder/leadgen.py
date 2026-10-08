@@ -8,6 +8,7 @@ whatever contacts OSM has (website, email, phone, Instagram); `sz run enrich` fi
 
 from __future__ import annotations
 
+import json
 import math
 import time
 from datetime import datetime
@@ -106,6 +107,32 @@ def _instagram(tags: dict) -> str:
     return v
 
 
+ATTRIBUTE_TAGS = {   # OSM tag -> attribute shown on the lead (yes/only values)
+    "diet:vegan": "vegan", "diet:vegetarian": "vegetarian", "diet:halal": "halal", "diet:gluten_free": "gluten-free",
+    "outdoor_seating": "outdoor seating", "internet_access": "wifi", "takeaway": "takeaway", "delivery": "delivery",
+    "wheelchair": "wheelchair access", "payment:cards": "cards", "smoking": "smoking",
+}
+
+
+def _subcategory(tags: dict) -> str:
+    for key in ("cuisine", "sport", "shop", "amenity", "leisure", "tourism"):
+        v = tags.get(key)
+        if v and key == "cuisine":
+            return ", ".join(x.replace("_", " ") for x in v.split(";")[:3])
+        if v and key == "sport":
+            return v.replace("_", " ").replace(";", ", ")
+    return ""
+
+
+def _attributes(tags: dict) -> dict:
+    out = {}
+    for k, label in ATTRIBUTE_TAGS.items():
+        v = tags.get(k, "")
+        if v in ("yes", "only", "wlan", "free", "customers", "limited"):
+            out[label] = v
+    return out
+
+
 def parse_elements(data: dict) -> list[dict]:
     out = []
     for el in data.get("elements", []):
@@ -126,6 +153,11 @@ def parse_elements(data: dict) -> list[dict]:
             "phone": tags.get("phone") or tags.get("contact:phone") or "",
             "instagram": _instagram(tags),
             "chain": bool(tags.get("brand") or tags.get("brand:wikidata")),
+            "subcategory": _subcategory(tags),
+            "attributes": _attributes(tags),
+            "opening_hours": tags.get("opening_hours", ""),
+            "postcode": tags.get("addr:postcode", ""),
+            "suburb": tags.get("addr:suburb", "") or tags.get("addr:district", ""),
             "osm_url": f"https://www.openstreetmap.org/{el.get('type', 'node')}/{el.get('id')}",
         })
     return out
@@ -169,6 +201,13 @@ def discover(cfg: Config, db: DB, campus: str | None = None, *, fetch: Callable[
             db.x("UPDATE leads SET lat=?, lon=?, address=coalesce(nullif(address,''), ?), campus=?, distance_m=? "
                  "WHERE id=? AND (distance_m IS NULL OR distance_m > ?)",
                  (v["lat"], v["lon"], v["address"], near["name"], dist, lead_id, dist))
+            from .leadintel import area_for
+
+            db.x("UPDATE leads SET subcategory=coalesce(nullif(subcategory,''), ?), opening_hours=coalesce(nullif(opening_hours,''), ?), "
+                 "postcode=coalesce(nullif(postcode,''), ?), district=coalesce(nullif(district,''), ?), "
+                 "attributes=coalesce(nullif(attributes,''), ?) WHERE id=?",
+                 (v["subcategory"], v["opening_hours"], v["postcode"], v["suburb"] or area_for(v["lat"], v["lon"]),
+                  json.dumps(v["attributes"], ensure_ascii=False) if v["attributes"] else "", lead_id))
             rescore(db, lead_id)
             new += created
             report["new" if created else "updated"] += 1

@@ -209,6 +209,21 @@ dialog .dhead { display: flex; justify-content: space-between; align-items: cent
 .cat-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
 .ins { padding: 8px 10px; border-radius: 8px; margin-bottom: 6px; font-size: 13px; background: var(--surface-2); border-left: 3px solid var(--accent); }
 .ins.warn { border-left-color: var(--warning); } .ins.tip { border-left-color: var(--good); }
+.lf-bar { display: flex; gap: 8px; flex-wrap: wrap; } .lf-bar input[type=text], .lf-bar #lf-q { flex: 1 1 320px; font-size: 14px; padding: 9px 12px; }
+.lf-opt { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text-secondary); }
+.lf-opt input { width: 14px; height: 14px; padding: 0; }
+.lf-chips button { font-size: 12px; padding: 3px 10px; background: var(--surface-2); color: var(--text-secondary); border-color: var(--border); }
+.lf-chips button:hover { color: var(--text-primary); }
+.lf-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.understood { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+.understood span { background: var(--accent-soft); color: var(--accent); border-radius: 99px; padding: 0 8px; font-size: 11.5px; }
+#lf-table td { font-size: 12.5px; } #lf-table td b { font-size: 13px; }
+.lk { display: inline-block; min-width: 42px; text-align: center; border-radius: 99px; padding: 1px 8px; font-size: 11.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.lk.high { background: color-mix(in srgb, var(--good) 18%, transparent); color: var(--good-text); }
+.lk.medium { background: color-mix(in srgb, var(--warning) 22%, transparent); color: var(--warn-text); }
+.lk.low { background: var(--surface-2); color: var(--text-muted); }
+.plat { display: inline-block; font-size: 10.5px; border: 1px solid var(--border); border-radius: 99px; padding: 0 6px; margin: 1px 2px 1px 0; color: var(--text-secondary); }
+.plat.comp { border-color: var(--series-2); color: var(--series-2); }
 .coach { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 18px; }
 .spm { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin: 6px 0 10px; }
 .spm div { background: var(--surface-2); border-radius: 8px; padding: 8px 10px; }
@@ -217,6 +232,14 @@ dialog .dhead { display: flex; justify-content: space-between; align-items: cent
 .tips li { margin-bottom: 4px; }
 .rec-on { background: var(--critical) !important; border-color: var(--critical) !important; }
 @media (max-width: 1100px) { .coach { grid-template-columns: 1fr; } }
+@media (max-width: 700px) {   /* lead finder: one card per venue on phones */
+  #lf-table tr:first-child { display: none; }
+  #lf-table tr { display: grid; grid-template-columns: 24px 1fr auto; gap: 2px 8px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  #lf-table td { border: 0; padding: 0; }
+  #lf-table td:nth-child(2) { grid-column: 2; } #lf-table td:nth-child(9) { grid-column: 3; grid-row: 1; }
+  #lf-table td:nth-child(n+3):nth-child(-n+8) { grid-column: 2 / 4; }
+  #lf-table td:nth-child(4)::before { content: "Price "; color: var(--text-muted); }
+}
 @media (max-width: 1100px) { .span-8, .span-7, .span-6, .span-5, .span-4 { grid-column: span 12; } .kanban { grid-template-columns: repeat(5, 170px); } .flow { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 600px) { .bar-top, main { padding-left: 16px; padding-right: 16px; } .form-grid { grid-template-columns: 1fr; } .plan-row { grid-template-columns: 70px 1fr; } .plan-row > :last-child { grid-column: 2; } }
 </style>
@@ -349,6 +372,20 @@ dialog .dhead { display: flex; justify-content: space-between; align-items: cent
 
 <!-- ================= LEADS ================= -->
 <section class="page" id="page-leads">
+  <section class="card span-12 finder"><h2>Lead finder <small>ask in plain words, English or German</small></h2>
+    <form id="lf-form" class="lf-bar"><input id="lf-q" placeholder="e.g. vegan cafés near HU with email, not contacted" aria-label="Find leads">
+      <label class="lf-opt"><input type="checkbox" id="lf-discover"> scan OpenStreetMap if few</label><button class="primary">Find</button></form>
+    <div class="chips lf-chips">
+      <button type="button" data-lf="cafés near TU with email, not contacted">Cafés near TU, not contacted</button>
+      <button type="button" data-lf="cheap restaurants in Kreuzberg within 800m">Cheap food in Kreuzberg</button>
+      <button type="button" data-lf="gyms not on any competitor, most likely to join">Gyms not on competitors</button>
+      <button type="button" data-lf="popular venues only on Instagram">Instagram-only venues</button>
+      <button type="button" data-lf="Spätis in Neukölln mit Telefonnummer">Spätis in Neukölln</button>
+      <button type="button" data-lf="listed on Groupon near HU">On Groupon near HU</button></div>
+    <div id="lf-meta" class="muted" style="font-size:12.5px;margin:8px 0"></div>
+    <div class="lf-actions" id="lf-actions" hidden><button id="lf-enrich" title="Read website, menu and Impressum: email, phone, owner, address, price">Read Impressum for selected</button>
+      <button id="lf-seq">Start outreach for selected</button><a id="lf-csv" download><button type="button">Export CSV (Excel)</button></a></div>
+    <div class="scroll" style="max-height:560px"><table id="lf-table"></table></div></section>
   <section class="card span-12"><h2>Leads <small>score = student relevance × proven discount appetite × reachability</small></h2>
     <div class="toolbar">
       <input id="lead-q" placeholder="Search name, category, email, source…" aria-label="Search leads">
@@ -631,6 +668,57 @@ async function loadLeads() {
   }).join("") : `<tr><td class="empty">No leads match. Run “Scan competitors”, <code>sz import</code>, or add one below.</td></tr>`;
 }
 
+/* ---------- LEAD FINDER ---------- */
+let LF = null, lfLastVoice = "";
+const COMP = ["Groupon", "vspots", "Top10 Berlin", "UNiDAYS", "Student Beans"];
+async function runFinder(q) {
+  q = (q || $("#lf-q").value).trim(); if (!q) return; $("#lf-q").value = q;
+  $("#lf-meta").textContent = "Searching…";
+  try {
+    const r = await fetch(`/api/leads/find?${new URLSearchParams({ q, discover: $("#lf-discover").checked ? 1 : 0 })}`);
+    LF = await r.json(); if (!r.ok) throw new Error(LF.detail || r.statusText);
+    renderFinder(LF);
+  } catch (err) { $("#lf-meta").textContent = err.message; }
+}
+function renderFinder(res) {
+  $("#lf-meta").innerHTML = `<span class="understood">${(res.understood.length ? res.understood : ["free text"]).map((u) => `<span>${esc(u)}</span>`).join("")}</span>
+    · <b>${res.total}</b> match${res.total === 1 ? "" : "es"}${res.total > res.results.length ? `, showing ${res.results.length}` : ""}
+    ${res.missing_contacts ? ` · ${res.missing_contacts} without email/phone: select them and “Read Impressum”` : ""}
+    ${res.discovered ? ` · OSM scan: ${esc(Object.values(res.discovered.campuses || {}).join(", ") || res.discovered.error || "")}` : ""}`;
+  $("#lf-actions").hidden = !res.results.length;
+  $("#lf-csv").href = "/api/leads/find.csv?q=" + encodeURIComponent(res.question || $("#lf-q").value);
+  $("#lf-table").innerHTML = res.results.length ? `<tr><th><input type="checkbox" id="lf-all" aria-label="Select all"></th><th>Venue</th><th>Where</th><th>Price</th><th>Contacts (Impressum)</th><th>Instagram</th><th>Listed on</th><th>History</th><th>Join</th></tr>` +
+    res.results.map((p) => `<tr data-row="${p.id}"><td><input type="checkbox" data-pick="${p.id}" aria-label="Select ${esc(p.name)}"></td>
+      <td><b>${esc(p.name)}</b><div class="muted">${esc(p.category)}${p.subcategory ? " · " + esc(p.subcategory) : ""}</div>
+        ${Object.keys(p.attributes || {}).length ? `<div class="muted" style="font-size:11.5px">${esc(Object.keys(p.attributes).join(" · "))}</div>` : ""}
+        ${p.website ? `<a href="${safeUrl(p.website.startsWith("http") ? p.website : "https://" + p.website)}" target="_blank" rel="noopener" style="font-size:11.5px">website ↗</a>` : ""}</td>
+      <td>${esc(p.address || "–")}<div class="muted">${esc(p.district || "")}${p.distance_m != null ? ` · ${p.distance_m} m to ${esc((p.campus || "").split(" (")[0])}` : ""}</div></td>
+      <td title="${esc(p.price_source)}">${esc(p.price || "–")}${p.price_source === "estimated" ? '<span class="muted">*</span>' : ""}</td>
+      <td>${p.email ? `<a href="mailto:${esc(p.email)}">${esc(p.email)}</a>` : '<span class="muted">no email</span>'}<br>${p.phone ? `<a href="tel:${esc(p.phone.replace(/\s/g, ""))}">${esc(p.phone)}</a>` : '<span class="muted">no phone</span>'}
+        ${p.owner ? `<div class="muted">Owner: ${esc(p.owner)}</div>` : ""}${p.legal_name ? `<div class="muted">${esc(p.legal_name)}</div>` : ""}</td>
+      <td>${p.instagram ? `<a href="https://instagram.com/${esc(p.instagram.replace(/^@/, ""))}" target="_blank" rel="noopener">@${esc(p.instagram.replace(/^@/, ""))}</a>` : "–"}${p.ig_followers ? `<div class="muted">${fmt(p.ig_followers)} followers</div>` : ""}</td>
+      <td>${p.platforms.map((x) => `<span class="plat ${COMP.includes(x) ? "comp" : ""}">${esc(x)}</span>`).join("") || "–"}</td>
+      <td>${p.contacted_before ? `contacted${p.last_contact ? " " + esc(p.last_contact) : ""}<div class="muted">${esc(p.status)}</div>` : '<span class="muted">never</span>'}</td>
+      <td><span class="lk ${p.likelihood}" title="likelihood of becoming a partner">${Math.round(100 * p.join_likelihood)}%</span></td></tr>`).join("")
+    : `<tr><td class="empty">Nothing matches yet. Tick “scan OpenStreetMap” and name a campus, or widen the area.</td></tr>`;
+}
+const picked = () => [...document.querySelectorAll("[data-pick]:checked")].map((c) => Number(c.dataset.pick));
+async function finderEnrich() {
+  const ids = picked(); if (!ids.length) return toast("Select leads first");
+  const b = $("#lf-enrich"); b.disabled = true; toast(`Reading ${ids.length} websites + Impressum… (polite: a few seconds each)`);
+  try { const r = await post("/api/leads/enrich", { ids }); const found = Object.values(r).filter((x) => x.found && !x.found.error).length;
+    toast(`Updated ${found} of ${ids.length}`); await runFinder(LF.question); } catch (err) { toast(err.message); }
+  b.disabled = false;
+}
+async function finderSequence() {
+  const ids = picked(); if (!ids.length) return toast("Select leads first"); let ok = 0, msgs = [];
+  for (const id of ids) { try { await post(`/api/leads/${id}/sequence`, {}); ok++; } catch (err) { msgs.push(err.message); } }
+  toast(`Outreach started for ${ok}${msgs.length ? ` · skipped ${msgs.length}: ${msgs[0]}` : ""}`); refreshOps();
+}
+async function checkVoiceFinder() {   // "Hey Setz, find me …" opens here
+  try { const r = await (await fetch("/api/leads/find/last")).json(); if (r.q && r.q !== lfLastVoice) { if (lfLastVoice) { showPage("leads"); runFinder(r.q); } lfLastVoice = r.q; } } catch (_) {}
+}
+
 /* ---------- INSIGHTS ---------- */
 function renderInsights(d) {
   const c = d.connections || {};
@@ -861,7 +949,7 @@ async function load() {
   if (!$("#lead-status").options[1]) $("#lead-status").innerHTML += STATUSES.map(s => `<option>${s}</option>`).join("");
   if (!$("#pedit [name=stage]").options[0]) $("#pedit [name=stage]").innerHTML = o.stages.map(([k, n]) => `<option value="${k}">${esc(n)}</option>`).join("");
   renderToday(d, o); renderPartners(o); renderGrowth(d, o); renderLeadsPage(d); renderInsights(d);
-  loadPipeline().catch(() => {}); loadWeek().catch(() => {}); loadSpeech().catch(() => {});
+  loadPipeline().catch(() => {}); loadWeek().catch(() => {}); loadSpeech().catch(() => {}); checkVoiceFinder();
   document.querySelectorAll("[data-job]").forEach(b => b.disabled = d.running[b.dataset.job] === "running");
 }
 async function poll(job) {
@@ -909,6 +997,10 @@ document.addEventListener("click", async (e) => {
   if (t("[data-snooze7]")) { await post(`/api/tasks/${t("[data-snooze7]").dataset.snooze7}`, { action: "snooze", days: 7 }); toast("Moved to next week"); return refreshOps(); }
   if (e.target.id === "pl-auto") { e.target.disabled = true; try { const r = await post("/api/pipeline/sequences/auto"); toast(r.started.length ? `Started ${r.started.length} sequences: ${r.started.slice(0, 3).map(x => x.name).join(", ")}${r.started.length > 3 ? "…" : ""}` : "Weekly capacity reached or no leads with contacts"); refreshOps(); } catch (err) { toast(err.message); e.target.disabled = false; } return; }
   if (e.target.id === "sp-rec") return toggleRecord();
+  if (t("[data-lf]")) return runFinder(t("[data-lf]").dataset.lf);
+  if (e.target.id === "lf-enrich") return finderEnrich();
+  if (e.target.id === "lf-seq") return finderSequence();
+  if (e.target.id === "lf-all") { document.querySelectorAll("[data-pick]").forEach((c) => c.checked = e.target.checked); return; }
   if (e.target.id === "wk-prev") return shiftWeek(-7);
   if (e.target.id === "wk-next") return shiftWeek(7);
   if (e.target.id === "wk-this") { wkStart = null; return loadWeek(); }
@@ -935,6 +1027,7 @@ document.addEventListener("change", async (e) => {
   if (e.target.id === "p-filter") renderPartnerTable(OPS);
   if (e.target.id === "pl-campus") drawMap();
 });
+$("#lf-form").addEventListener("submit", (e) => { e.preventDefault(); runFinder(); });
 let qTimer; $("#lead-q").addEventListener("input", () => { clearTimeout(qTimer); qTimer = setTimeout(loadLeads, 250); });
 $("#todo-form").addEventListener("submit", async (e) => { e.preventDefault(); const v = $("#todo-input").value.trim(); if (!v) return;
   const r = await post("/api/tasks", { title: v }); toast(r.duplicate ? "Already on your list" : "Added"); $("#todo-input").value = ""; refreshOps(); });

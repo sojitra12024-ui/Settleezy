@@ -268,6 +268,13 @@ def _answer(cfg: Config, text: str, lang: str) -> str:
             if b and b.get("score") is not None:
                 msg += f" That's {'up' if n['score'] >= b['score'] else 'down'} from {b['score']:g}."
             return msg
+        if re.search(r"\b(find|search|look for|show|list|such\w*|finde|zeig\w*)\b.*\b(leads?|venues?|places|caf[eé]s?|restaurants?|bars?|"
+                     r"sp[äa]tis?|gyms?|shops?|partners? for|bakeries|supermarkets?|orte|läden|kneipen)\b", t):
+            from .leadquery import find, spoken
+
+            res = find(cfg, db, text, discover=True)
+            db.kv_set("leadfinder:last", json.dumps({"q": text}, ensure_ascii=False))   # the dashboard opens this search
+            return spoken(res)
         if re.search(r"\b(plan my week|my week|week plan|this week's plan|next week|meine woche|wochenplan)\b", t):
             from datetime import date, timedelta
 

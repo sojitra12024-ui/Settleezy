@@ -151,6 +151,47 @@ sz growth                   co-founder weekly review now
 sz voice                    Setz: say "Hey Setz …" (or --no-wake for push-to-talk); hologram at /hologram
 ```
 
+## Lead finder: ask for leads in plain words
+
+Type or say what you want, in English or German. Setz filters the whole lead database and gives you the full list:
+
+```
+sz find vegan cafés near HU with email, not contacted
+sz find "cheap restaurants in Kreuzberg within 500 m" --csv kreuzberg.csv
+sz find Spätis in Neukölln mit Telefonnummer --enrich
+"Hey Setz, find me gyms near TU that aren't on any competitor"
+```
+
+The dashboard has the same search at the top of **Leads & competitors**, with example chips, an Excel export, and
+buttons to read the Impressum or start outreach for the venues you tick.
+
+**Every row shows:**
+- name, address, district and postcode
+- distance to the nearest campus
+- category and sub-category (cuisine, vegan, wifi, outdoor seating…)
+- price level (from the menu on the venue's site, or estimated, marked \*)
+- email and phone, plus the owner / managing director and legal name from the **Impressum**
+- Instagram handle and followers
+- which platforms it is already listed on (Groupon, vspots, Top10, UNiDAYS, Student Beans, OSM, Instagram)
+- whether you've **contacted it before** (searched by address *and* domain in your mailbox, drafts and pipeline)
+- its **likelihood of joining** (neural reply model × your real conversion rates)
+
+**It understands:**
+- categories and cuisines
+- campuses ("near HU"), districts, postcodes and distances
+- "with email/phone/Instagram"
+- "not contacted"
+- "on Groupon" / "not on any competitor" / "only on Instagram"
+- "cheap" / "€€" / "upscale"
+- "popular" / "over 5k followers"
+- "closest" / "most likely to join" / "top 20"
+
+If there are few results near a campus, `--discover` (or the checkbox) scans OpenStreetMap there first. Existing
+partners are hidden unless you add "include partners".
+
+**Impressum enrichment** runs by itself every day for the best leads with a website. It reads the homepage, the menu
+page and the Impressum.
+
 ## Lead generation, pipeline and your week
 
 **Find leads near campuses.** `sz leadgen scan` asks OpenStreetMap for every café, restaurant, supermarket, bakery,
