@@ -268,6 +268,23 @@ def _answer(cfg: Config, text: str, lang: str) -> str:
             if b and b.get("score") is not None:
                 msg += f" That's {'up' if n['score'] >= b['score'] else 'down'} from {b['score']:g}."
             return msg
+        m = re.search(r"\b(?:run|start|do|mach|starte)\s+(?:a\s+|the\s+|my\s+)?(prospecting|inbox zero|inbox|market intelligence|intelligence|brain refresh|learning)\b", t)
+        if m:
+            import threading
+
+            from .operations import PLAYBOOKS, run_playbook
+
+            name = {"inbox zero": "inbox", "market intelligence": "intelligence", "brain refresh": "learning"}.get(m.group(1), m.group(1))
+            threading.Thread(target=run_playbook, args=(cfg, name), daemon=True).start()
+            steps = PLAYBOOKS[name]["steps"]
+            return f"Starting {PLAYBOOKS[name]['label']}: {', '.join(steps)}. I'll notify you when it's done."
+        if re.search(r"\b(what are you working on|status report|operations|what's running|woran arbeitest du)\b", t):
+            from .operations import missions
+
+            ms = missions(cfg, db)[:4]
+            if not ms:
+                return "Nothing is waiting. Everything is handled."
+            return "Open work: " + "; ".join(f"{x['count']} {x['title'].lower()}" for x in ms) + "."
         if re.search(r"\b(meeting requests?|who wants to meet|terminanfragen?|book (?:it|the meeting|the first|option \d))\b", t):
             from . import scheduling as sch
 

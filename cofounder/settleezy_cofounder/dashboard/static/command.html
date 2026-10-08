@@ -98,6 +98,28 @@ main { position: relative; z-index: 1; display: grid; gap: 14px; padding: 14px 2
   padding: 9px 14px; border-radius: 8px; font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 30; }
 .toast.show { opacity: 1; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+/* operations */
+.ops .seg { display: flex; gap: 2px; text-transform: none; letter-spacing: 0; }
+.ops .seg button { padding: 3px 9px; font-size: 11.5px; border-radius: 6px; background: transparent; border-color: transparent; color: var(--text-2); }
+.ops .seg button[aria-selected="true"] { background: rgba(94,232,255,.12); border-color: var(--line-strong); color: var(--text); }
+#ops-body { max-height: 360px; overflow: auto; }
+.msn { display: grid; grid-template-columns: 44px 1fr auto; gap: 10px; align-items: center; padding: 9px 2px; border-top: 1px solid var(--line); }
+.msn:first-child { border-top: 0; }
+.msn .n { font-family: var(--mono); font-size: 18px; text-align: right; color: var(--cyan); }
+.msn .t { font-size: 13px; font-weight: 600; } .msn .d { font-size: 11.5px; color: var(--muted); line-height: 1.35; }
+.msn .ag { font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--text-2); }
+.msn button, .job button, .pb button { padding: 4px 10px; font-size: 12px; }
+.prio-hi .n { color: var(--warn); } .prio-top .n { color: var(--alert); }
+.job { display: grid; grid-template-columns: 12px 1fr auto; gap: 9px; align-items: center; padding: 7px 2px; border-top: 1px solid var(--line); font-size: 12.5px; }
+.job:first-child { border-top: 0; } .job .m { font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
+.job .err { color: var(--alert); font-size: 11px; }
+.dotr { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.dotr.run { background: var(--warn); box-shadow: 0 0 10px var(--warn); animation: pulse 1s infinite; } .dotr.err { background: var(--alert); } .dotr.ok { background: var(--ok); }
+@keyframes pulse { 50% { opacity: .35; } }
+.pb { padding: 10px 2px; border-top: 1px solid var(--line); } .pb:first-child { border-top: 0; }
+.pb .steps { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; }
+.pb .steps span { font-family: var(--mono); font-size: 10.5px; padding: 1px 7px; border-radius: 99px; border: 1px solid var(--line-strong); color: var(--text-2); }
+.pb .steps span.done { border-color: var(--ok); color: var(--ok); } .pb .steps span.cur { border-color: var(--warn); color: var(--warn); animation: pulse 1s infinite; }
 /* memory + neural net */
 .brainrow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .memform { display: flex; gap: 8px; } .memform input { flex: 1; min-width: 0; }
@@ -150,7 +172,9 @@ main { position: relative; z-index: 1; display: grid; gap: 14px; padding: 14px 2
     </div>
   </section>
 
-  <section class="col" aria-label="Goals and activity">
+  <section class="col" aria-label="Operations, goals and activity">
+    <div class="panel ops"><p class="label">Operations <span class="seg" role="tablist"><button data-ops="missions" aria-selected="true">Missions</button><button data-ops="jobs">Jobs</button><button data-ops="playbooks">Playbooks</button></span></p>
+      <div id="ops-body"></div></div>
     <div class="panel"><p class="label">Goals</p><div class="gauges" id="gauges"></div></div>
     <div class="panel"><p class="label">Thought stream <span class="dot s-ok" id="live-dot" title="live"></span></p><div class="stream" id="stream" aria-live="polite"></div></div>
   </section>
@@ -222,6 +246,7 @@ class Brain {
     }
     new ResizeObserver(() => this.resize()).observe(canvas); this.resize();
     this.mem = new Map(); this.memLinks = []; this.lit = new Map(); this.hoverMem = -1; this.P = [];
+    this.mode = "idle"; this.env = []; this.envAt = 0; this.frameMs = 40; this.energy = 0.1; this.working = new Map(); this.waves = [];
     canvas.addEventListener("pointermove", (e) => { const r = canvas.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
       this.hover = this.hit(mx, my); this.hoverMem = this.hover >= 0 ? -1 : this.hitMem(mx, my); canvas.style.cursor = this.hover >= 0 ? "pointer" : "default"; });
     canvas.addEventListener("pointerleave", () => { this.hoverMem = -1; });
@@ -241,6 +266,21 @@ class Brain {
     this.memLinks = g.links.filter((l) => idx[l.source] != null && idx[l.target] != null).map((l) => [idx[l.source], idx[l.target], l.w]);
     this.memIndex = idx;
   }
+  setMode(state, envelope, frameMs, at) {   // voice: idle | listening | thinking | speaking
+    this.mode = state || "idle"; this.env = envelope || []; this.frameMs = frameMs || 40; this.envAt = performance.now();
+    if (state === "speaking" || state === "thinking") this.flash = Math.max(this.flash, 0.6);
+  }
+  setWorking(agent, on) { if (on) this.working.set(agent, performance.now()); else this.working.delete(agent); }
+  level(now) {   // 0..1 activity that drives every animation
+    if (this.mode === "speaking") {
+      const i = Math.max(0, Math.floor((now - this.envAt) / this.frameMs));   // rAF time can be a little before envAt
+      if (i < this.env.length && Number.isFinite(this.env[i])) return 0.35 + 0.65 * Math.min(1, this.env[i] * 1.6);
+      return 0.35;
+    }
+    if (this.mode === "thinking") return 0.75 + 0.25 * Math.sin(now / 90);
+    if (this.mode === "listening") return 0.45;
+    return this.working.size ? 0.4 : 0.12 + 0.06 * Math.sin(now / 900);   // idle: slow breathing
+  }
   recall(ids) { for (const id of ids) { const i = this.memIndex && this.memIndex["m" + id]; if (i != null) this.lit.set(i, 1); } this.flash = 1; }
   hitMem(px, py) { let best = -1, bd = 9; for (const [i] of this.mem) { const p = this.P[i]; if (!p) continue; const d = Math.hypot(p[0] - px, p[1] - py); if (d < bd) { bd = d; best = i; } } return best; }
   hit(px, py) { return this.nodes.findIndex((n) => Math.hypot(n.pos[0] - px, n.pos[1] - py) < 28); }
@@ -249,17 +289,31 @@ class Brain {
     const x = this.x, w = this.w, h = this.h, t = (now - this.t0) / 1000, cx = w / 2, cy = h / 2;
     const R = Math.min(w * 0.2, h * 0.27), orbitX = Math.min(w * 0.42, R * 2.6), orbitY = Math.min(h * 0.4, R * 1.55);
     x.clearRect(0, 0, w, h);
-    const cyan = [94, 232, 255], glow = this.flash;
+    const cyan = [94, 232, 255];
+    const lv = this.level(now);
+    if (Number.isFinite(lv)) this.energy += (lv - this.energy) * 0.18;
+    const E = this.energy, glow = Math.max(this.flash, E * 0.7);
     this.flash *= 0.94;
+    const modeCol = { thinking: [144, 133, 233], speaking: [94, 232, 255], listening: [76, 217, 123] }[this.mode] || [57, 135, 229];
     // halo
     const halo = x.createRadialGradient(cx, cy, R * 0.2, cx, cy, R * 1.8);
-    halo.addColorStop(0, `rgba(57,135,229,${0.28 + glow * 0.3})`); halo.addColorStop(1, "rgba(57,135,229,0)");
+    halo.addColorStop(0, `rgba(${modeCol},${0.22 + glow * 0.4})`); halo.addColorStop(1, `rgba(${modeCol},0)`);
     x.fillStyle = halo; x.beginPath(); x.arc(cx, cy, R * 1.8, 0, 7); x.fill();
     // orbit rings
     x.strokeStyle = "rgba(94,232,255,0.12)"; x.lineWidth = 1;
     for (const k of [1, 0.82]) { x.beginPath(); x.ellipse(cx, cy, orbitX * k, orbitY * k, 0, 0, 7); x.stroke(); }
     // neural brain
-    const rot = this.reduced ? 0 : Math.sin(t * 0.4) * 0.12;
+    const rot = this.reduced ? 0 : Math.sin(t * (0.4 + E * 0.9)) * (0.12 + E * 0.06);
+    // speaking: waves leave the core with the voice; listening: ripples flow in
+    if (!this.reduced && (this.mode === "speaking" || this.mode === "listening") && Math.random() < (this.mode === "speaking" ? E * 0.12 : 0.05))
+      this.waves.push({ r: this.mode === "speaking" ? R * 0.5 : R * 1.7, dir: this.mode === "speaking" ? 1 : -1, a: this.mode === "speaking" ? E : 0.5 });
+    this.waves = this.waves.filter((w) => w.r > R * 0.35 && w.r < R * 2.1 && w.a > 0.02);
+    for (const w of this.waves) {
+      w.r += w.dir * (1.6 + E * 3); w.a *= 0.975;
+      x.strokeStyle = `rgba(${modeCol},${w.a * 0.6})`; x.lineWidth = 1.5;
+      x.beginPath(); x.ellipse(cx, cy, w.r * 1.25, w.r * 0.95, 0, 0, 7); x.stroke();
+    }
+    x.lineWidth = 1;
     const P = this.pts.map((p) => { const u = p.u * Math.cos(rot) - (p.z - 0.5) * 0.3 * Math.sin(rot); return [cx + u * R * 1.25, cy + p.v * R * 0.95 + Math.sin(t * 1.5 + p.ph) * 1.2]; });
     for (const [i, j, d] of this.links) {
       const a = 0.08 + 0.22 * (1 - d / 0.17) + glow * 0.2;
@@ -291,10 +345,15 @@ class Brain {
       }
     });
     // synapse sparks travelling along links
-    if (!this.reduced) for (let k = 0; k < 14; k++) {
-      const L = this.links[(Math.floor(t * 3) * 7 + k * 37) % this.links.length]; if (!L) break;
-      const f = (t * 1.7 + k * 0.13) % 1, a = P[L[0]], b = P[L[1]];
-      x.fillStyle = "rgba(255,255,255,0.85)"; x.beginPath(); x.arc(a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, 1.6, 0, 7); x.fill();
+    // synapses fire faster and more often the harder Setz is thinking
+    const sparks = this.reduced ? 0 : Math.round(8 + E * 46), speed = 1.2 + E * 3.2;
+    for (let k = 0; k < sparks; k++) {
+      const L = this.links[(Math.floor(t * (2 + E * 6)) * 7 + k * 37) % this.links.length]; if (!L) break;
+      const f = (t * speed + k * 0.13) % 1, a = P[L[0]], b = P[L[1]];
+      const hot = this.mode === "thinking" && k % 3 === 0;
+      x.fillStyle = hot ? "rgba(190,180,255,0.95)" : "rgba(255,255,255,0.85)";
+      x.beginPath(); x.arc(a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, hot ? 2.2 : 1.6, 0, 7); x.fill();
+      if (hot) { x.strokeStyle = "rgba(144,133,233,0.35)"; x.beginPath(); x.moveTo(a[0], a[1]); x.lineTo(b[0], b[1]); x.stroke(); }
     }
     // agents on the orbit
     const n = this.nodes.length;
@@ -309,6 +368,12 @@ class Brain {
       if (!this.reduced) for (let j = 0; j < 3; j++) {
         const f = (t * 0.35 + j / 3 + i * 0.11) % 1;
         x.fillStyle = `rgba(${col},${0.7 * Math.sin(f * Math.PI)})`; x.beginPath(); x.arc(px + (ex - px) * f, py + (ey - py) * f, 1.8, 0, 7); x.fill();
+      }
+      if (this.working.has(node.key) && !this.reduced) {   // this agent is running a job right now
+        x.strokeStyle = "rgba(240,180,60,0.9)"; x.lineWidth = 2; x.setLineDash([6, 6]); x.lineDashOffset = -t * 30;
+        x.beginPath(); x.arc(px, py, 30, 0, 7); x.stroke(); x.setLineDash([]);
+        for (let j = 0; j < 5; j++) { const f = (t * 0.9 + j / 5) % 1;
+          x.fillStyle = `rgba(240,180,60,${0.9 * Math.sin(f * Math.PI)})`; x.beginPath(); x.arc(px + (ex - px) * f, py + (ey - py) * f, 2.4, 0, 7); x.fill(); }
       }
       // node
       const g = x.createRadialGradient(px, py, 6, px, py, 34); g.addColorStop(0, `rgba(${col},0.35)`); g.addColorStop(1, `rgba(${col},0)`);
@@ -337,6 +402,8 @@ class Brain {
     // core label
     x.fillStyle = `rgba(226,246,255,${0.85 + glow * 0.15})`; x.font = "700 13px Inter, system-ui, sans-serif"; x.textAlign = "center";
     x.fillText("S E T Z", cx, cy + R * 0.95 + 26);
+    const label = this.mode !== "idle" ? this.mode.toUpperCase() : this.working.size ? `WORKING · ${this.working.size} AGENT${this.working.size > 1 ? "S" : ""}` : "";
+    if (label) { x.font = "600 10.5px JetBrains Mono, monospace"; x.fillStyle = `rgba(${modeCol},0.95)`; x.fillText(label, cx, cy + R * 0.95 + 44); }
   }
 }
 const brain = new Brain($("#brain"));
@@ -445,7 +512,7 @@ document.addEventListener("keydown", (e) => {
 });
 $("#run").addEventListener("click", async (e) => { e.target.disabled = true; try { await post("/api/agents/run"); toast("Agents running…"); poll(); } catch (err) { toast(err.message); e.target.disabled = false; } });
 $("#ask").addEventListener("submit", async (e) => { e.preventDefault(); const q = $("#ask-in").value.trim(); if (!q) return;
-  $("#answer").textContent = "Setz is thinking…"; recallQuery(q, `Memories Setz used for “${q}”`).catch(() => {});
+  $("#answer").textContent = "Setz is thinking…"; brain.setMode("thinking"); recallQuery(q, `Memories Setz used for “${q}”`).catch(() => {});
   try { const r = await post("/api/ask", { text: q, speak: false }); $("#answer").textContent = r.answer; $("#ask-in").value = ""; loadBrain().catch(() => {}); } catch (err) { $("#answer").textContent = err.message; } });
 
 /* ================= memory + neural network ================= */
@@ -506,17 +573,64 @@ document.addEventListener("click", async (e) => { const f = e.target.closest("[d
   await post(`/api/brain/forget/${f.dataset.forget}`); f.closest(".mem").remove(); toast("Forgotten"); loadBrain(); });
 new ResizeObserver(() => B && drawNet(B.model)).observe($("#nn"));
 
+/* ================= operations ================= */
+let OPS = null, opsTab = "missions";
+const ago = (iso) => { if (!iso) return "never"; const m = Math.round((Date.now() - new Date(iso)) / 60000); return m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} d ago`; };
+const until = (iso) => { if (!iso) return "on demand"; const m = Math.round((new Date(iso) - Date.now()) / 60000); return m < 60 ? `in ${m} min` : m < 1440 ? `in ${Math.round(m / 60)} h` : new Date(iso).toLocaleDateString([], { weekday: "short" }) + " " + iso.slice(11, 16); };
+async function loadOps() { OPS = await (await fetch("/api/operations")).json(); renderOps(); }
+function renderOps() {
+  if (!OPS) return;
+  const b = $("#ops-body");
+  for (const agent of new Set(OPS.jobs.map((j) => j.agent))) brain.setWorking(agent, OPS.jobs.some((j) => j.agent === agent && j.running));
+  if (opsTab === "missions") {
+    b.innerHTML = OPS.missions.length ? OPS.missions.map((m) => `<div class="msn ${m.priority >= 90 ? "prio-top" : m.priority >= 70 ? "prio-hi" : ""}">
+      <span class="n">${m.count}</span><div><div class="t">${esc(m.title)}</div><div class="d">${esc(m.detail)}</div><div class="ag">${esc(m.agent)}</div></div>
+      ${m.action === "job" ? `<button data-runjob="${esc(m.target)}">Run</button>` : `<a href="${esc(m.target)}"><button>Open</button></a>`}</div>`).join("")
+      : `<div style="color:var(--muted);font-size:13px;padding:8px 0">All clear. Nothing is waiting on you.</div>`;
+  } else if (opsTab === "jobs") {
+    b.innerHTML = OPS.jobs.map((j) => `<div class="job"><span class="dotr ${j.running ? "run" : j.error ? "err" : j.last_run ? "ok" : ""}" title="${j.running ? "running" : j.error ? "last run failed" : ""}"></span>
+      <div><b>${esc(j.label)}</b> <span class="m">${esc(j.schedule)}</span><div class="m">last ${esc(ago(j.last_run))} · next ${esc(until(j.next_run))}</div>${j.error ? `<div class="err">${esc(j.error.slice(0, 120))}</div>` : ""}</div>
+      <button data-runjob="${esc(j.name)}" ${j.running || j.name === "morning" ? "disabled" : ""}>${j.running ? "Running" : "Run"}</button></div>`).join("");
+  } else {
+    const cur = OPS.playbook;
+    b.innerHTML = OPS.playbooks.map((p) => `<div class="pb"><b>${esc(p.label)}</b><div class="d" style="font-size:12px;color:var(--muted)">${esc(p.what)}</div>
+      <div class="steps">${p.steps.map((s) => `<span class="${cur && cur.name === p.name ? (cur.done.includes(s) ? "done" : cur.current === s ? "cur" : "") : ""}">${esc(s)}</span>`).join("→")}</div>
+      <button class="primary" data-playbook="${esc(p.name)}" ${cur ? "disabled" : ""}>${cur && cur.name === p.name ? "Running…" : "Run playbook"}</button></div>`).join("");
+  }
+}
+document.addEventListener("click", async (e) => {
+  const tb = e.target.closest("[data-ops]");
+  if (tb) { opsTab = tb.dataset.ops; document.querySelectorAll("[data-ops]").forEach((x) => x.setAttribute("aria-selected", x === tb)); return renderOps(); }
+  const rj = e.target.closest("[data-runjob]");
+  if (rj) { rj.disabled = true; try { await post(`/api/run/${rj.dataset.runjob}`); toast(`Setz is running ${rj.dataset.runjob}`); setTimeout(loadOps, 600); } catch (err) { toast(err.message); rj.disabled = false; } return; }
+  const pb = e.target.closest("[data-playbook]");
+  if (pb) { pb.disabled = true; try { const r = await post(`/api/playbook/${pb.dataset.playbook}`); toast(r.started ? `Playbook started: ${r.steps.join(" → ")}` : r.status); setTimeout(loadOps, 600); } catch (err) { toast(err.message); } }
+});
+// voice state -> brain animation (thinking / speaking with the real loudness / listening)
+function voiceStream() {
+  const es = new EventSource("/api/voice/stream");
+  es.onmessage = (m) => { const v = JSON.parse(m.data); brain.setMode(v.state, v.envelope, v.frame_ms, v.at); if (v.state === "speaking" && v.text) $("#answer").textContent = v.text; };
+  es.onerror = () => { es.close(); setTimeout(voiceStream, 4000); };
+}
+voiceStream();
+if (window.SetzLive) { SetzLive.onRefresh(() => { loadOps(); }); SetzLive.onNotification((n) => {
+  const div = document.createElement("div"); div.className = `${n.kind === "alert" ? "alert" : "report"} new`;
+  div.innerHTML = `<span class="t">${esc(timeOf(new Date().toISOString()))}</span> <span class="a">SETZ</span> ${esc(n.title)}${n.body ? " · " + esc(n.body) : ""}`; $("#stream").prepend(div); }); }
+setInterval(loadOps, 20000);
+
 /* ================= data ================= */
 async function load() {
   [A, S, O] = await Promise.all(["/api/agents", "/api/summary", "/api/ops"].map((u) => fetch(u).then((r) => r.json())));
-  renderRoster(); renderBriefing(); renderStream(); renderGauges(); renderCharts(); loadBrain().catch(() => {});
+  renderRoster(); renderBriefing(); renderStream(); renderGauges(); renderCharts(); loadBrain().catch(() => {}); loadOps().catch(() => {});
   $("#run").disabled = !!A.running;
   if (drawerKey && $("#drawer").classList.contains("open")) openDrawer(drawerKey);
 }
 async function poll() { for (let i = 0; i < 90; i++) { await new Promise((r) => setTimeout(r, 2500)); const a = await (await fetch("/api/agents")).json(); if (!a.running) { toast("Agents reported to Setz"); return load(); } } }
 function stream() {
   const es = new EventSource("/api/agents/stream");
-  es.onmessage = (m) => { const ev = JSON.parse(m.data); brain.pulse(ev.agent, ev.status);
+  es.onmessage = (m) => { const ev = JSON.parse(m.data);
+    if (ev.status === "working") brain.setWorking(ev.agent, true); else { brain.setWorking(ev.agent, false); brain.pulse(ev.agent, ev.status); }
+    if (ev.job || ev.status === "working") setTimeout(loadOps, 400);
     const name = (A && A.agents.find((a) => a.key === ev.agent) || { name: ev.agent }).name;
     const div = document.createElement("div"); div.className = "report new"; div.innerHTML = `<span class="t">${esc(timeOf(new Date().toISOString()))}</span> <span class="a">${esc(name.toUpperCase())}</span> ${esc(ev.summary)}`;
     $("#stream").prepend(div); };

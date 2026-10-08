@@ -335,6 +335,42 @@ engaging), loudness, background noise and clarity. You get a 0–100 delivery sc
   - With `[voice] barge_in = true` (use a headset) you can talk over Setz and it stops to listen.
   - Every normal command is measured quietly, so the trend builds up without extra effort.
 
+## Operations: Setz runs the business with you
+
+The **command center** (`/command`) is Setz's operations room.
+
+**Brain animation:**
+- breathes calmly when idle
+- ripples inward while it **listens**
+- fires fast violet synapses while it **thinks**
+- sends out waves in time with its real voice volume while it **speaks**
+
+Every agent that's running a job gets a rotating ring with data flowing into the brain.
+
+**Operations panel:**
+- **Missions:** the open work across the business, most urgent first, each with its owner agent and a Run/Open
+  button:
+  - meeting requests and leads waiting for you
+  - outreach steps due and replies owed
+  - partners at risk
+  - leads without contact details
+  - pipeline behind target
+  - campuses not scanned yet
+  - brain freshness
+- **Jobs:** every scheduled job with last run, next run, live status and the last error.
+- **Playbooks:** multi-step runs Setz does on its own, with live progress:
+  - *Prospecting run*: campus scan → Impressum enrichment → Instagram discovery → brain → start outreach
+  - *Inbox zero*: sync → match replies → drafts
+  - *Market intelligence*: competitors, Instagram, agent reports, growth review
+  - *Brain refresh*
+
+The same from anywhere:
+- `sz ops`, `sz ops --playbook prospecting`
+- "Hey Setz, run prospecting", "what are you working on?"
+- the MCP tools `operations_status` / `run_playbook`
+
+You get a pop-up when a playbook finishes.
+
 ## Setz's brain: memory and a neural network
 
 **Memory.** Setz keeps long-term memories (facts, preferences, episodes, insights and your conversations) and finds them

@@ -896,16 +896,52 @@ def run_job(job: str, x_sz: str | None = Header(default=None)) -> dict:
     if _running.get(job) == "running":
         return {"started": False, "status": "already running"}
     _running[job] = "running"
+    from ..operations import JOB_AGENT
+
+    agent = JOB_AGENT.get(job, "setz")
+    _broadcast_agent({"agent": agent, "status": "working", "summary": f"Running {job}…", "job": job})
 
     def work() -> None:
         try:
             jobs.run_job(load_config(), job)
             _running.pop(job, None)
+            _broadcast_agent({"agent": agent, "status": "ok", "summary": f"{job} done", "job": job})
         except Exception as exc:
             _running[job] = f"error: {exc}"
+            _broadcast_agent({"agent": agent, "status": "alert", "summary": f"{job} failed: {exc}"[:200], "job": job})
 
     threading.Thread(target=work, daemon=True).start()
     return {"started": True}
+
+
+@app.get("/api/operations")
+def operations_overview() -> dict:
+    from ..operations import overview
+
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        return overview(cfg, db, dict(_running))
+
+
+@app.post("/api/playbook/{name}")
+def playbook_run(name: str, x_sz: str | None = Header(default=None)) -> dict:
+    _guard(x_sz)
+    from ..operations import PLAYBOOKS, run_playbook
+
+    if name not in PLAYBOOKS:
+        raise HTTPException(404, f"unknown playbook {name}")
+    if _running.get("playbook") == "running":
+        return {"started": False, "status": "a playbook is already running"}
+    _running["playbook"] = "running"
+
+    def work() -> None:
+        try:
+            run_playbook(load_config(), name, _broadcast_agent)
+        finally:
+            _running.pop("playbook", None)
+
+    threading.Thread(target=work, daemon=True).start()
+    return {"started": True, "steps": PLAYBOOKS[name]["steps"]}
 
 
 # -- notifications -----------------------------------------------------------------

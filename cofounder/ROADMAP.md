@@ -161,6 +161,39 @@ Licence notes:
 5. **Referral loop:** each member gets a code ("give a friend a free month"), and Setz reports which nationalities and universities refer the most.
 6. **Price testing:** test €40 vs €45 per semester, or a cheaper "first month" offer, with feature flags in PostHog, and let the data decide.
 
+## More features for Setz (proposed, October 2026)
+
+Setz now covers:
+- leads: OpenStreetMap, Instagram, Impressum, lead finder
+- the pipeline and outreach sequences
+- scheduling and calendar booking
+- memory and the neural lead model
+- the speech coach
+- notifications, phone and widget
+- the agents and playbooks
+
+The next ones, ranked by impact on partners and members:
+
+1. **Partner impact reports (retention).** A monthly one-page PDF per partner: redemptions, students reached, Instagram
+   mentions, versus last month. Partners renew when they see value. Built from data Setz already has; send as a draft.
+2. **Campus ambassador manager.** One student per university with a referral code. Setz tracks sign-ups per code, a
+   leaderboard and payouts, and reminds ambassadors before intake weeks. This is the cheapest member acquisition for
+   international students.
+3. **Intake-season autopilot.** University calendars (Sept/Oct, March/April intakes) trigger pre-arrival campaigns:
+   Buddy-platform pitches to International Offices 8 weeks before, welcome-week content, orientation-event
+   partnerships.
+4. **Offer benchmark.** For each partner, compare the Settleezy offer with the same venue's Groupon/vspots deal, so you
+   negotiate "at least as good as Groupon, but for students all semester".
+5. **Field-sales mode on the phone.** The visit route of the day, check-in at each venue, a 20-second voice note after
+   the visit. Whisper turns it into the lead note, next step and follow-up draft.
+6. **Content engine for new partners.** Every partner going live gets an Instagram post/story draft (Canva connector
+   with brand templates) and a slot in the content calendar.
+7. **Member metrics from the app.** Trials → paid (semester vs year), churn, activation (first saving within 7 days),
+   CAC per channel. Connect the app's database or PostHog instead of typing numbers.
+8. **Workshop manager.** CV and portfolio workshops: sign-ups, reminders, attendance, and attendee → member conversion.
+9. **Investor / board update.** The monthly update drafts itself from the scorecard, pipeline, members and partners.
+10. **WhatsApp Business inbox (Chatwoot).** Students already write on WhatsApp; triage and draft answers there too.
+
 ## Ground rules for every integration
 
 - **You approve anything outward-facing:** emails, posts, WhatsApp messages and signatures are prepared by Setz and approved by you.

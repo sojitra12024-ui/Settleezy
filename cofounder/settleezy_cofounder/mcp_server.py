@@ -407,6 +407,27 @@ def discover_instagram_venues(hashtags: str = "", handles: str = "") -> str:
         return json.dumps(igd.discover(cfg, db, tags), ensure_ascii=False)
 
 
+@server.tool()
+def operations_status() -> str:
+    """What Setz is working on: open missions across the business (with the job that resolves each),
+    scheduled jobs (last/next run, errors) and available playbooks."""
+    from .operations import overview
+
+    cfg, db = _db()
+    with db:
+        return json.dumps(overview(cfg, db), ensure_ascii=False, default=str)
+
+
+@server.tool()
+def run_playbook(name: str) -> str:
+    """Run a multi-step playbook: prospecting (campus scan -> Impressum -> Instagram discovery -> brain -> outreach),
+    inbox (sync, match replies, drafts), intelligence (competitors, Instagram, agents, growth), learning."""
+    from .operations import run_playbook as run
+
+    cfg, _ = _db()
+    return json.dumps(run(cfg, name), ensure_ascii=False, default=str)
+
+
 def main() -> None:
     server.run("stdio")
 

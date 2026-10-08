@@ -217,6 +217,10 @@ def cmd_morning(args) -> None:
             print(json.dumps(run_job(cfg, job), default=str, ensure_ascii=False)[:300])
         except Exception as exc:  # unconfigured sources are skipped
             print(f"skipped ({exc})")
+    from .db import utcnow
+
+    with DB(cfg.db_path) as db:
+        db.kv_set("last_run:morning", utcnow())
     if args.speak:
         cmd_brief(argparse.Namespace(speak=True, no_actions=False, quiet=True))
 
@@ -514,6 +518,27 @@ def cmd_dashboard(args) -> None:
     serve(args.port)
 
 
+def cmd_ops(args) -> None:
+    from . import operations as op
+
+    cfg = load_config()
+    if args.playbook:
+        res = op.run_playbook(cfg, args.playbook, lambda e: print(f"  [{e['agent']}] {e['summary']}"))
+        print("done" + (f", failed: {', '.join(res['failed'])}" if res["failed"] else ""))
+        return
+    with DB(cfg.db_path) as db:
+        o = op.overview(cfg, db)
+    print("Missions")
+    for m in o["missions"]:
+        how = f"sz run {m['target']}" if m["action"] == "job" else "dashboard " + m["target"]
+        print(f"  {m['count']:>4}  {m['title']:<34} {m['detail'][:60]:<60}  → {how}")
+    print("\nJobs")
+    for j in o["jobs"]:
+        print(f"  {'●' if j['running'] else '!' if j['error'] else ' '} {j['name']:<11} {j['schedule']:<22} last {(j['last_run'] or 'never')[:16]:<16}"
+              f"  next {(j['next_run'] or '–')[5:16].replace('T', ' ')}" + (f"  error: {j['error'][:60]}" if j["error"] else ""))
+    print("\nPlaybooks: " + ", ".join(f"{p['name']} ({' → '.join(p['steps'])})" for p in o["playbooks"]))
+
+
 def cmd_notify(args) -> None:
     from .notify import notify
 
@@ -771,6 +796,9 @@ def main(argv: list[str] | None = None) -> None:
     v.add_argument("--coach", action="store_true", help="analyse: add AI coaching on the content")
     v.set_defaults(fn=cmd_voice)
 
+    op_ = sub.add_parser("ops", help="what Setz is working on: missions, jobs, playbooks; sz ops --playbook prospecting")
+    op_.add_argument("--playbook", choices=["prospecting", "inbox", "intelligence", "learning"])
+    op_.set_defaults(fn=cmd_ops)
     sub.add_parser("widget", help="small always-on-top Setz window (robot, live notifications, ask box)").set_defaults(fn=cmd_widget)
     nt = sub.add_parser("notify", help="send a test notification to every screen: sz notify")
     nt.add_argument("text", nargs="*")
