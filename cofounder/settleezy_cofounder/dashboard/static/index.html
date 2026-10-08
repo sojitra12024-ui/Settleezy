@@ -1,0 +1,1126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Settleezy HQ</title>
+<link rel="manifest" href="/manifest.webmanifest"><meta name="theme-color" content="#030810">
+<link rel="icon" href="/static/icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/static/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Setz">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
+<script src="/static/hologram.js"></script>
+<script src="/static/live.js"></script>
+<style>
+:root {
+  color-scheme: light;
+  --bg: #f4f4f1; --surface-1: #fcfcfb; --surface-2: #f0efec; --border: #e3e2dd;
+  --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #7a7974;
+  --accent: #2a78d6; --accent-ink: #ffffff; --accent-soft: #e6f0fb;
+  --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a; --series-4: #eda100; --series-5: #e87ba4;
+  --good: #0ca30c; --warning: #fab219; --critical: #d03b3b; --good-text: #006300; --warn-text: #8a5a00; --critical-text: #b42f2f;
+  --grid: #e8e7e3; --track: #e8e7e3;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #121211; --surface-1: #1a1a19; --surface-2: #232321; --border: #2f2f2c;
+    --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #8f8e86;
+    --accent: #3987e5; --accent-soft: #1b2a3d;
+    --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --series-4: #c98500; --series-5: #d55181;
+    --good-text: #4cc94c; --warn-text: #f0b43c; --critical-text: #ff8a8a; --grid: #2a2a28; --track: #2c2c2a;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #121211; --surface-1: #1a1a19; --surface-2: #232321; --border: #2f2f2c;
+  --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #8f8e86;
+  --accent: #3987e5; --accent-soft: #1b2a3d;
+  --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --series-4: #c98500; --series-5: #d55181;
+  --good-text: #4cc94c; --warn-text: #f0b43c; --critical-text: #ff8a8a; --grid: #2a2a28; --track: #2c2c2a;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text-primary); font: 14px/1.5 Inter, system-ui, sans-serif; }
+header { position: sticky; top: 0; z-index: 5; background: var(--surface-1); border-bottom: 1px solid var(--border); }
+.bar-top { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; padding: 12px 24px 8px; }
+header h1 { font-size: 18px; margin: 0; letter-spacing: -0.01em; }
+header .sub { color: var(--text-secondary); font-size: 13px; }
+nav.tabsbar { display: flex; gap: 2px; padding: 0 20px; overflow-x: auto; }
+nav.tabsbar button { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none; padding: 8px 14px; color: var(--text-secondary); font-weight: 500; }
+nav.tabsbar button[aria-selected="true"] { color: var(--text-primary); border-bottom-color: var(--accent); }
+nav.tabsbar .count { font-size: 11px; background: var(--surface-2); border-radius: 99px; padding: 0 6px; margin-left: 4px; color: var(--text-secondary); }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+button, select, input, textarea { font: inherit; font-size: 13px; border: 1px solid var(--border); background: var(--surface-1); color: var(--text-primary); border-radius: 8px; padding: 6px 12px; }
+button { cursor: pointer; }
+input, textarea { min-width: 0; }
+button:hover { background: var(--surface-2); }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+button.small { padding: 2px 8px; font-size: 12px; }
+button:disabled { opacity: .55; cursor: progress; }
+main { max-width: 1440px; margin: 0 auto; padding: 20px 24px 60px; }
+.page { display: none; gap: 16px; grid-template-columns: repeat(12, 1fr); }
+.page.active { display: grid; }
+.card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; min-width: 0; }
+.card h2 { font-size: 14px; margin: 0 0 12px; display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.card h2 small { color: var(--text-muted); font-weight: 400; }
+.span-12 { grid-column: span 12; } .span-8 { grid-column: span 8; } .span-7 { grid-column: span 7; } .span-6 { grid-column: span 6; } .span-5 { grid-column: span 5; } .span-4 { grid-column: span 4; }
+.kpis { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); align-content: start; }
+.kpi { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+.kpi .label { color: var(--text-secondary); font-size: 12px; }
+.kpi .value { font-size: 28px; font-weight: 600; letter-spacing: -0.02em; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.kpi .note { color: var(--text-muted); font-size: 12px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; color: var(--text-muted); font-weight: 500; font-size: 12px; padding: 6px 8px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--surface-1); z-index: 1; }
+td { padding: 7px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+td a { color: var(--accent); text-decoration: none; }
+.scroll { max-height: 380px; overflow: auto; }
+.pill { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; padding: 1px 8px; border-radius: 99px; background: var(--surface-2); color: var(--text-secondary); white-space: nowrap; }
+.pill.high::before { content: "▲"; color: var(--critical); }
+.pill.med::before { content: "●"; color: var(--warning); }
+.health { font-size: 12px; white-space: nowrap; font-weight: 500; }
+.health.healthy { color: var(--good-text); } .health.watch { color: var(--warn-text); } .health.risk { color: var(--critical-text); }
+.health.healthy::before { content: "● "; } .health.watch::before { content: "◐ "; } .health.risk::before { content: "▲ "; }
+.muted { color: var(--text-muted); }
+.empty { color: var(--text-muted); padding: 12px 0; }
+.chart-wrap { position: relative; height: 240px; }
+.legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; color: var(--text-secondary); margin-bottom: 8px; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+.funnel { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 8px; }
+.funnel div { background: var(--surface-2); border-radius: 8px; padding: 8px 10px; }
+.funnel b { display: block; font-size: 20px; }
+.funnel span { font-size: 12px; color: var(--text-secondary); text-transform: capitalize; }
+.md { font-size: 13.5px; } .md h1 { font-size: 16px; } .md h2 { font-size: 14px; margin: 14px 0 6px; } .md ul { padding-left: 18px; }
+.seg { display: flex; gap: 6px; flex-wrap: wrap; }
+.seg button[aria-selected="true"] { background: var(--surface-2); font-weight: 600; }
+.toast { position: fixed; bottom: 18px; right: 18px; background: var(--text-primary); color: var(--bg); padding: 10px 14px; border-radius: 8px; font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 20; max-width: 360px; }
+.toast.show { opacity: 1; }
+details summary { cursor: pointer; color: var(--text-secondary); font-size: 12px; margin-top: 8px; }
+/* Setz card */
+.holo-card { background: radial-gradient(ellipse at 50% 35%, #0b1c29 0%, #04080d 75%); border-color: #0f2a3a; color: #d8f8ff; display: flex; flex-direction: column; }
+.holo-card h2 { color: #d8f8ff; } .holo-card h2 small { color: #6fa9b8; }
+.holo-card h2 a { color: #6fa9b8; font-size: 12px; font-weight: 400; }
+.holo-stage { position: relative; height: 250px; }
+.holo-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.holo-caption { min-height: 2.8em; font-size: 13px; text-align: center; text-shadow: 0 0 12px rgba(94,242,255,.4); margin: 4px 0 10px; }
+.ask { display: flex; gap: 6px; }
+.ask input { flex: 1; background: rgba(255,255,255,.06); border-color: #1d3d50; color: #d8f8ff; }
+.ask input::placeholder { color: #6fa9b8; }
+.ask button { background: #12384d; border-color: #1d5a78; color: #d8f8ff; }
+.ask button:hover { background: #18485f; }
+.ask label { display: flex; align-items: center; gap: 4px; font-size: 12px; color: #6fa9b8; white-space: nowrap; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.chips button { background: rgba(255,255,255,.05); border-color: #1d3d50; color: #b9e9f5; font-size: 12px; padding: 3px 10px; }
+/* focus + plan */
+.focus { background: var(--accent-soft); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; font-size: 13.5px; }
+.focus b { color: var(--accent); }
+.plan-row { display: grid; grid-template-columns: 96px 1fr auto; gap: 10px; padding: 9px 10px; border-left: 3px solid var(--border); margin-bottom: 6px; border-radius: 0 8px 8px 0; background: var(--surface-1); }
+.plan-row.meeting { border-left-color: var(--accent); background: var(--surface-2); }
+.plan-row.now { outline: 2px solid var(--accent); outline-offset: -2px; }
+.plan-row .time { font-variant-numeric: tabular-nums; color: var(--text-secondary); font-size: 13px; }
+.plan-row .title { font-weight: 500; }
+.plan-row .sugg { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.plan-row .sugg span { font-size: 11.5px; background: var(--surface-2); border-radius: 6px; padding: 1px 7px; color: var(--text-secondary); }
+.badge-now { font-size: 11px; color: var(--accent-ink); background: var(--accent); border-radius: 99px; padding: 1px 8px; margin-left: 6px; }
+/* to-dos */
+.todo-add { display: flex; gap: 6px; margin-bottom: 10px; } .todo-add input { flex: 1; }
+.todo { display: grid; grid-template-columns: 22px 1fr auto; gap: 8px; align-items: start; padding: 7px 0; border-bottom: 1px solid var(--border); }
+.todo:last-child { border-bottom: 0; }
+.todo input[type=checkbox] { width: 16px; height: 16px; margin-top: 2px; padding: 0; }
+.todo .meta { font-size: 12px; color: var(--text-muted); }
+.todo .meta .over { color: var(--critical-text); font-weight: 500; }
+.todo .acts { display: flex; gap: 4px; }
+/* reach out */
+.ro { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.ro:last-child { border-bottom: 0; }
+.ro .why { font-size: 12.5px; color: var(--text-secondary); }
+.ro .acts { display: flex; gap: 4px; align-items: start; flex-wrap: wrap; justify-content: flex-end; }
+/* partners kanban */
+.kanban { display: grid; grid-template-columns: repeat(5, minmax(150px, 1fr)); gap: 10px; overflow-x: auto; }
+.col { background: var(--surface-2); border-radius: 10px; padding: 8px; min-height: 120px; }
+.col h3 { font-size: 12px; margin: 2px 4px 8px; color: var(--text-secondary); font-weight: 600; display: flex; justify-content: space-between; }
+.pcard { background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px; padding: 8px 9px; margin-bottom: 6px; font-size: 12.5px; }
+.pcard b { display: block; font-size: 13px; }
+.pcard .row { display: flex; justify-content: space-between; align-items: center; gap: 6px; margin-top: 4px; }
+/* goals */
+.goal { margin-bottom: 12px; }
+.goal .row { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
+.goal .row span:last-child { color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.bar { height: 8px; background: var(--track); border-radius: 99px; overflow: hidden; margin-top: 5px; }
+.bar i { display: block; height: 100%; background: var(--accent); border-radius: 99px; }
+.conn { display: grid; grid-template-columns: 22px 1fr; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--border); }
+.conn:last-child { border-bottom: 0; }
+.conn .ic { font-weight: 700; }
+.conn.ok .ic { color: var(--good-text); } .conn.bad .ic { color: var(--critical-text); } .conn.opt .ic { color: var(--text-muted); }
+.conn .fix { font-size: 12px; color: var(--text-secondary); }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.form-grid label { font-size: 12px; color: var(--text-secondary); display: grid; gap: 3px; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.toolbar input { flex: 1 1 180px; }
+.hbar { display: grid; grid-template-columns: minmax(80px, 140px) 1fr 40px; gap: 8px; align-items: center; font-size: 12.5px; margin-bottom: 6px; }
+.hbar .bar { margin: 0; height: 10px; }
+.hbar .n { text-align: right; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.funnel-kind { margin-bottom: 12px; }
+.funnel-kind b { font-size: 12px; text-transform: capitalize; }
+.delta-up { color: var(--good-text); } .delta-down { color: var(--critical-text); }
+dialog { border: 1px solid var(--border); border-radius: 12px; background: var(--surface-1); color: var(--text-primary); width: min(680px, calc(100% - 32px)); padding: 18px 20px; }
+dialog::backdrop { background: rgba(0,0,0,.45); }
+dialog .dhead { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
+/* pipeline */
+.flow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; align-items: stretch; }
+.flow .st { background: var(--surface-2); border-radius: 10px; padding: 10px 12px; position: relative; }
+.flow .st b { display: block; font-size: 24px; font-variant-numeric: tabular-nums; }
+.flow .st span { font-size: 12px; color: var(--text-secondary); text-transform: capitalize; }
+.flow .rate { font-size: 12px; color: var(--text-secondary); margin-top: 6px; }
+.flow .rate b { display: inline; font-size: 13px; color: var(--text-primary); }
+.tag { font-size: 10.5px; border: 1px solid var(--border); border-radius: 99px; padding: 0 6px; color: var(--text-muted); margin-left: 4px; }
+.tgt { display: grid; grid-template-columns: 90px 1fr 84px; gap: 10px; align-items: center; font-size: 13px; margin-bottom: 10px; }
+.tgt .bar { margin: 0; position: relative; height: 10px; }
+.tgt .bar .pace { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--text-muted); }
+.tgt .n { text-align: right; font-variant-numeric: tabular-nums; color: var(--text-secondary); }
+.tgt.behind .bar i { background: var(--warning); }
+#map { height: 440px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface-2); }
+.leaflet-container { font: 12px/1.4 Inter, system-ui, sans-serif; }
+.stale { color: var(--warn-text); font-weight: 500; }
+.att { padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.att:last-child { border-bottom: 0; }
+.att .why { font-size: 12.5px; color: var(--text-secondary); }
+.routes { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.route { background: var(--surface-2); border-radius: 10px; padding: 10px 12px; font-size: 12.5px; }
+.route ol { margin: 6px 0 8px; padding-left: 18px; }
+.route a { color: var(--accent); text-decoration: none; font-weight: 500; }
+.seqbar { display: inline-flex; gap: 2px; vertical-align: middle; margin-right: 6px; }
+.seqbar i { width: 10px; height: 6px; border-radius: 2px; background: var(--track); }
+.seqbar i.on { background: var(--series-3); }
+/* schedule */
+.week { display: grid; grid-template-columns: repeat(5, minmax(170px, 1fr)); gap: 10px; overflow-x: auto; }
+.day { background: var(--surface-2); border-radius: 10px; padding: 10px; min-height: 200px; }
+.day.past { opacity: .55; }
+.day.today { outline: 2px solid var(--accent); outline-offset: -2px; }
+.day h3 { margin: 0 0 2px; font-size: 13px; display: flex; justify-content: space-between; }
+.day .load { font-size: 11.5px; color: var(--text-secondary); margin-bottom: 6px; }
+.day .lbar { display: flex; height: 6px; border-radius: 99px; overflow: hidden; background: var(--track); margin-bottom: 8px; }
+.day .lbar i { display: block; height: 100%; }
+.slot { background: var(--surface-1); border: 1px solid var(--border); border-left: 3px solid var(--series-1); border-radius: 6px; padding: 5px 7px; margin-bottom: 5px; font-size: 12px; display: grid; grid-template-columns: 1fr auto; gap: 4px; }
+.slot.meeting { background: var(--accent-soft); border-left-color: var(--accent); }
+.slot .t { color: var(--text-muted); font-variant-numeric: tabular-nums; font-size: 11px; }
+.slot.late .t::after { content: " · overdue"; color: var(--critical-text); }
+.slot input { width: 14px; height: 14px; padding: 0; margin: 2px 0 0; }
+.cat-legend { display: flex; flex-wrap: wrap; gap: 10px; font-size: 12px; color: var(--text-secondary); }
+.cat-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+.ins { padding: 8px 10px; border-radius: 8px; margin-bottom: 6px; font-size: 13px; background: var(--surface-2); border-left: 3px solid var(--accent); }
+.ins.warn { border-left-color: var(--warning); } .ins.tip { border-left-color: var(--good); }
+.lf-bar { display: flex; gap: 8px; flex-wrap: wrap; } .lf-bar input[type=text], .lf-bar #lf-q { flex: 1 1 320px; font-size: 14px; padding: 9px 12px; }
+.lf-opt { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text-secondary); }
+.lf-opt input { width: 14px; height: 14px; padding: 0; }
+.lf-chips button { font-size: 12px; padding: 3px 10px; background: var(--surface-2); color: var(--text-secondary); border-color: var(--border); }
+.lf-chips button:hover { color: var(--text-primary); }
+.lf-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.understood { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+.understood span { background: var(--accent-soft); color: var(--accent); border-radius: 99px; padding: 0 8px; font-size: 11.5px; }
+#lf-table td { font-size: 12.5px; } #lf-table td b { font-size: 13px; }
+.lk { display: inline-block; min-width: 42px; text-align: center; border-radius: 99px; padding: 1px 8px; font-size: 11.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.lk.high { background: color-mix(in srgb, var(--good) 18%, transparent); color: var(--good-text); }
+.lk.medium { background: color-mix(in srgb, var(--warning) 22%, transparent); color: var(--warn-text); }
+.lk.low { background: var(--surface-2); color: var(--text-muted); }
+.plat { display: inline-block; font-size: 10.5px; border: 1px solid var(--border); border-radius: 99px; padding: 0 6px; margin: 1px 2px 1px 0; color: var(--text-secondary); }
+.plat.comp { border-color: var(--series-2); color: var(--series-2); }
+.mr { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.mr:last-child { border-bottom: 0; } .mr .snip { font-size: 12.5px; color: var(--text-secondary); margin-top: 3px; }
+.mr .slots { display: flex; flex-wrap: wrap; gap: 6px; align-content: start; }
+.mr .slots button { font-size: 12.5px; } .mr .slots button.prop { border-color: var(--good); color: var(--good-text); }
+.mr .acts { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+@media (max-width: 700px) { .mr { grid-template-columns: 1fr; } }
+.bell-wrap { position: relative; } #bell { position: relative; }
+.bell-n { position: absolute; top: -5px; right: -6px; min-width: 18px; height: 18px; border-radius: 99px; background: var(--critical); color: #fff; font-size: 11px; line-height: 18px; padding: 0 5px; font-weight: 600; }
+.bell-panel { position: absolute; right: 0; top: calc(100% + 8px); width: min(380px, calc(100vw - 32px)); max-height: 70vh; overflow: auto; z-index: 30;
+  background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 12px 40px rgba(0,0,0,.18); padding: 10px 12px; }
+.bell-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
+.nt { display: grid; grid-template-columns: 22px 1fr; gap: 8px; padding: 8px 0; border-top: 1px solid var(--border); font-size: 13px; cursor: pointer; }
+.nt.unread b::after { content: " •"; color: var(--accent); } .nt .when { font-size: 11.5px; color: var(--text-muted); }
+@media (max-width: 600px) { .bell-panel { position: fixed; left: 16px; right: 16px; top: 64px; width: auto; } }
+.coach { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 18px; }
+.spm { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin: 6px 0 10px; }
+.spm div { background: var(--surface-2); border-radius: 8px; padding: 8px 10px; }
+.spm b { display: block; font-size: 18px; font-variant-numeric: tabular-nums; }
+.spm span { font-size: 11.5px; color: var(--text-secondary); }
+.tips li { margin-bottom: 4px; }
+.rec-on { background: var(--critical) !important; border-color: var(--critical) !important; }
+@media (max-width: 1100px) { .coach { grid-template-columns: 1fr; } }
+@media (max-width: 700px) {   /* lead finder: one card per venue on phones */
+  #lf-table tr:first-child { display: none; }
+  #lf-table tr { display: grid; grid-template-columns: 24px 1fr auto; gap: 2px 8px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  #lf-table td { border: 0; padding: 0; }
+  #lf-table td:nth-child(2) { grid-column: 2; } #lf-table td:nth-child(9) { grid-column: 3; grid-row: 1; }
+  #lf-table td:nth-child(n+3):nth-child(-n+8) { grid-column: 2 / 4; }
+  #lf-table td:nth-child(4)::before { content: "Price "; color: var(--text-muted); }
+}
+@media (max-width: 1100px) { .span-8, .span-7, .span-6, .span-5, .span-4 { grid-column: span 12; } .kanban { grid-template-columns: repeat(5, 170px); } .flow { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 600px) { .bar-top, main { padding-left: 16px; padding-right: 16px; } .form-grid { grid-template-columns: 1fr; } .plan-row { grid-template-columns: 70px 1fr; } .plan-row > :last-child { grid-column: 2; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="bar-top">
+    <div><h1>Settleezy HQ</h1><div class="sub" id="sub">Loading…</div></div>
+    <div class="actions">
+      <button data-job="mail">Sync Outlook</button>
+      <button data-job="instagram">Instagram</button>
+      <button data-job="scrape">Scan competitors</button>
+      <button data-job="drafts">Write drafts</button>
+      <button data-job="brief" class="primary">New brief</button>
+      <a href="/command"><button title="Setz command center: agents, brain, analysis">Command center ↗</button></a>
+      <button id="install-app" hidden title="Install Setz as an app on this device">Install app</button>
+      <div class="bell-wrap"><button id="bell" aria-label="Notifications" aria-haspopup="true" aria-expanded="false">🔔<span class="bell-n" id="bell-n" hidden></span></button>
+        <div class="bell-panel" id="bell-panel" hidden><div class="bell-head"><b>Notifications</b><span><button class="small" id="notif-enable">Enable pop-ups</button> <button class="small" id="notif-read">Mark all read</button></span></div>
+          <div id="bell-list"></div></div></div>
+      <button id="theme" title="Toggle light/dark theme" aria-label="Toggle theme">◐</button>
+    </div>
+  </div>
+  <nav class="tabsbar" role="tablist">
+    <button data-page="today" role="tab">Today <span class="count" id="c-today"></span></button>
+    <button data-page="partners" role="tab">Partners <span class="count" id="c-partners"></span></button>
+    <button data-page="pipeline" role="tab">Pipeline <span class="count" id="c-pipeline"></span></button>
+    <button data-page="schedule" role="tab">Schedule</button>
+    <button data-page="growth" role="tab">Growth</button>
+    <button data-page="leads" role="tab">Leads & competitors</button>
+    <button data-page="insights" role="tab">Insights & connections</button>
+  </nav>
+</header>
+
+<main>
+<!-- ================= TODAY ================= -->
+<section class="page" id="page-today">
+  <section class="card holo-card span-4" aria-label="Setz">
+    <h2>Setz <small id="holo-state">idle</small> <a href="/hologram" target="_blank" rel="noopener">full screen ↗</a></h2>
+    <div class="holo-stage"><canvas id="holo" aria-hidden="true"></canvas></div>
+    <div class="holo-caption" id="holo-caption">Say “Hey Setz”, or ask me here.</div>
+    <form class="ask" id="ask">
+      <input id="ask-input" placeholder="Ask Setz… or “remind me to call Kranz tomorrow”" autocomplete="off" aria-label="Ask Setz">
+      <label><input type="checkbox" id="ask-speak" checked> voice</label>
+      <button type="submit">Ask</button>
+    </form>
+    <div class="chips">
+      <button data-ask="What should I do right now?">Focus now</button>
+      <button data-ask="Who should I contact?">Who to contact</button>
+      <button data-ask="How are my service partners doing?">Partners</button>
+      <button data-ask="Prepare me for my next meeting">Prep next meeting</button>
+    </div>
+  </section>
+  <section class="kpis span-8" id="kpis"></section>
+
+  <section class="card span-7"><h2>Today's plan <small id="plan-date"></small></h2>
+    <div class="focus" id="focus"></div><div id="plan"></div></section>
+
+  <section class="card span-5"><h2>To-dos <small id="todo-count"></small></h2>
+    <form class="todo-add" id="todo-form"><input id="todo-input" placeholder="Add: send HTW the deck on Friday" aria-label="New to-do"><button class="primary" type="submit">Add</button></form>
+    <div id="todos" class="scroll" style="max-height:420px"></div>
+    <details><summary>Done recently</summary><div id="todos-done"></div></details></section>
+
+  <section class="card span-12" id="mr-card" hidden><h2>Meeting requests <small id="mr-sub">Setz found these in your inbox and Instagram</small>
+      <label class="lf-opt"><input type="checkbox" id="mr-invite" checked> send them the invite</label></h2><div id="mr-list"></div></section>
+  <section class="card span-7"><h2>Who to reach out to <small>ranked by urgency</small></h2><div id="reach" class="scroll" style="max-height:440px"></div></section>
+
+  <section class="card span-5"><h2>Inbox <span class="seg"><button data-inbox="replies" aria-selected="true">Replies owed</button><button data-inbox="followups">Follow-ups</button></span></h2>
+    <div class="scroll"><table id="inbox"></table></div></section>
+
+  <section class="card span-12"><h2>Daily brief</h2><div class="md scroll" id="brief"></div></section>
+</section>
+
+<!-- ================= PARTNERS ================= -->
+<section class="page" id="page-partners">
+  <section class="kpis span-12" id="p-kpis"></section>
+  <section class="card span-12"><h2>Onboarding pipeline <small>click → to move a partner to the next step</small></h2><div class="kanban" id="kanban"></div></section>
+  <section class="card span-8"><h2>Service partners <span class="seg"><select id="p-filter" aria-label="Filter partners"><option value="">All</option><option>live</option><option>onboarding</option><option>paused</option><option>ended</option></select></span></h2>
+    <div class="scroll" style="max-height:460px"><table id="ptable"></table></div>
+    <details><summary>Add a partner</summary>
+      <form id="p-form" class="form-grid" style="margin-top:10px">
+        <label>Name<input name="name" required></label>
+        <label>Type<select name="kind"><option>venue</option><option>brand</option><option>university</option><option>housing</option><option>service</option></select></label>
+        <label>Category<input name="category" placeholder="café, grocery, gym…"></label>
+        <label>Contact person<input name="contact_name"></label>
+        <label>Email<input name="email" type="email"></label>
+        <label>Member offer<input name="offer" placeholder="10% off for members"></label>
+        <div><button class="primary" type="submit">Add partner</button></div>
+      </form></details></section>
+  <section class="card span-4"><h2>Live partners by type</h2><div id="p-kinds"></div>
+    <h2 style="margin-top:16px">Lead pipeline</h2><div class="funnel" id="funnel"></div></section>
+</section>
+
+<!-- ================= PIPELINE ================= -->
+<section class="page" id="page-pipeline">
+  <section class="kpis span-12" id="pl-kpis"></section>
+  <section class="card span-7"><h2>Funnel <small>conversion from your own stage history; "assumed" until 5+ leads pass a stage</small></h2><div class="flow" id="pl-flow"></div></section>
+  <section class="card span-5"><h2>This week vs target <small id="pl-goal"></small></h2><div id="pl-targets"></div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px"><button class="primary" id="pl-auto">Auto-start outreach sequences</button><span class="muted" style="font-size:12px" id="pl-cap"></span></div></section>
+  <section class="card span-8"><h2>Campus map <span class="seg"><select id="pl-campus" aria-label="Campus"><option value="">All campuses</option></select><button data-job="leadgen" title="Find venues near every campus on OpenStreetMap">Scan campuses (OSM)</button></span></h2><div id="map" role="img" aria-label="Map of leads near Berlin campuses"></div>
+    <div class="legend" style="margin-top:8px" id="map-legend"></div></section>
+  <section class="card span-4"><h2>Campus coverage <small>venues found → partners</small></h2><div class="scroll" style="max-height:470px"><table id="pl-coverage"></table></div></section>
+  <section class="card span-8"><h2>Active deals <small>every deal needs a next step</small></h2><div class="scroll" style="max-height:520px"><table id="pl-board"></table></div></section>
+  <section class="card span-4"><h2>Needs attention</h2><div class="scroll" style="max-height:520px" id="pl-attn"></div></section>
+  <section class="card span-12"><h2>Visit routes <small>walking loops from campus through venues worth a visit</small></h2><div class="routes" id="pl-routes"></div></section>
+</section>
+
+<!-- ================= SCHEDULE ================= -->
+<section class="page" id="page-schedule">
+  <section class="kpis span-12" id="wk-kpis"></section>
+  <section class="card span-12"><h2><span>Week of <span id="wk-title"></span></span><span class="seg">
+      <button id="wk-prev" aria-label="Previous week">‹</button><button id="wk-this">This week</button><button id="wk-next" aria-label="Next week">›</button>
+      <button id="wk-apply" title="Give undated and overdue to-dos the day they were planned on">Apply to to-dos</button>
+      <a id="wk-ics" href="/api/week.ics" download><button>Download .ics</button></a></span></h2>
+    <div class="cat-legend" id="wk-legend" style="margin-bottom:10px"></div>
+    <div class="week" id="wk-grid"></div></section>
+  <section class="card span-6"><h2>Setz suggests</h2><div id="wk-insights"></div></section>
+  <section class="card span-6"><h2>Load per day <small>hours</small></h2><div class="legend"><span><i style="background:var(--series-2)"></i>Meetings</span><span><i style="background:var(--series-1)"></i>Planned work</span><span><i style="background:var(--track)"></i>Free</span></div><div class="chart-wrap" style="height:220px"><canvas id="wkChart"></canvas></div></section>
+  <section class="card span-12"><h2>Doesn't fit this week <small id="wk-over-n"></small></h2><div class="scroll" style="max-height:300px"><table id="wk-overflow"></table></div></section>
+</section>
+
+<!-- ================= GROWTH ================= -->
+<section class="page" id="page-growth">
+  <section class="card span-6"><h2>Goals <small>config.toml → [[growth.targets]]</small></h2><div id="goals"></div></section>
+  <section class="card span-6"><h2>This week vs last week</h2><table id="scorecard"></table></section>
+  <section class="card span-8"><h2>Trends <span class="seg"><select id="trend-key" aria-label="Metric"></select><select id="trend-days" aria-label="Range"><option value="30">30 days</option><option value="90" selected>90 days</option><option value="365">1 year</option></select></span></h2>
+    <div class="chart-wrap"><canvas id="trendChart" aria-label="Metric trend"></canvas></div></section>
+  <section class="card span-4"><h2>Record numbers <small>from the app</small></h2><form id="kpi-form" class="form-grid"></form>
+    <p class="muted" style="font-size:12px;margin:10px 0 0">Saved per day and charted under Trends.</p></section>
+  <section class="card span-4"><h2>AI drafts → sent → replied <small>30 days</small></h2><div id="draft-funnel"></div></section>
+  <section class="card span-4"><h2>Outreach reply rate by weekday <small id="reply-overall"></small></h2>
+    <div class="chart-wrap" style="height:200px"><canvas id="weekdayChart" aria-label="Reply rate by weekday"></canvas><div class="empty" id="weekday-empty" style="position:absolute;inset:40% 0 auto;text-align:center" hidden>Run <code>sz learn</code> to measure which days get replies.</div></div></section>
+  <section class="card span-4"><h2>Instagram <span class="seg"><button data-ig="followers" aria-selected="true">Followers</button><button data-ig="reach">Reach</button><button data-ig="engagement_rate_pct">Eng. %</button></span></h2>
+    <div class="chart-wrap" style="height:200px"><canvas id="igChart" aria-label="Instagram metric"></canvas></div></section>
+  <section class="card span-12"><h2>Co-founder weekly review</h2><div class="md scroll" id="report"></div></section>
+</section>
+
+<!-- ================= LEADS ================= -->
+<section class="page" id="page-leads">
+  <section class="card span-12 finder"><h2>Lead finder <small>ask in plain words, English or German</small></h2>
+    <form id="lf-form" class="lf-bar"><input id="lf-q" placeholder="e.g. vegan cafés near HU with email, not contacted" aria-label="Find leads">
+      <label class="lf-opt"><input type="checkbox" id="lf-discover"> scan OpenStreetMap if few</label><button class="primary">Find</button></form>
+    <div class="chips lf-chips">
+      <button type="button" data-lf="cafés near TU with email, not contacted">Cafés near TU, not contacted</button>
+      <button type="button" data-lf="cheap restaurants in Kreuzberg within 800m">Cheap food in Kreuzberg</button>
+      <button type="button" data-lf="gyms not on any competitor, most likely to join">Gyms not on competitors</button>
+      <button type="button" data-lf="popular venues only on Instagram">Instagram-only venues</button>
+      <button type="button" data-lf="Spätis in Neukölln mit Telefonnummer">Spätis in Neukölln</button>
+      <button type="button" data-lf="listed on Groupon near HU">On Groupon near HU</button></div>
+    <details class="lf-ig"><summary>Find venues & brands that live on Instagram</summary>
+      <div class="lf-bar" style="margin-top:8px"><button type="button" data-job="igdiscover" title="Top posts of Berlin hashtags → mentioned accounts → leads (30 hashtags/week)">Discover via hashtags</button>
+        <form id="ig-add" class="lf-bar" style="flex:1"><input id="ig-handles" placeholder="@handle, @another or profile links you spotted" aria-label="Instagram handles"><button>Add</button></form></div>
+      <div class="muted" style="font-size:12px;margin-top:4px">Uses your Instagram Business account via the official API, so no scraping and no risk to the account. Creators show up only when you search for “creators”.</div></details>
+    <div id="lf-meta" class="muted" style="font-size:12.5px;margin:8px 0"></div>
+    <div class="lf-actions" id="lf-actions" hidden><button id="lf-enrich" title="Read website, menu and Impressum: email, phone, owner, address, price">Read Impressum for selected</button>
+      <button id="lf-seq">Start outreach for selected</button><a id="lf-csv" download><button type="button">Export CSV (Excel)</button></a></div>
+    <div class="scroll" style="max-height:560px"><table id="lf-table"></table></div></section>
+  <section class="card span-12"><h2>Leads <small>score = student relevance × proven discount appetite × reachability</small></h2>
+    <div class="toolbar">
+      <input id="lead-q" placeholder="Search name, category, email, source…" aria-label="Search leads">
+      <select id="lead-kind" aria-label="Type"><option value="">All types</option><option>merchant</option><option>brand</option><option>university</option><option>housing</option><option>service</option></select>
+      <select id="lead-status" aria-label="Status"><option value="">All statuses</option></select>
+    </div>
+    <div class="scroll" style="max-height:460px"><table id="leads"></table></div>
+    <details><summary>Add a lead</summary>
+      <form id="lead-form" class="form-grid" style="margin-top:10px">
+        <label>Name<input name="name" required></label>
+        <label>Type<select name="kind"><option>merchant</option><option>brand</option><option>university</option><option>housing</option><option>service</option></select></label>
+        <label>Category<input name="category" placeholder="café, grocery, gym…"></label>
+        <label>Email<input name="email" type="email"></label>
+        <label>Website<input name="website"></label>
+        <label>Instagram<input name="instagram" placeholder="@handle"></label>
+        <div><button class="primary" type="submit">Add lead</button></div>
+      </form></details></section>
+  <section class="card span-8"><h2>New Berlin listings by competitor <small>last 14 days</small></h2>
+    <div class="legend" id="listings-legend"></div><div class="chart-wrap"><canvas id="listingsChart" aria-label="New listings per day by competitor"></canvas></div>
+    <details><summary>Table view</summary><div class="scroll"><table id="listings-table"></table></div></details></section>
+  <section class="card span-4"><h2>Where venues discount <small>30 days</small></h2><div id="categories"></div></section>
+  <section class="card span-12"><h2>Latest competitor listings</h2><div class="scroll"><table id="latest"></table></div></section>
+</section>
+
+<!-- ================= INSIGHTS ================= -->
+<section class="page" id="page-insights">
+  <section class="card span-6"><h2>Connections <button id="conn-refresh">Check again</button></h2><div id="connections"></div></section>
+  <section class="card span-6"><h2>Instagram top posts</h2><div class="scroll" style="max-height:200px"><table id="igposts"></table></div>
+    <h2 style="margin-top:14px">Comments waiting for you</h2><div class="scroll" style="max-height:200px"><table id="igc"></table></div></section>
+  <section class="card span-6"><h2>Upcoming meetings</h2><div id="upcoming"></div></section>
+  <section class="card span-12"><h2>Speaking coach <small>pace · filler words · pitch · confidence, with AI feedback on your pitch</small></h2>
+    <div class="coach">
+      <div>
+        <div class="toolbar"><select id="sp-topic" aria-label="What are you practising?"><option>venue partnership pitch</option><option>university Buddy platform pitch</option><option>student membership pitch</option><option>investor pitch</option><option>workshop intro</option></select>
+          <button class="primary" id="sp-rec">● Record a practice pitch</button><span class="muted" id="sp-status" style="align-self:center;font-size:12.5px"></span></div>
+        <div id="sp-result"><div class="empty">Record 30–90 seconds as if you were pitching. Setz measures your delivery and coaches the content. You can also say “Hey Setz, practise my pitch”, or run <code>sz voice analyse call.wav --coach</code> for a recorded call.</div></div>
+      </div>
+      <div><div class="legend"><span><i style="background:var(--series-1)"></i>Delivery score</span><span><i style="background:var(--series-2)"></i>Fillers / min</span></div><div class="chart-wrap" style="height:200px"><canvas id="spChart"></canvas></div>
+        <div id="sp-trend" class="muted" style="font-size:12.5px;margin-top:6px"></div></div>
+    </div></section>
+  <section class="card span-6"><h2>Import past work</h2>
+    <p style="margin-top:0">Bring in contacts, leads and partner lists (CSV / XLSX / JSON) and outreach emails, social posts and strategy notes (MD / TXT / DOCX), for example exported from your Claude projects:</p>
+    <pre style="background:var(--surface-2);padding:10px;border-radius:8px;overflow:auto">sz import "C:\Users\you\Downloads\settleezy-exports"</pre>
+    <p class="muted" style="font-size:12.5px">Leads are merged, signed partners get an onboarding record, outreach examples teach Setz your voice, and social posts feed the weekly content plan. Safe to run again.</p></section>
+</section>
+</main>
+
+<dialog id="dlg"><div class="dhead"><b id="dlg-title"></b><button class="small" onclick="dlg.close()">Close</button></div><div id="dlg-body" class="md"></div></dialog>
+<dialog id="pdlg"><form method="dialog" id="pedit">
+  <div class="dhead"><b id="pdlg-title">Edit partner</b><button class="small" value="cancel" formnovalidate>Close</button></div>
+  <div class="form-grid">
+    <label>Status<select name="status"><option>onboarding</option><option>live</option><option>paused</option><option>ended</option></select></label>
+    <label>Stage<select name="stage"></select></label>
+    <label>Contact person<input name="contact_name"></label>
+    <label>Email<input name="email"></label>
+    <label>Phone<input name="phone"></label>
+    <label>Member offer<input name="offer"></label>
+    <label>Renewal date<input type="date" name="renewal_date"></label>
+    <label>Redemptions (total)<input type="number" min="0" name="redemptions"></label>
+  </div>
+  <label style="display:grid;gap:3px;margin-top:8px;font-size:12px;color:var(--text-secondary)">Notes<textarea name="notes" rows="3"></textarea></label>
+  <div style="margin-top:12px;display:flex;gap:8px"><button class="primary" value="save">Save</button></div>
+</form></dialog>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const safeUrl = (u) => /^https?:\/\//i.test(u || "") ? esc(u) : "#";
+const md = (s) => DOMPurify.sanitize(marked.parse(s || ""));
+const fmt = (v) => v == null ? "–" : Number(v).toLocaleString(undefined, { maximumFractionDigits: 1 });
+const daysAgo = (iso) => { if (!iso) return null; const d = (Date.now() - new Date(iso.length <= 10 ? iso + "T00:00:00" : iso)) / 864e5; return Math.max(0, Math.floor(d)); };
+const SOURCES = ["groupon", "vspots", "top10berlin", "unidays", "studentbeans"];
+const STATUSES = ["new", "drafted", "contacted", "replied", "meeting", "partner", "lost"];
+const LABELS = {
+  "manual.paying_members": "Paying members", "manual.trial_members": "Trial members", "manual.app_downloads": "App downloads",
+  "manual.workshop_signups": "Workshop sign-ups", "manual.buddy_students": "Buddy platform students",
+  "instagram.followers": "Instagram followers", "instagram.reach": "Instagram reach", "instagram.engagement_rate_pct": "Instagram engagement %",
+  "ops.replies_owed": "Replies owed", "ops.followups_due": "Follow-ups due", "ops.response_hours_median_7d": "Median reply time (hours)",
+  "ops.ai_drafts_sent_pct_30d": "AI drafts you sent (%)", "ops.outreach_reply_pct_30d": "Outreach reply rate (%)",
+  "ops.partners_live": "Live partners", "ops.partners_onboarding": "Partners onboarding", "ops.partners_onboarded_month": "Partners onboarded this month",
+  "ops.partners_at_risk": "Partners at risk", "ops.partners_live_venue": "Live partner venues", "ops.partners_live_university": "Buddy platform universities",
+  "ops.new_listings_7d": "New competitor listings (7d)", "calendly.meetings_last_7d": "Calendly meetings (7d)",
+};
+const label = (k) => LABELS[k] || k.split(".").pop().replace(/_/g, " ");
+let DATA = null, OPS = null, charts = {}, inboxTab = "replies", igKey = "followers", page = "today";
+
+function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove("show"), 3200); }
+async function post(url, body) {
+  const r = await fetch(url, { method: "POST", headers: { "X-SZ": "1", "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.detail || r.statusText);
+  return j;
+}
+const last = (s) => s && s.length ? s[s.length - 1][1] : null;
+function delta(s) { if (!s || s.length < 2) return ""; const d = s[s.length - 1][1] - s[0][1]; return (d >= 0 ? "+" : "") + fmt(d) + " in 30 days"; }
+function baseOpts() {
+  const grid = css("--grid"), muted = css("--text-muted");
+  return { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: "index", intersect: false },
+    plugins: { legend: { display: false }, tooltip: { backgroundColor: css("--surface-1"), titleColor: css("--text-primary"), bodyColor: css("--text-secondary"), borderColor: css("--border"), borderWidth: 1, padding: 10, boxPadding: 4 } },
+    scales: { x: { grid: { display: false }, ticks: { color: muted, font: { size: 11 }, maxRotation: 0, autoSkipPadding: 12 }, border: { color: grid } },
+              y: { beginAtZero: true, grid: { color: grid }, ticks: { color: muted, font: { size: 11 }, precision: 0 }, border: { display: false } } } };
+}
+function lineChart(id, key, series, beginAtZero) {
+  charts[id]?.destroy(); const o = baseOpts(); o.scales.y.beginAtZero = !!beginAtZero;
+  charts[id] = new Chart($("#" + id), { type: "line", data: { labels: series.map(x => x[0].slice(5)), datasets: [{ label: label(key), data: series.map(x => x[1]),
+    borderColor: css("--series-1"), backgroundColor: css("--series-1"), borderWidth: 2, pointRadius: series.length < 20 ? 3 : 0, pointHoverRadius: 5, tension: 0.25 }] }, options: o });
+}
+function kpi(lbl, value, note) { return `<div class="kpi"><div class="label">${esc(lbl)}</div><div class="value">${esc(value)}</div><div class="note">${esc(note || "")}</div></div>`; }
+function hbar(name, n, max, color) { const pct = max ? Math.round(100 * n / max) : 0;
+  return `<div class="hbar"><span>${esc(name)}</span><div class="bar"><i style="width:${Math.max(pct, n ? 2 : 0)}%;background:${color || "var(--accent)"}"></i></div><span class="n">${fmt(n)}</span></div>`; }
+const healthCls = (h) => h.label === "healthy" ? "healthy" : h.label === "watch" ? "watch" : "risk";
+
+/* ---------- pages ---------- */
+function showPage(p) {
+  page = p; document.querySelectorAll(".page").forEach(s => s.classList.toggle("active", s.id === "page-" + p));
+  document.querySelectorAll("[data-page]").forEach(b => b.setAttribute("aria-selected", b.dataset.page === p));
+  try { localStorage.setItem("sz-page", p); } catch (_) {}
+  history.replaceState(null, "", "#" + p);
+  requestAnimationFrame(() => Object.values(charts).forEach(c => c.resize()));
+  if (p === "pipeline") drawMap();
+}
+
+/* ---------- TODAY ---------- */
+function renderToday(d, o) {
+  const m = d.metrics, paying = d.kpi_latest.paying_members, ps = o.partner_stats;
+  const resp = last(m["ops.response_hours_median_7d"]);
+  $("#kpis").innerHTML = [
+    kpi("Paying members", fmt(paying), paying == null ? "enter under Growth" : delta(m["manual.paying_members"])),
+    kpi("Meetings today", d.events_today.length, d.events_upcoming.length + " upcoming"),
+    kpi("To-dos today", o.plan.tasks_today.length, o.plan.tasks_today.filter(t => t.overdue).length + " overdue"),
+    kpi("People to contact", o.reach_out.length, o.reach_out.filter(r => r.priority >= 75).length + " urgent"),
+    kpi("Replies owed", d.replies.length, d.replies.filter(r => r.priority >= 3).length + " high priority"),
+    kpi("Live partners", ps.live, `${ps.onboarding} onboarding · ${ps.onboarded_this_month} new this month`),
+    kpi("Median reply time", resp == null ? "–" : fmt(resp) + " h", "last 7 days"),
+    kpi("Instagram followers", fmt(last(m["instagram.followers"])), delta(m["instagram.followers"])),
+  ].join("");
+  $("#plan-date").textContent = new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short" });
+  $("#focus").innerHTML = `<b>Setz:</b> ${esc(o.focus_now)}`;
+  const cur = o.plan.current;
+  $("#plan").innerHTML = o.plan.items.length ? o.plan.items.map(i => {
+    const isNow = cur && cur.start === i.start && cur.title === i.title;
+    const right = i.type === "meeting" ? `<button class="small" data-prep="${esc(i.event_id)}">Prep</button>` : "";
+    const sugg = (i.scheduled || []).map(x => `<span title="${esc(x.minutes)} min">☐ ${esc(x.start)} ${esc(x.title)}</span>`).join("")
+      + (i.suggestions || []).slice(0, (i.scheduled || []).length ? 2 : 4).map(s => `<span>${esc(s)}</span>`).join("");
+    return `<div class="plan-row ${i.type === "meeting" ? "meeting" : ""} ${isNow ? "now" : ""}"><div class="time">${esc(i.start)}–${esc(i.end)}</div>
+      <div><div class="title">${i.type === "meeting" ? "📅 " : ""}${esc(i.title)}${isNow ? '<span class="badge-now">now</span>' : ""}</div>
+      ${i.type === "meeting" ? `<div class="muted" style="font-size:12px">${esc(i.detail || i.source)}</div>` : ""}
+      ${i.clash && i.clash.length ? `<div class="muted" style="font-size:12px">Overlaps: ${esc(i.clash.join(", "))}</div>` : ""}
+      ${sugg ? `<div class="sugg">${sugg}</div>` : ""}</div><div>${right}</div></div>`;
+  }).join("") : `<div class="empty">No routine for today. Set your routine in config.toml → [routine].</div>`;
+  // to-dos
+  const today = new Date().toISOString().slice(0, 10);
+  $("#todo-count").textContent = `${o.tasks.length} open`;
+  $("#todos").innerHTML = o.tasks.length ? o.tasks.map(t => `<div class="todo"><input type="checkbox" data-done="${t.id}" aria-label="Done: ${esc(t.title)}">
+    <div><div>${t.priority >= 3 ? "❗ " : ""}${esc(t.title)}</div><div class="meta">${t.due ? (t.overdue ? `<span class="over">overdue · ${esc(t.due)}</span>` : (t.due === today ? "today" : esc(t.due))) : "no date"}${t.source !== "manual" ? " · " + esc(t.source) : ""}</div></div>
+    <div class="acts"><button class="small" data-snooze="${t.id}" title="Snooze 1 day">+1d</button><button class="small" data-del="${t.id}" title="Delete" aria-label="Delete">✕</button></div></div>`).join("")
+    : `<div class="empty">Nothing on your list. Add one above, or say “Hey Setz, remind me to…”.</div>`;
+  $("#todos-done").innerHTML = o.tasks_done.map(t => `<div class="todo"><input type="checkbox" checked data-reopen="${t.id}" aria-label="Reopen"><div class="muted"><s>${esc(t.title)}</s></div><div></div></div>`).join("") || `<div class="empty">Nothing yet.</div>`;
+  // reach out
+  $("#reach").innerHTML = o.reach_out.length ? o.reach_out.map((r, i) => `<div class="ro"><div><b>${esc(r.who)}</b> <span class="pill ${r.priority >= 75 ? "high" : "med"}">${esc(r.action)}</span>
+      <div class="why">${esc(r.reason)}</div>${r.email ? `<div class="muted" style="font-size:12px">${esc(r.email)}</div>` : ""}</div>
+    <div class="acts">${r.lead_id && r.email && ["first outreach", "book meeting", "close"].includes(r.action) ? `<button class="small" data-draft="${r.lead_id}">Draft email</button>` : ""}
+      ${r.partner_id ? `<button class="small" data-logcontact="${r.partner_id}">Log contact</button>` : ""}
+      <button class="small" data-todo-from="${i}">+ To-do</button></div></div>`).join("")
+    : `<div class="empty">Nobody urgent. Nice.</div>`;
+  renderInbox(d);
+  $("#brief").innerHTML = md(d.brief) || `<div class="empty">No brief yet. Click “New brief”.</div>`;
+  $("#c-today").textContent = o.plan.tasks_today.length + o.reach_out.filter(r => r.priority >= 75).length || "";
+}
+function renderInbox(d) {
+  const rows = inboxTab === "replies" ? d.replies : d.followups;
+  $("#inbox").innerHTML = rows.length ? `<tr><th>Who</th><th>Subject</th><th>Age</th></tr>` + rows.map(r =>
+    `<tr><td>${esc(r.counterpart_name || r.counterpart)}<div class="muted">${esc(r.summary || ("Follow-up #" + r.followup_number))}</div></td><td>${inboxTab === "replies" ? `<span class="pill ${r.priority >= 3 ? "high" : "med"}">${r.priority >= 3 ? "High" : "Normal"}</span> ` : ""}${esc(r.subject)}</td><td class="muted">${esc(Math.round(r.age_days))}d</td></tr>`).join("")
+    : `<tr><td class="empty">${inboxTab === "replies" ? "Inbox clear." : "No follow-ups due."}</td></tr>`;
+}
+
+/* ---------- PARTNERS ---------- */
+function renderPartners(o) {
+  const ps = o.partner_stats;
+  $("#p-kpis").innerHTML = [
+    kpi("Live partners", ps.live, Object.entries(ps.live_by_kind).map(([k, n]) => `${n} ${k}`).join(" · ") || "none yet"),
+    kpi("Onboarding", ps.onboarding, "in the pipeline"),
+    kpi("Onboarded this week", ps.onboarded_this_week, ""),
+    kpi("Onboarded this month", ps.onboarded_this_month, ""),
+    kpi("Avg. days to go live", ps.avg_days_to_live == null ? "–" : fmt(ps.avg_days_to_live), "agreement → live"),
+    kpi("Need attention", ps.at_risk, "stuck, quiet or renewal due"),
+  ].join("");
+  $("#c-partners").textContent = ps.at_risk || "";
+  const stages = o.stages.slice(0, -1);
+  $("#kanban").innerHTML = stages.map(([key, name]) => {
+    const cards = o.partners.filter(p => p.status === "onboarding" && p.stage === key);
+    return `<div class="col"><h3><span>${esc(name)}</span><span>${cards.length}</span></h3>${cards.map(p => `<div class="pcard"><b>${esc(p.name)}</b>
+      <span class="muted">${esc(p.kind || "")}${p.category ? " · " + esc(p.category) : ""}</span>
+      <div class="row"><span class="health ${healthCls(p.health)}" title="${esc(p.health.reasons.join("; "))}">${daysAgo(p.stage_since) ?? 0}d here</span>
+      <span><button class="small" data-pedit="${p.id}" aria-label="Edit ${esc(p.name)}">✎</button> <button class="small" data-advance="${p.id}" title="Next step" aria-label="Move ${esc(p.name)} to next step">→</button></span></div></div>`).join("") || `<div class="muted" style="font-size:12px;padding:4px">—</div>`}</div>`;
+  }).join("");
+  renderPartnerTable(o);
+  const max = Math.max(1, ...Object.values(ps.live_by_kind));
+  $("#p-kinds").innerHTML = Object.keys(ps.live_by_kind).length ? Object.entries(ps.live_by_kind).map(([k, n]) => hbar(k, n, max)).join("") : `<div class="empty">No live partners yet.</div>`;
+}
+function renderPartnerTable(o) {
+  const f = $("#p-filter").value, rows = o.partners.filter(p => !f || p.status === f);
+  $("#ptable").innerHTML = rows.length ? `<tr><th>Partner</th><th>Stage</th><th>Health</th><th>Offer</th><th>Last contact</th><th>Renewal</th><th></th></tr>` + rows.map(p => `<tr>
+    <td><b>${esc(p.name)}</b><div class="muted">${esc(p.kind || "")}${p.contact_name ? " · " + esc(p.contact_name) : ""}${p.email ? " · " + esc(p.email) : ""}</div></td>
+    <td>${esc(p.status === "live" ? "Live" : p.stage_label)}<div class="bar" style="width:90px"><i style="width:${Math.round(100 * (p.stage_index + 1) / o.stages.length)}%"></i></div></td>
+    <td><span class="health ${healthCls(p.health)}">${esc(p.health.label)}</span><div class="muted" style="font-size:12px;max-width:220px">${esc(p.health.reasons.join("; "))}</div></td>
+    <td>${esc(p.offer || "")}${p.redemptions ? `<div class="muted" style="font-size:12px">${fmt(p.redemptions)} redemptions</div>` : ""}</td>
+    <td class="muted">${p.last_contact_at ? daysAgo(p.last_contact_at) + "d ago" : "–"}</td>
+    <td class="muted">${esc(p.renewal_date || "–")}</td>
+    <td style="white-space:nowrap"><button class="small" data-logcontact="${p.id}">Log contact</button> <button class="small" data-pedit="${p.id}">Edit</button></td></tr>`).join("")
+    : `<tr><td class="empty">No partners yet. When a lead becomes “partner” it appears here automatically, or add one below.</td></tr>`;
+}
+
+/* ---------- GROWTH ---------- */
+function renderGrowth(d, o) {
+  $("#goals").innerHTML = d.goals.length ? d.goals.map(g => `<div class="goal"><div class="row"><span>${esc(g.label)}${g.deadline ? ` <span class="muted">· ${esc(g.deadline)}</span>` : ""}</span>
+    <span>${fmt(g.current)} / ${fmt(g.target)} · ${g.pct}%</span></div><div class="bar" role="progressbar" aria-valuenow="${g.pct}" aria-valuemin="0" aria-valuemax="100" aria-label="${esc(g.label)}"><i style="width:${Math.max(g.pct, 1)}%"></i></div></div>`).join("")
+    : `<div class="empty">Add goals in config.toml under [[growth.targets]].</div>`;
+  $("#scorecard").innerHTML = `<tr><th>Metric</th><th>This week</th><th>Last week</th><th>Change</th></tr>` + o.scorecard.map(r =>
+    `<tr><td>${esc(r.metric)}</td><td><b>${r.this_week}</b></td><td class="muted">${r.last_week}</td><td class="${r.delta > 0 ? "delta-up" : r.delta < 0 ? "delta-down" : "muted"}">${r.delta > 0 ? "▲ +" : r.delta < 0 ? "▼ " : ""}${r.delta}</td></tr>`).join("");
+  const sel = $("#trend-key"), curKey = sel.value;
+  const keys = Array.from(new Set([...d.kpi_keys.map(k => "manual." + k), ...d.metric_keys])).filter(k => !k.startsWith("competitors."));
+  sel.innerHTML = keys.map(k => `<option value="${esc(k)}">${esc(label(k))}</option>`).join("");
+  sel.value = keys.includes(curKey) ? curKey : (keys.includes("manual.paying_members") ? "manual.paying_members" : keys[0] || "");
+  if (!$("#kpi-form").dataset.ready) {
+    $("#kpi-form").innerHTML = d.kpi_keys.map(k => `<label>${esc(label("manual." + k))}<input type="number" step="any" name="${esc(k)}" placeholder="${d.kpi_latest[k] ?? ""}"></label>`).join("")
+      + `<label>Day<input type="date" name="__day" value="${new Date().toISOString().slice(0, 10)}"></label><div style="align-self:end"><button class="primary" type="submit">Save</button></div>`;
+    $("#kpi-form").dataset.ready = "1";
+  }
+  const f = d.draft_funnel, kinds = Object.keys(f);
+  $("#draft-funnel").innerHTML = kinds.length ? kinds.map(k => { const x = f[k]; return `<div class="funnel-kind"><b>${esc(k)}</b>${hbar("Drafted", x.drafted, x.drafted)}${hbar("You sent", x.sent, x.drafted)}${hbar("Got a reply", x.replied, x.drafted)}</div>`; }).join("")
+    : `<div class="empty">No drafts yet. Sent and replied are matched after each Outlook sync.</div>`;
+  const by = (d.outreach && d.outreach.reply_rate_by_weekday) || {}, wd = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].filter(k => k in by);
+  $("#weekday-empty").hidden = wd.length > 0;
+  $("#reply-overall").textContent = d.outreach.reply_rate != null ? `overall ${Math.round(d.outreach.reply_rate * 100)}%` : "";
+  charts.weekday?.destroy(); const o2 = baseOpts(); o2.scales.y.max = 100; o2.scales.y.ticks.callback = v => v + "%"; o2.plugins.tooltip.callbacks = { label: c => ` ${c.parsed.y}% replied` };
+  charts.weekday = new Chart($("#weekdayChart"), { type: "bar", data: { labels: wd, datasets: [{ label: "Reply rate", data: wd.map(k => Math.round(by[k] * 100)), backgroundColor: css("--series-1"), borderRadius: 4, borderSkipped: "bottom", maxBarThickness: 26 }] }, options: o2 });
+  lineChart("igChart", "instagram." + igKey, d.metrics["instagram." + igKey] || [], igKey !== "followers");
+  $("#report").innerHTML = md(d.report) || `<div class="empty">Runs every Monday (sz growth).</div>`;
+  loadTrend();
+}
+async function loadTrend() {
+  const key = $("#trend-key").value; if (!key) return;
+  const r = await (await fetch(`/api/metric?key=${encodeURIComponent(key)}&days=${$("#trend-days").value}`)).json();
+  lineChart("trendChart", key, r.series, !key.startsWith("instagram.followers"));
+}
+
+/* ---------- LEADS ---------- */
+function renderLeadsPage(d) {
+  const totals = Object.fromEntries(STATUSES.map(s => [s, 0]));
+  Object.values(d.pipeline).forEach(by => Object.entries(by).forEach(([s, n]) => totals[s] = (totals[s] || 0) + n));
+  $("#funnel").innerHTML = STATUSES.map(s => `<div><b>${totals[s]}</b><span>${s}</span></div>`).join("");
+  const days = []; for (let i = 13; i >= 0; i--) days.push(new Date(Date.now() - i * 864e5).toISOString().slice(0, 10));
+  const present = SOURCES.filter(s => d.listings_by_day.some(r => r.source === s)), sources = present.length ? present : SOURCES;
+  const sets = sources.map(s => ({ label: s, data: days.map(day => (d.listings_by_day.find(r => r.day === day && r.source === s) || {}).n || 0),
+    backgroundColor: css(`--series-${SOURCES.indexOf(s) + 1}`), borderColor: css("--surface-1"), borderWidth: { top: 2 }, borderRadius: 4, borderSkipped: "bottom", maxBarThickness: 22 }));
+  $("#listings-legend").innerHTML = sources.map(s => `<span><i style="background:var(--series-${SOURCES.indexOf(s) + 1})"></i>${esc(s)}</span>`).join("");
+  charts.listings?.destroy(); const o = baseOpts(); o.scales.x.stacked = true; o.scales.y.stacked = true;
+  charts.listings = new Chart($("#listingsChart"), { type: "bar", data: { labels: days.map(x => x.slice(5)), datasets: sets }, options: o });
+  $("#listings-table").innerHTML = `<tr><th>Day</th>${sources.map(s => `<th>${esc(s)}</th>`).join("")}</tr>` + days.map((day, i) => `<tr><td>${day}</td>${sets.map(ds => `<td>${ds.data[i]}</td>`).join("")}</tr>`).join("");
+  const cats = d.listing_categories, max = Math.max(1, ...cats.map(c => c.n));
+  $("#categories").innerHTML = cats.length ? cats.map(c => hbar(c.category, c.n, max)).join("") : `<div class="empty">Appears after the second competitor scan.</div>`;
+  $("#latest").innerHTML = d.new_listings.length ? `<tr><th>Source</th><th>Venue / offer</th><th>Category</th><th>Seen</th></tr>` + d.new_listings.slice(0, 40).map(l =>
+    `<tr><td><span class="pill">${esc(l.source)}</span></td><td><a href="${safeUrl(l.url)}" target="_blank" rel="noopener">${esc(l.merchant || l.title)}</a><div class="muted">${esc(l.title)}</div></td><td>${esc(l.category)}</td><td class="muted">${esc((l.first_seen || "").slice(5, 10))}</td></tr>`).join("")
+    : `<tr><td class="empty">No new listings this week (the first scan only records a baseline).</td></tr>`;
+  loadLeads();
+}
+async function loadLeads() {
+  const p = new URLSearchParams({ q: $("#lead-q").value, kind: $("#lead-kind").value, status: $("#lead-status").value });
+  const rows = await (await fetch("/api/leads?" + p)).json();
+  $("#leads").innerHTML = rows.length ? `<tr><th>Lead</th><th>Type</th><th>Score</th><th>Seen on</th><th>Contact</th><th>Status</th><th>Notes</th><th></th></tr>` + rows.map(l => {
+    const contact = [l.email && `✉ ${esc(l.email)}`, l.instagram && esc(l.instagram), l.phone && esc(l.phone)].filter(Boolean).join("<br>") || `<span class="muted">${l.website ? "enrich pending" : "no website yet"}</span>`;
+    return `<tr><td><b>${esc(l.name)}</b><div class="muted">${esc(l.category)}</div>${l.website ? `<a href="${safeUrl(l.website.startsWith("http") ? l.website : "https://" + l.website)}" target="_blank" rel="noopener">${esc(l.website.replace(/^https?:\/\//, ""))}</a>` : ""}</td>
+      <td>${esc(l.kind)}</td><td>${Math.round(l.score)}</td><td class="muted">${esc(JSON.parse(l.sources || "[]").join(", "))}</td><td>${contact}</td>
+      <td><select data-lead="${l.id}" aria-label="Status for ${esc(l.name)}">${STATUSES.map(s => `<option ${s === l.status ? "selected" : ""}>${s}</option>`).join("")}</select></td>
+      <td class="muted" style="max-width:220px">${esc(l.notes || "")}<div><button class="small" data-note="${l.id}" style="margin-top:4px">+ note</button></div></td>
+      <td>${l.email ? `<button class="small" data-draft="${l.id}">Draft email</button>` : ""}</td></tr>`;
+  }).join("") : `<tr><td class="empty">No leads match. Run “Scan competitors”, <code>sz import</code>, or add one below.</td></tr>`;
+}
+
+/* ---------- NOTIFICATIONS ---------- */
+const NICON = { meeting: "📅", calendar: "📅", lead: "✨", alert: "▲", partner: "🤝", voice: "🎙", job: "⚙", success: "✓", info: "•" };
+async function loadBell() {
+  const r = await (await fetch("/api/notifications")).json();
+  $("#bell-n").hidden = !r.unread; $("#bell-n").textContent = r.unread > 99 ? "99+" : r.unread;
+  $("#bell-list").innerHTML = r.items.length ? r.items.map((n) => `<div class="nt ${n.read ? "" : "unread"}" data-nurl="${esc(n.url || "/")}" data-nid="${n.id}">
+    <span aria-hidden="true">${NICON[n.kind] || "•"}</span><div><b>${esc(n.title)}</b><div>${esc(n.body || "")}</div><div class="when">${esc(new Date(n.at).toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" }))}</div></div></div>`).join("")
+    : `<div class="empty">Nothing yet. Setz will tell you about meeting requests, replies, meetings starting soon and alerts.</div>`;
+  const st = SetzLive.state(); $("#notif-enable").textContent = st === "granted" ? "Pop-ups on ✓" : "Enable pop-ups"; $("#notif-enable").disabled = st === "granted";
+}
+SetzLive.onNotification(() => loadBell());
+let refreshTimer; SetzLive.onRefresh(() => { clearTimeout(refreshTimer); refreshTimer = setTimeout(() => load(), 800); });   // a job finished: update now
+document.addEventListener("setz-installable", () => { $("#install-app").hidden = false; });
+
+/* ---------- MEETING REQUESTS ---------- */
+let MR = null;
+const slotLabel = (iso, end) => { const s = new Date(iso), e = end ? new Date(end) : null;
+  return s.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" }) + " · " + s.toTimeString().slice(0, 5) + (e ? "–" + e.toTimeString().slice(0, 5) : ""); };
+async function loadMeetings() {
+  MR = await (await fetch("/api/meetings/requests")).json();
+  const rs = MR.requests; $("#mr-card").hidden = !rs.length;
+  $("#mr-sub").textContent = `${rs.length} open · pick a slot to book it in Outlook${MR.calendar_write ? "" : " (booking is off in config)"}`;
+  $("#mr-list").innerHTML = rs.map((r) => `<div class="mr"><div><b>${esc(r.who)}</b> <span class="pill">${esc(r.source)}</span>${r.lead ? ` <span class="pill">${esc(r.lead.name)} · ${esc(r.lead.status)}</span>` : ""}
+      <div style="font-weight:500;margin-top:2px">${esc(r.subject || "")}</div><div class="snip">${esc((r.snippet || "").slice(0, 220))}</div>
+      <div class="acts">${r.source === "email" ? `<button class="small" data-mr-draft="${r.id}" title="Reply with these slots, saved as an Outlook draft">${r.status === "proposed" ? "Draft again" : "Draft reply with slots"}</button>` : `<button class="small" data-mr-copy="${r.id}">Copy reply for Instagram</button>`}
+        <button class="small" data-mr-dismiss="${r.id}">Not a meeting</button></div></div>
+    <div class="slots">${r.proposed_free.map((p) => `<button class="prop" data-mr-book="${r.id}" data-start="${esc(p)}" title="They proposed this and you're free">✓ ${esc(slotLabel(p))} (their time)</button>`).join("")}
+      ${r.proposed.filter((p) => !r.proposed_free.includes(p)).map((p) => `<span class="muted" style="font-size:12px;align-self:center">they asked ${esc(slotLabel(p))}: you're busy</span>`).join("")}
+      ${r.slots.map((s) => `<button data-mr-book="${r.id}" data-start="${esc(s.start)}">${esc(slotLabel(s.start, s.end))}</button>`).join("") || '<span class="muted">No free slot in the next week</span>'}</div></div>`).join("");
+}
+
+/* ---------- LEAD FINDER ---------- */
+let LF = null, lfLastVoice = "";
+const COMP = ["Groupon", "vspots", "Top10 Berlin", "UNiDAYS", "Student Beans"];
+async function runFinder(q) {
+  q = (q || $("#lf-q").value).trim(); if (!q) return; $("#lf-q").value = q;
+  $("#lf-meta").textContent = "Searching…";
+  try {
+    const r = await fetch(`/api/leads/find?${new URLSearchParams({ q, discover: $("#lf-discover").checked ? 1 : 0 })}`);
+    LF = await r.json(); if (!r.ok) throw new Error(LF.detail || r.statusText);
+    renderFinder(LF);
+  } catch (err) { $("#lf-meta").textContent = err.message; }
+}
+function renderFinder(res) {
+  $("#lf-meta").innerHTML = `<span class="understood">${(res.understood.length ? res.understood : ["free text"]).map((u) => `<span>${esc(u)}</span>`).join("")}</span>
+    · <b>${res.total}</b> match${res.total === 1 ? "" : "es"}${res.total > res.results.length ? `, showing ${res.results.length}` : ""}
+    ${res.missing_contacts ? ` · ${res.missing_contacts} without email/phone: select them and “Read Impressum”` : ""}
+    ${res.discovered ? ` · OSM scan: ${esc(Object.values(res.discovered.campuses || {}).join(", ") || res.discovered.error || "")}` : ""}`;
+  $("#lf-actions").hidden = !res.results.length;
+  $("#lf-csv").href = "/api/leads/find.csv?q=" + encodeURIComponent(res.question || $("#lf-q").value);
+  $("#lf-table").innerHTML = res.results.length ? `<tr><th><input type="checkbox" id="lf-all" aria-label="Select all"></th><th>Venue</th><th>Where</th><th>Price</th><th>Contacts (Impressum)</th><th>Instagram</th><th>Listed on</th><th>History</th><th>Join</th></tr>` +
+    res.results.map((p) => `<tr data-row="${p.id}"><td><input type="checkbox" data-pick="${p.id}" aria-label="Select ${esc(p.name)}"></td>
+      <td><b>${esc(p.name)}</b><div class="muted">${esc(p.category)}${p.subcategory ? " · " + esc(p.subcategory) : ""}</div>
+        ${Object.keys(p.attributes || {}).length ? `<div class="muted" style="font-size:11.5px">${esc(Object.keys(p.attributes).join(" · "))}</div>` : ""}
+        ${p.website ? `<a href="${safeUrl(p.website.startsWith("http") ? p.website : "https://" + p.website)}" target="_blank" rel="noopener" style="font-size:11.5px">website ↗</a>` : ""}</td>
+      <td>${esc(p.address || "–")}<div class="muted">${esc(p.district || "")}${p.distance_m != null ? ` · ${p.distance_m} m to ${esc((p.campus || "").split(" (")[0])}` : ""}</div></td>
+      <td title="${esc(p.price_source)}">${esc(p.price || "–")}${p.price_source === "estimated" ? '<span class="muted">*</span>' : ""}</td>
+      <td>${p.email ? `<a href="mailto:${esc(p.email)}">${esc(p.email)}</a>` : '<span class="muted">no email</span>'}<br>${p.phone ? `<a href="tel:${esc(p.phone.replace(/\s/g, ""))}">${esc(p.phone)}</a>` : '<span class="muted">no phone</span>'}
+        ${p.owner ? `<div class="muted">Owner: ${esc(p.owner)}</div>` : ""}${p.legal_name ? `<div class="muted">${esc(p.legal_name)}</div>` : ""}</td>
+      <td>${p.instagram ? `<a href="https://instagram.com/${esc(p.instagram.replace(/^@/, ""))}" target="_blank" rel="noopener">@${esc(p.instagram.replace(/^@/, ""))}</a>` : "–"}${p.ig_followers ? `<div class="muted">${fmt(p.ig_followers)} followers</div>` : ""}</td>
+      <td>${p.platforms.map((x) => `<span class="plat ${COMP.includes(x) ? "comp" : ""}">${esc(x)}</span>`).join("") || "–"}</td>
+      <td>${p.contacted_before ? `contacted${p.last_contact ? " " + esc(p.last_contact) : ""}<div class="muted">${esc(p.status)}</div>` : '<span class="muted">never</span>'}</td>
+      <td><span class="lk ${p.likelihood}" title="likelihood of becoming a partner">${Math.round(100 * p.join_likelihood)}%</span></td></tr>`).join("")
+    : `<tr><td class="empty">Nothing matches yet. Tick “scan OpenStreetMap” and name a campus, or widen the area.</td></tr>`;
+}
+const picked = () => [...document.querySelectorAll("[data-pick]:checked")].map((c) => Number(c.dataset.pick));
+async function finderEnrich() {
+  const ids = picked(); if (!ids.length) return toast("Select leads first");
+  const b = $("#lf-enrich"); b.disabled = true; toast(`Reading ${ids.length} websites + Impressum… (polite: a few seconds each)`);
+  try { const r = await post("/api/leads/enrich", { ids }); const found = Object.values(r).filter((x) => x.found && !x.found.error).length;
+    toast(`Updated ${found} of ${ids.length}`); await runFinder(LF.question); } catch (err) { toast(err.message); }
+  b.disabled = false;
+}
+async function finderSequence() {
+  const ids = picked(); if (!ids.length) return toast("Select leads first"); let ok = 0, msgs = [];
+  for (const id of ids) { try { await post(`/api/leads/${id}/sequence`, {}); ok++; } catch (err) { msgs.push(err.message); } }
+  toast(`Outreach started for ${ok}${msgs.length ? ` · skipped ${msgs.length}: ${msgs[0]}` : ""}`); refreshOps();
+}
+async function checkVoiceFinder() {   // "Hey Setz, find me …" opens here
+  try { const r = await (await fetch("/api/leads/find/last")).json(); if (r.q && r.q !== lfLastVoice) { if (lfLastVoice) { showPage("leads"); runFinder(r.q); } lfLastVoice = r.q; } } catch (_) {}
+}
+
+/* ---------- INSIGHTS ---------- */
+function renderInsights(d) {
+  const c = d.connections || {};
+  $("#connections").innerHTML = !c.results ? `<div class="empty">Not checked yet. Click “Check again” (or run <code>sz doctor</code>).</div>` : c.results.map(r => {
+    const cls = r.ok ? "ok" : (r.optional ? "opt" : "bad"), ic = r.ok ? "✓" : (r.optional ? "–" : "✕"), word = r.ok ? "Connected" : (r.optional ? "Optional" : "Needs attention");
+    return `<div class="conn ${cls}"><span class="ic" aria-hidden="true">${ic}</span><div><b>${esc(r.name)}</b> <span class="muted">· ${word}</span><div class="muted">${esc(r.detail)}</div>${!r.ok && r.fix ? `<div class="fix">Fix: ${esc(r.fix)}</div>` : ""}</div></div>`;
+  }).join("") + `<div class="muted" style="font-size:12px;margin-top:6px">Checked ${esc(c.at || "")}</div>`;
+  const posts = d.instagram_top_posts || [];
+  $("#igposts").innerHTML = posts.length ? `<tr><th>Post</th><th>Likes</th><th>Comments</th></tr>` + posts.map(p => `<tr><td><a href="${safeUrl(p.permalink)}" target="_blank" rel="noopener">${esc((p.caption || p.media_type || "post").slice(0, 70))}</a> <span class="muted">${esc((p.timestamp || "").slice(5, 10))}</span></td><td>${fmt(p.like_count)}</td><td>${fmt(p.comments_count)}</td></tr>`).join("")
+    : `<tr><td class="empty">Connect Instagram (see Connections).</td></tr>`;
+  $("#igc").innerHTML = d.instagram_comments.length ? d.instagram_comments.map(x => `<tr><td><b>@${esc(x.user)}</b> ${esc(x.text)}</td><td><a href="${safeUrl(x.post)}" target="_blank" rel="noopener">post</a></td></tr>`).join("") : `<tr><td class="empty">All comments answered.</td></tr>`;
+  $("#upcoming").innerHTML = d.events_upcoming.length ? d.events_upcoming.map(e => `<div class="plan-row meeting"><div class="time">${esc(e.start.slice(5, 10))} ${esc(e.start.slice(11, 16))}</div><div><div class="title">${esc(e.title)}</div><div class="muted" style="font-size:12px">${esc(e.source)}${e.location ? " · " + esc(e.location) : ""}</div></div><div><button class="small" data-prep="${esc(e.id)}">Prep</button></div></div>`).join("") : `<div class="empty">Nothing scheduled.</div>`;
+}
+
+/* ---------- Setz ---------- */
+const holo = new Hologram($("#holo"), { compact: true });
+let audioCtx = null, analyser = null, buf = null;
+function setHoloUI(state, text) { $("#holo-state").textContent = state; if (text) $("#holo-caption").textContent = text.length > 240 ? text.slice(0, 237) + "…" : text; }
+connectVoiceStream(holo, (ev) => { if (analyser && ev.state === "speaking") return; setHoloUI(ev.state, ev.state === "listening" ? "Listening…" : ev.text); });
+async function playAnswer(b64) {
+  audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+  const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0)), audio = await audioCtx.decodeAudioData(bytes.buffer);
+  const src = audioCtx.createBufferSource(); src.buffer = audio;
+  analyser = audioCtx.createAnalyser(); analyser.fftSize = 1024; buf = new Float32Array(analyser.fftSize);
+  src.connect(analyser); analyser.connect(audioCtx.destination);
+  holo.setLevelSource(() => { analyser.getFloatTimeDomainData(buf); let s = 0; for (const v of buf) s += v * v; return Math.min(1, Math.sqrt(s / buf.length) * 4.2); });
+  holo.setState("speaking"); setHoloUI("speaking");
+  src.onended = () => { holo.setLevelSource(null); analyser = null; holo.setState("idle"); setHoloUI("idle"); };
+  src.start();
+}
+async function ask(text) {
+  const btn = $("#ask button[type=submit]"); btn.disabled = true;
+  holo.setState("thinking"); setHoloUI("thinking", "“" + text + "”");
+  try {
+    const r = await post("/api/ask", { text, speak: $("#ask-speak").checked });
+    setHoloUI("speaking", r.answer);
+    if (r.audio) await playAnswer(r.audio); else { holo.setState("idle"); setHoloUI("idle", r.answer); if (r.tts_error) toast("Voice: " + r.tts_error); }
+    $("#ask-input").value = "";
+    if (/^(added|that's already)/i.test(r.answer)) refreshOps();
+  } catch (err) { holo.setState("idle"); setHoloUI("idle", "Sorry: " + err.message); }
+  btn.disabled = false;
+}
+$("#ask").addEventListener("submit", (e) => { e.preventDefault(); const t = $("#ask-input").value.trim(); if (t) ask(t); });
+
+/* ---------- PIPELINE ---------- */
+let PL = null, MAP = null, MAPLAYER = null;
+const STATUS_COLOR = { new: "--text-muted", drafted: "--series-5", contacted: "--series-1", replied: "--series-4", meeting: "--series-2", partner: "--series-3", lost: "--critical" };
+function loadLeaflet() {
+  if (window.L) return Promise.resolve();
+  if (loadLeaflet.p) return loadLeaflet.p;
+  const css = document.createElement("link"); css.rel = "stylesheet"; css.href = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"; document.head.appendChild(css);
+  return loadLeaflet.p = new Promise((res, rej) => { const sc = document.createElement("script"); sc.src = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"; sc.onload = res; sc.onerror = rej; document.head.appendChild(sc); });
+}
+async function loadPipeline() {
+  PL = await (await fetch("/api/pipeline")).json();
+  renderPipeline(PL);
+  if (page === "pipeline") drawMap();
+}
+function renderPipeline(p) {
+  const c = p.counts, f = p.forecast, active = c.contacted + c.replied + c.meeting;
+  $("#c-pipeline").textContent = active || "";
+  const camp = p.coverage.reduce((a, x) => a + x.found, 0);
+  $("#pl-kpis").innerHTML = [
+    kpi("Active deals", active, `${c.drafted} drafted · ${c.new} new leads`),
+    kpi("Partners this month", `${f.won_this_month} / ${fmt(f.goal_month)}`, `+${fmt(f.expected_from_pipeline)} expected from pipeline`),
+    kpi("Gap to goal", fmt(f.gap), f.gap > 0 ? "partners still uncovered" : "pipeline covers the goal"),
+    kpi("Sequences running", p.sequences.filter(x => x.total > x.done).length, `${p.sequences.filter(x => x.due_now).length} steps due now`),
+    kpi("Stale deals", p.stale.length, `${p.hygiene.length} without a next step`),
+    kpi("Campus venues", camp, `${p.coverage.filter(x => x.found).length} of ${p.coverage.length} campuses scanned`),
+  ].join("");
+  const conv = Object.fromEntries(p.conversion.map(x => [x.from, x]));
+  $("#pl-flow").innerHTML = ["contacted", "replied", "meeting", "partner"].map(s => {
+    const r = conv[s];
+    return `<div class="st"><span>${s}</span><b>${fmt(c[s])}</b>${r ? `<div class="rate">→ <b>${Math.round(r.rate * 100)}%</b> ${r.assumed ? '<span class="tag">assumed</span>' : `<span class="tag">n=${r.sample}</span>`}${r.median_days != null ? `<br>median ${fmt(r.median_days)} days` : ""}</div>` : `<div class="rate">signed</div>`}</div>`;
+  }).join("");
+  const pace = Math.min(1, (((new Date().getDay() + 6) % 7) + 1) / 5);
+  $("#pl-goal").textContent = `goal ${fmt(f.goal_month)} partners / month`;
+  $("#pl-targets").innerHTML = p.targets.map(t => {
+    const max = Math.max(t.target_week, t.actual_week, 1), pct = Math.round(100 * t.actual_week / max);
+    return `<div class="tgt ${t.on_track ? "" : "behind"}"><span style="text-transform:capitalize">${t.stage}</span><div class="bar"><i style="width:${Math.max(pct, t.actual_week ? 3 : 0)}%"></i><span class="pace" style="left:${Math.round(100 * t.target_week * pace / max)}%" title="where you should be by today"></span></div><span class="n">${t.actual_week} / ${fmt(t.target_week)}</span></div>`;
+  }).join("") + `<div class="muted" style="font-size:12px">The line marks where you should be by today. Targets are worked back from the goal using your conversion rates.</div>`;
+  const cap = p.sequence_capacity;
+  $("#pl-cap").textContent = `${cap.started_this_week} of ${cap.per_week} started this week`;
+  $("#pl-auto").disabled = cap.started_this_week >= cap.per_week;
+  const sel = $("#pl-campus"); if (sel.options.length <= 1) sel.innerHTML += p.coverage.map(x => `<option>${esc(x.campus)}</option>`).join("");
+  $("#pl-coverage").innerHTML = `<tr><th>Campus</th><th>Found</th><th>✉</th><th>Active</th><th>Partners</th></tr>` + p.coverage.map(x =>
+    `<tr><td>${esc(x.campus)}</td><td>${x.found}</td><td>${x.with_email}</td><td>${x.active}</td><td>${x.partners ? `<b>${x.partners}</b>` : 0}</td></tr>`).join("");
+  const seqs = Object.fromEntries(p.sequences.map(x => [x.lead_id, x]));
+  $("#pl-board").innerHTML = p.board.length ? `<tr><th>Lead</th><th>Stage</th><th>In stage</th><th>Next step</th><th></th></tr>` + p.board.map(l => {
+    const sq = seqs[l.id], ot = l.open_task, otTitle = ot ? (ot.title.includes(": ") ? ot.title.split(": ").slice(1).join(": ") : ot.title) : "";
+    const nxt = ot ? `${esc(otTitle)} <span class="muted">· ${esc(ot.due || "")}</span>` : l.next_step ? `${esc(l.next_step)} <span class="muted">· ${esc(l.next_step_due || "")}</span>` : `<span class="stale">none</span>`;
+    const bar = sq ? `<span class="seqbar" title="sequence ${sq.done}/${sq.total}">${Array.from({ length: sq.total }, (_, i) => `<i class="${i < sq.done ? "on" : ""}"></i>`).join("")}</span>` : "";
+    return `<tr><td><b>${esc(l.name)}</b><div class="muted" style="font-size:12px">${esc(l.kind)}${l.campus ? " · " + esc(l.campus) : ""}${l.email ? " · ✉" : ""}${l.reply_chance != null && ["drafted", "contacted"].includes(l.status) ? ` · <span title="neural lead model">${Math.round(100 * l.reply_chance)}% reply chance</span>` : ""}</div></td>
+      <td><select data-lead="${l.id}" aria-label="Stage">${STATUSES.map(s => `<option ${s === l.status ? "selected" : ""}>${s}</option>`).join("")}</select></td>
+      <td class="${l.stale ? "stale" : ""}">${l.days_in_stage == null ? "–" : fmt(l.days_in_stage) + " d"}</td>
+      <td>${bar}${nxt}</td>
+      <td style="white-space:nowrap"><button class="small" data-nextstep="${l.id}">Next step</button> ${sq && sq.total > sq.done ? `<button class="small" data-seqstop="${l.id}">Stop seq.</button>` : ["drafted", "contacted"].includes(l.status) ? `<button class="small" data-seqstart="${l.id}">Sequence</button>` : ""}</td></tr>`;
+  }).join("") : `<tr><td class="empty">No active deals yet. Start outreach sequences or move leads to "contacted".</td></tr>`;
+  $("#pl-attn").innerHTML = (p.stale.map(l => `<div class="att"><b>${esc(l.name)}</b> <span class="stale">${esc(l.status)} ${fmt(l.days_in_stage)} d</span><div class="why">${esc(l.suggestion)}</div></div>`).join("")
+    + (p.hygiene.length ? `<div class="att"><b>No next step</b><div class="why">${p.hygiene.map(h => esc(h.name)).join(", ")}</div></div>` : "")) || `<div class="empty">Nothing is stuck. 👌</div>`;
+  $("#pl-routes").innerHTML = p.routes.length ? p.routes.map(r => `<div class="route"><b>${esc(r.campus)}</b> <span class="muted">· ${r.stops.length} stops · ${fmt(r.walk_km)} km · ~${r.walk_min} min</span>
+    <ol>${r.stops.map(s => `<li>${esc(s.name)} <span class="muted">${esc(s.category || "")}</span></li>`).join("")}</ol><a href="${esc(r.maps_url)}" target="_blank" rel="noopener">Open walking route ↗</a></div>`).join("")
+    : `<div class="empty">No routes yet. Click "Scan campuses (OSM)" to find venues near each campus.</div>`;
+  $("#map-legend").innerHTML = Object.entries(STATUS_COLOR).map(([k, v]) => `<span><i style="background:${css(v)}"></i>${k}</span>`).join("") + `<span><i style="background:transparent;border:2px solid ${css("--text-primary")};border-radius:99px"></i>campus</span>`;
+}
+async function drawMap() {
+  if (!PL) return;
+  try { await loadLeaflet(); } catch (_) { $("#map").innerHTML = `<div class="empty" style="padding:16px">Map library could not load (offline?).</div>`; return; }
+  if (!MAP) {
+    MAP = L.map("map", { scrollWheelZoom: false }).setView([52.505, 13.39], 11);
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "&copy; OpenStreetMap contributors" }).addTo(MAP);
+  }
+  MAPLAYER?.remove(); MAPLAYER = L.layerGroup().addTo(MAP);
+  const sel = $("#pl-campus").value;
+  for (const c of PL.coverage) {
+    if (sel && c.campus !== sel) continue;
+    L.circleMarker([c.lat, c.lon], { radius: 9, color: css("--text-primary"), weight: 2, fillOpacity: 0 }).bindTooltip(`${c.campus}: ${c.found} venues, ${c.partners} partners`).addTo(MAPLAYER);
+  }
+  const pts = [];
+  for (const l of PL.map) {
+    if (sel && l.campus !== sel) continue;
+    pts.push([l.lat, l.lon]);
+    L.circleMarker([l.lat, l.lon], { radius: 4 + Math.round(l.score / 25), color: css(STATUS_COLOR[l.status] || "--text-muted"), weight: 1, fillOpacity: .75 })
+      .bindPopup(`<b>${esc(l.name)}</b><br>${esc(l.category || "")}<br>${esc(l.status)} · score ${fmt(l.score)}`).addTo(MAPLAYER);
+  }
+  setTimeout(() => { MAP.invalidateSize(); if (pts.length && sel) MAP.fitBounds(pts, { padding: [20, 20], maxZoom: 16 }); }, 50);
+}
+
+/* ---------- SCHEDULE ---------- */
+let WK = null, wkStart = null;
+const CATS = { inbox: "--series-4", outreach: "--series-1", partners: "--series-3", content: "--series-5", calls: "--series-2", visits: "--series-2", review: "--text-muted", admin: "--text-muted" };
+async function loadWeek() {
+  WK = await (await fetch("/api/week" + (wkStart ? "?start=" + wkStart : ""))).json();
+  renderWeek(WK);
+}
+function renderWeek(w) {
+  const t = w.totals, today = new Date().toISOString().slice(0, 10);
+  $("#wk-title").textContent = new Date(w.week_start + "T00:00").toLocaleDateString(undefined, { day: "numeric", month: "long" });
+  $("#wk-ics").href = "/api/week.ics?start=" + w.week_start;
+  $("#wk-kpis").innerHTML = [
+    kpi("Meetings", fmt(t.meeting_hours) + " h", w.days.reduce((a, d) => a + d.meetings.length, 0) + " meetings"),
+    kpi("Focus time", fmt(t.focus_hours) + " h", "free inside your routine blocks"),
+    kpi("Planned work", fmt(t.scheduled_hours) + " h", t.tasks_scheduled + " to-dos scheduled"),
+    kpi("Doesn't fit", fmt(t.overflow_hours) + " h", t.tasks_overflow + (t.tasks_overflow === 1 ? " to-do" : " to-dos")),
+    kpi("Utilisation", t.focus_hours ? Math.round(100 * t.scheduled_hours / t.focus_hours) + "%" : "–", "planned ÷ focus time"),
+  ].join("");
+  $("#wk-legend").innerHTML = Object.entries(CATS).filter(([k]) => !["visits", "admin"].includes(k)).map(([k, v]) => `<span><i style="background:${css(v)}"></i>${k}${k === "calls" ? " / visits" : k === "review" ? " / admin" : ""}</span>`).join("") + `<span><i style="background:var(--accent-soft);border:1px solid var(--accent)"></i>meeting</span>`;
+  $("#wk-grid").innerHTML = w.days.map(d => {
+    const L = d.load, tot = Math.max(L.meeting_min + L.free_min, 1);
+    const rows = [...d.meetings.map(m => ({ t: m.start, h: `<div class="slot meeting"><div><div class="t">${esc(m.start)}–${esc(m.end)}</div>${esc(m.title)}</div><span></span></div>` })),
+      ...d.blocks.flatMap(b => b.items.map(i => ({ t: i.start, h: `<div class="slot ${i.late ? "late" : ""}" style="border-left-color:${css(CATS[i.category] || "--series-1")}" title="${esc(b.title)} · ${esc(i.category)}"><div><div class="t">${esc(i.start)} · ${i.minutes}m</div>${esc(i.title)}</div>${d.past ? "<span></span>" : `<input type="checkbox" data-done="${i.task_id}" aria-label="Done">`}</div>` })))].sort((a, b) => a.t.localeCompare(b.t));
+    return `<div class="day ${d.past ? "past" : ""} ${d.date === today ? "today" : ""}"><h3><span>${esc(d.weekday)}</span><span class="muted">${esc(d.date.slice(8))}.${esc(d.date.slice(5, 7))}.</span></h3>
+      <div class="load">${fmt(L.meeting_min / 60)} h meetings · ${fmt(L.scheduled_min / 60)}/${fmt(L.free_min / 60)} h planned</div>
+      <div class="lbar"><i style="width:${100 * L.meeting_min / tot}%;background:${css("--series-2")}"></i><i style="width:${100 * L.scheduled_min / tot}%;background:${css("--series-1")}"></i></div>
+      ${rows.map(r => r.h).join("") || `<div class="empty">${d.past ? "Past" : "Nothing planned"}</div>`}</div>`;
+  }).join("");
+  $("#wk-insights").innerHTML = w.insights.length ? w.insights.map(i => `<div class="ins ${esc(i.severity)}">${esc(i.text)}</div>`).join("") : `<div class="empty">The week looks balanced.</div>`;
+  $("#wk-over-n").textContent = w.overflow.length ? `${w.overflow.length} to-dos · ${fmt(t.overflow_hours)} h` : "";
+  $("#wk-overflow").innerHTML = w.overflow.length ? `<tr><th>To-do</th><th>Due</th><th>Est.</th><th>Why</th><th></th></tr>` + w.overflow.map(o =>
+    `<tr><td>${o.priority >= 3 ? "❗ " : ""}${esc(o.title)}</td><td>${esc(o.due || "–")}</td><td>${o.minutes} min</td><td class="muted">${esc(o.reason)}</td>
+     <td style="white-space:nowrap"><button class="small" data-snooze7="${o.task_id}">Next week</button> <button class="small" data-del="${o.task_id}">Drop</button></td></tr>`).join("") : `<tr><td class="empty">Everything fits. 🎯</td></tr>`;
+  charts.wk?.destroy();
+  const o = baseOpts(); o.scales.x.stacked = true; o.scales.y.stacked = true; o.plugins.legend.display = false;
+  charts.wk = new Chart($("#wkChart"), { type: "bar", data: { labels: w.days.map(d => d.weekday.slice(0, 3)), datasets: [
+    { label: "Meetings", data: w.days.map(d => +(d.load.meeting_min / 60).toFixed(1)), backgroundColor: css("--series-2"), borderRadius: 3 },
+    { label: "Planned work", data: w.days.map(d => +(d.load.scheduled_min / 60).toFixed(1)), backgroundColor: css("--series-1"), borderRadius: 3 },
+    { label: "Free", data: w.days.map(d => +((d.load.free_min - d.load.scheduled_min) / 60).toFixed(1)), backgroundColor: css("--track"), borderRadius: 3 }] }, options: o });
+}
+const shiftWeek = (days) => { const d = new Date((WK ? WK.week_start : new Date().toISOString().slice(0, 10)) + "T00:00"); d.setDate(d.getDate() + days); wkStart = d.toISOString().slice(0, 10); loadWeek(); };
+
+/* ---------- SPEAKING COACH ---------- */
+let REC = null, recChunks = [], recT0 = 0, recTimer = null;
+function renderSpeech(m) {
+  if (!m) return;
+  const cell = (v, l) => `<div><b>${esc(v)}</b><span>${esc(l)}</span></div>`;
+  const fill = Object.entries(m.fillers || {}).map(([k, n]) => `${k} ×${n}`).join(", ");
+  $("#sp-result").innerHTML = `<div class="spm">${cell(m.score + "/100", "delivery score")}${cell(m.wpm ?? "–", "words / min")}${cell(m.fillers_per_min ?? "–", "fillers / min")}
+    ${cell(m.pitch_variation_st != null ? m.pitch_variation_st + " st" : "–", "pitch variation")}${cell(m.energy || "–", "energy")}${cell(m.clarity != null ? Math.round(m.clarity * 100) + "%" : "–", "clarity")}</div>
+    ${fill ? `<div class="muted" style="font-size:12.5px">Fillers: ${esc(fill)}${Object.keys(m.hedges || {}).length ? " · Hedges: " + esc(Object.keys(m.hedges).join(", ")) : ""}</div>` : ""}
+    <ul class="tips">${(m.tips || []).map((t) => `<li>${esc(t)}</li>`).join("")}</ul>
+    ${m.coaching ? `<div class="md" style="background:var(--surface-2);border-radius:8px;padding:8px 12px">${md(m.coaching)}</div>` : ""}
+    ${m.text ? `<details><summary>Transcript</summary><p style="font-size:13px">${esc(m.text)}</p></details>` : ""}`;
+}
+async function loadSpeech() {
+  const d = await (await fetch("/api/speech")).json(), t = d.trend;
+  const last = d.sessions[0];
+  if (last && !REC && !$("#sp-result").dataset.fresh) renderSpeech({ ...last.metrics, text: last.text, coaching: last.coaching });
+  const ser = (t.series || []).filter((x) => x.mode !== "command");
+  charts.sp?.destroy();
+  if (ser.length) {
+    const o = baseOpts(); o.scales.y1 = { position: "right", beginAtZero: true, grid: { display: false }, ticks: { color: css("--text-muted"), font: { size: 11 } }, border: { display: false } };
+    o.scales.y.max = 100;
+    charts.sp = new Chart($("#spChart"), { type: "line", data: { labels: ser.map((x) => x.at.slice(5, 10)), datasets: [
+      { label: "Delivery score", data: ser.map((x) => x.score), borderColor: css("--series-1"), backgroundColor: css("--series-1"), borderWidth: 2, pointRadius: 3, tension: .25 },
+      { label: "Fillers / min", data: ser.map((x) => x.fillers_per_min), yAxisID: "y1", borderColor: css("--series-2"), backgroundColor: css("--series-2"), borderWidth: 2, pointRadius: 3, tension: .25 }] }, options: o });
+  }
+  $("#sp-trend").textContent = t.sessions ? (t.before && t.before.score != null ? `Score ${fmt(t.before.score)} → ${fmt(t.now.score)} · fillers ${fmt(t.before.fillers_per_min)} → ${fmt(t.now.fillers_per_min)}/min over ${t.sessions} sessions` : `${t.sessions} sessions so far`) : "No sessions yet.";
+}
+async function toggleRecord() {
+  const btn = $("#sp-rec");
+  if (REC) { REC.stop(); return; }
+  if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) return toast("This browser can't record audio");
+  let stream; try { stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, noiseSuppression: false, echoCancellation: false } }); } catch (_) { return toast("Microphone permission denied"); }
+  recChunks = []; REC = new MediaRecorder(stream); recT0 = Date.now();
+  REC.ondataavailable = (e) => e.data.size && recChunks.push(e.data);
+  REC.onstop = async () => {
+    stream.getTracks().forEach((t) => t.stop()); clearInterval(recTimer); btn.classList.remove("rec-on"); btn.textContent = "● Record a practice pitch";
+    REC = null; const blob = new Blob(recChunks, { type: recChunks[0]?.type || "audio/webm" });
+    $("#sp-status").textContent = "Analysing… (transcribing + coaching, ~10–30 s)"; btn.disabled = true;
+    try {
+      const r = await fetch(`/api/speech/analyse?mode=practice&coach=1&topic=${encodeURIComponent($("#sp-topic").value)}`, { method: "POST", headers: { "X-SZ": "1", "Content-Type": blob.type }, body: blob });
+      const j = await r.json(); if (!r.ok) throw new Error(j.detail || r.statusText);
+      $("#sp-result").dataset.fresh = "1"; renderSpeech(j); $("#sp-status").textContent = ""; loadSpeech();
+    } catch (err) { $("#sp-status").textContent = err.message; }
+    btn.disabled = false;
+  };
+  REC.start(); btn.classList.add("rec-on"); btn.textContent = "■ Stop";
+  recTimer = setInterval(() => { const s = Math.round((Date.now() - recT0) / 1000); $("#sp-status").textContent = `Recording… ${s} s`; if (s >= 180) REC && REC.stop(); }, 500);
+}
+
+/* ---------- load ---------- */
+async function refreshOps() { OPS = await (await fetch("/api/ops")).json(); renderToday(DATA, OPS); renderPartners(OPS); renderGrowth(DATA, OPS); loadPipeline().catch(() => {}); loadWeek().catch(() => {}); }
+async function load() {
+  const [d, o] = await Promise.all([fetch("/api/summary").then(r => r.json()), fetch("/api/ops").then(r => r.json())]);
+  DATA = d; OPS = o;
+  const syncs = Object.entries(d.last_sync).filter(([, v]) => v).map(([k, v]) => `${k} ${v.slice(5, 16).replace("T", " ")}`);
+  $("#sub").textContent = (d.me ? d.me + " · " : "") + (syncs.length ? "Last runs: " + syncs.slice(0, 4).join(" · ") : "No data yet. Click Sync Outlook to start.");
+  if (!$("#lead-status").options[1]) $("#lead-status").innerHTML += STATUSES.map(s => `<option>${s}</option>`).join("");
+  if (!$("#pedit [name=stage]").options[0]) $("#pedit [name=stage]").innerHTML = o.stages.map(([k, n]) => `<option value="${k}">${esc(n)}</option>`).join("");
+  renderToday(d, o); renderPartners(o); renderGrowth(d, o); renderLeadsPage(d); renderInsights(d);
+  loadPipeline().catch(() => {}); loadWeek().catch(() => {}); loadSpeech().catch(() => {}); loadMeetings().catch(() => {}); loadBell().catch(() => {}); checkVoiceFinder();
+  document.querySelectorAll("[data-job]").forEach(b => b.disabled = d.running[b.dataset.job] === "running");
+}
+async function poll(job) {
+  for (let i = 0; i < 180; i++) {
+    await new Promise(r => setTimeout(r, 4000));
+    const d = await (await fetch("/api/summary")).json(), st = d.running[job];
+    if (!st) { toast(`Finished: ${job}`); return load(); }
+    if (st.startsWith("error")) { toast(`${job}: ${st}`); return load(); }
+  }
+}
+function openPartnerEdit(id) {
+  const p = OPS.partners.find(x => x.id == id); if (!p) return;
+  const f = $("#pedit"); f.dataset.id = id; $("#pdlg-title").textContent = "Edit " + p.name;
+  for (const el of f.elements) if (el.name && el.name in p) el.value = p[el.name] ?? "";
+  $("#pdlg").showModal();
+}
+$("#pdlg").addEventListener("close", async () => {
+  if ($("#pdlg").returnValue !== "save") return;
+  const f = $("#pedit"), body = {};
+  for (const el of f.elements) if (el.name) body[el.name] = el.name === "redemptions" ? Number(el.value || 0) : el.value;
+  try { await post(`/api/partners/${f.dataset.id}`, body); toast("Partner saved"); refreshOps(); } catch (err) { toast(err.message); }
+});
+
+document.addEventListener("click", async (e) => {
+  const t = (sel) => e.target.closest(sel);
+  if (t("[data-page]")) return showPage(t("[data-page]").dataset.page);
+  const job = t("[data-job]");
+  if (job) { job.disabled = true; try { await post(`/api/run/${job.dataset.job}`); toast(`Started: ${job.textContent}`); poll(job.dataset.job); } catch (err) { toast(err.message); job.disabled = false; } return; }
+  if (t("[data-inbox]")) { inboxTab = t("[data-inbox]").dataset.inbox; document.querySelectorAll("[data-inbox]").forEach(b => b.setAttribute("aria-selected", b.dataset.inbox === inboxTab)); return renderInbox(DATA); }
+  if (t("[data-ig]")) { igKey = t("[data-ig]").dataset.ig; document.querySelectorAll("[data-ig]").forEach(b => b.setAttribute("aria-selected", b.dataset.ig === igKey)); return lineChart("igChart", "instagram." + igKey, DATA.metrics["instagram." + igKey] || [], igKey !== "followers"); }
+  if (t("[data-ask]")) return ask(t("[data-ask]").dataset.ask);
+  const dr = t("[data-draft]");
+  if (dr) { dr.disabled = true; try { const r = await post(`/api/leads/${dr.dataset.draft}/draft`); toast(`Draft saved in Outlook: ${r.subject}`); loadLeads(); refreshOps(); } catch (err) { toast(err.message); dr.disabled = false; } return; }
+  const nt = t("[data-note]");
+  if (nt) { const cur = nt.closest("tr").querySelector("select").value, note = prompt("Add a note"); if (note) { try { await post(`/api/leads/${nt.dataset.note}/status`, { status: cur, note }); loadLeads(); } catch (err) { toast(err.message); } } return; }
+  if (t("[data-snooze]")) { await post(`/api/tasks/${t("[data-snooze]").dataset.snooze}`, { action: "snooze", days: 1 }); return refreshOps(); }
+  if (t("[data-del]")) { await post(`/api/tasks/${t("[data-del]").dataset.del}`, { action: "delete" }); return refreshOps(); }
+  if (t("[data-todo-from]")) { const r = OPS.reach_out[Number(t("[data-todo-from]").dataset.todoFrom)]; const res = await post("/api/tasks", { title: `${r.action[0].toUpperCase() + r.action.slice(1)}: ${r.who}`, due: new Date().toISOString().slice(0, 10), priority: r.priority >= 75 ? 3 : 2, source: "reach-out", lead_id: r.lead_id, partner_id: r.partner_id }); toast(res.duplicate ? "Already on your list" : "Added to to-dos"); return refreshOps(); }
+  if (t("[data-advance]")) { try { const p = await post(`/api/partners/${t("[data-advance]").dataset.advance}`, { advance: true }); toast(`${p.name}: ${p.stage === "live" ? "live 🎉" : "next step"}`); refreshOps(); } catch (err) { toast(err.message); } return; }
+  if (t("[data-logcontact]")) { await post(`/api/partners/${t("[data-logcontact]").dataset.logcontact}`, { log_contact: true }); toast("Contact logged"); return refreshOps(); }
+  if (t("[data-pedit]")) return openPartnerEdit(t("[data-pedit]").dataset.pedit);
+  if (t("[data-nextstep]")) { const id = t("[data-nextstep]").dataset.nextstep, txt = prompt("Next step (e.g. 'send the offer sheet on Friday')"); if (txt) { try { await post(`/api/leads/${id}/next-step`, { text: txt }); toast("Next step set and added to to-dos"); refreshOps(); } catch (err) { toast(err.message); } } return; }
+  if (t("[data-seqstart]")) { try { const r = await post(`/api/leads/${t("[data-seqstart]").dataset.seqstart}/sequence`, {}); toast(`Sequence started: ${r.steps} steps on your to-do list`); refreshOps(); } catch (err) { toast(err.message); } return; }
+  if (t("[data-seqstop]")) { const r = await post(`/api/leads/${t("[data-seqstop]").dataset.seqstop}/sequence`, { action: "stop" }); toast(`Sequence stopped (${r.removed} steps removed)`); return refreshOps(); }
+  if (t("[data-snooze7]")) { await post(`/api/tasks/${t("[data-snooze7]").dataset.snooze7}`, { action: "snooze", days: 7 }); toast("Moved to next week"); return refreshOps(); }
+  if (e.target.id === "pl-auto") { e.target.disabled = true; try { const r = await post("/api/pipeline/sequences/auto"); toast(r.started.length ? `Started ${r.started.length} sequences: ${r.started.slice(0, 3).map(x => x.name).join(", ")}${r.started.length > 3 ? "…" : ""}` : "Weekly capacity reached or no leads with contacts"); refreshOps(); } catch (err) { toast(err.message); e.target.disabled = false; } return; }
+  if (e.target.closest("#bell")) { const p = $("#bell-panel"); p.hidden = !p.hidden; $("#bell").setAttribute("aria-expanded", !p.hidden); if (!p.hidden) loadBell(); return; }
+  if (e.target.id === "notif-enable") { try { const r = await SetzLive.enable(); toast(r.push ? "Pop-ups and phone push are on" : "Pop-ups are on for this device"); loadBell(); } catch (err) { toast(err.message); } return; }
+  if (e.target.id === "notif-read") { await post("/api/notifications/read"); return loadBell(); }
+  if (t("[data-nurl]")) { const n = t("[data-nurl]"); post("/api/notifications/read", { ids: [Number(n.dataset.nid)] }); $("#bell-panel").hidden = true; location.href = n.dataset.nurl; const h = n.dataset.nurl.split("#")[1]; if (h) showPage(h); return; }
+  if (e.target.id === "install-app") { if (await SetzLive.install()) $("#install-app").hidden = true; return; }
+  if (!e.target.closest(".bell-wrap") && !$("#bell-panel").hidden) $("#bell-panel").hidden = true;
+  if (e.target.id === "sp-rec") return toggleRecord();
+  if (t("[data-lf]")) return runFinder(t("[data-lf]").dataset.lf);
+  const mb = t("[data-mr-book]");
+  if (mb) { if (!confirm(`Book ${slotLabel(mb.dataset.start)} in Outlook${$("#mr-invite").checked ? " and send them an invite" : ""}?`)) return;
+    mb.disabled = true; try { const r = await post(`/api/meetings/requests/${mb.dataset.mrBook}`, { action: "book", start: mb.dataset.start, invite: $("#mr-invite").checked });
+      toast(`Booked: ${r.subject}${r.teams ? " (Teams)" : ""}`); loadMeetings(); refreshOps(); } catch (err) { toast(err.message); mb.disabled = false; } return; }
+  if (t("[data-mr-draft]")) { try { await post(`/api/meetings/requests/${t("[data-mr-draft]").dataset.mrDraft}`, { action: "draft" }); toast("Reply with slots saved in Outlook → Drafts"); loadMeetings(); } catch (err) { toast(err.message); } return; }
+  if (t("[data-mr-copy]")) { try { const r = await post(`/api/meetings/requests/${t("[data-mr-copy]").dataset.mrCopy}`, { action: "draft" }); await navigator.clipboard.writeText(r.text); toast("Reply copied: paste it in the Instagram DM"); } catch (err) { toast(err.message); } return; }
+  if (t("[data-mr-dismiss]")) { await post(`/api/meetings/requests/${t("[data-mr-dismiss]").dataset.mrDismiss}`, { action: "dismiss" }); return loadMeetings(); }
+  if (e.target.id === "lf-enrich") return finderEnrich();
+  if (e.target.id === "lf-seq") return finderSequence();
+  if (e.target.id === "lf-all") { document.querySelectorAll("[data-pick]").forEach((c) => c.checked = e.target.checked); return; }
+  if (e.target.id === "wk-prev") return shiftWeek(-7);
+  if (e.target.id === "wk-next") return shiftWeek(7);
+  if (e.target.id === "wk-this") { wkStart = null; return loadWeek(); }
+  if (e.target.id === "wk-apply") { const r = await post("/api/week/apply", { start: WK && WK.week_start }); toast(`${r.updated} to-dos got their planned day`); return refreshOps(); }
+  const pr = t("[data-prep]");
+  if (pr) {
+    $("#dlg-title").textContent = "Meeting prep"; $("#dlg-body").innerHTML = `<div class="empty">Preparing…</div>`; $("#dlg").showModal();
+    try { const r = await (await fetch(`/api/prep/${encodeURIComponent(pr.dataset.prep)}?ai=1`)).json(); $("#dlg-body").innerHTML = md(r.markdown || r.detail); } catch (err) { $("#dlg-body").textContent = err.message; }
+    return;
+  }
+  if (e.target.id === "conn-refresh") { e.target.disabled = true; try { await post("/api/connections/refresh"); toast("Checking connections…"); poll("doctor"); } catch (err) { toast(err.message); } e.target.disabled = false; return; }
+  if (e.target.id === "theme") {
+    const cur = document.documentElement.dataset.theme || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"), next = cur === "dark" ? "light" : "dark";
+    document.documentElement.dataset.theme = next; try { localStorage.setItem("sz-theme", next); } catch (_) {} load();
+  }
+});
+document.addEventListener("change", async (e) => {
+  if (e.target.matches("[data-done]")) { await post(`/api/tasks/${e.target.dataset.done}`, { action: "done" }); toast("Done ✓"); return refreshOps(); }
+  if (e.target.matches("[data-reopen]")) { await post(`/api/tasks/${e.target.dataset.reopen}`, { action: "reopen" }); return refreshOps(); }
+  const s = e.target.closest("select[data-lead]");
+  if (s) { try { await post(`/api/leads/${s.dataset.lead}/status`, { status: s.value }); toast(s.value === "partner" ? "Lead is now a partner: onboarding started" : "Lead updated"); refreshOps(); } catch (err) { toast(err.message); } }
+  if (e.target.id === "trend-key" || e.target.id === "trend-days") loadTrend();
+  if (e.target.id === "lead-kind" || e.target.id === "lead-status") loadLeads();
+  if (e.target.id === "p-filter") renderPartnerTable(OPS);
+  if (e.target.id === "pl-campus") drawMap();
+});
+$("#lf-form").addEventListener("submit", (e) => { e.preventDefault(); runFinder(); });
+$("#ig-add").addEventListener("submit", async (e) => { e.preventDefault(); const v = $("#ig-handles").value.trim(); if (!v) return;
+  try { const r = await post("/api/instagram/add", { handles: v }); toast(r.map((x) => x.error ? `@${x.handle}: ${x.error}` : `@${x.handle}: ${x.kind}, ${fmt(x.followers)} followers`).join(" · "));
+    $("#ig-handles").value = ""; runFinder("venues only on Instagram"); } catch (err) { toast(err.message); } });
+let qTimer; $("#lead-q").addEventListener("input", () => { clearTimeout(qTimer); qTimer = setTimeout(loadLeads, 250); });
+$("#todo-form").addEventListener("submit", async (e) => { e.preventDefault(); const v = $("#todo-input").value.trim(); if (!v) return;
+  const r = await post("/api/tasks", { title: v }); toast(r.duplicate ? "Already on your list" : "Added"); $("#todo-input").value = ""; refreshOps(); });
+$("#kpi-form").addEventListener("submit", async (e) => { e.preventDefault(); const f = new FormData(e.target), day = f.get("__day"); let n = 0;
+  try { for (const [k, v] of f.entries()) if (k !== "__day" && v !== "") { await post("/api/kpi", { key: k, value: Number(v), day }); n++; }
+    toast(n ? `Saved ${n} number${n > 1 ? "s" : ""}` : "Nothing to save"); e.target.reset(); e.target.dataset.ready = ""; load(); } catch (err) { toast(err.message); } });
+$("#lead-form").addEventListener("submit", async (e) => { e.preventDefault();
+  try { const r = await post("/api/leads", Object.fromEntries(new FormData(e.target))); toast(r.created ? "Lead added" : "Lead already existed: updated"); e.target.reset(); loadLeads(); } catch (err) { toast(err.message); } });
+$("#p-form").addEventListener("submit", async (e) => { e.preventDefault();
+  try { await post("/api/partners", Object.fromEntries(new FormData(e.target))); toast("Partner added"); e.target.reset(); refreshOps(); } catch (err) { toast(err.message); } });
+
+try { const t = localStorage.getItem("sz-theme"); if (t) document.documentElement.dataset.theme = t; } catch (_) {}
+let startPage = (location.hash || "").slice(1); try { startPage = startPage || localStorage.getItem("sz-page") || "today"; } catch (_) { startPage = startPage || "today"; }
+const PAGES = ["today", "partners", "pipeline", "schedule", "growth", "leads", "insights"];
+showPage(PAGES.includes(startPage) ? startPage : "today");
+window.addEventListener("hashchange", () => { const h = location.hash.slice(1); if (PAGES.includes(h) && h !== page) showPage(h); });
+load();
+setInterval(load, 5 * 60 * 1000);
+</script>
+</body>
+</html>

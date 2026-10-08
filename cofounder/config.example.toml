@@ -1,0 +1,205 @@
+# Copy to config.toml (`sz init` does this) and edit. Secrets go in .env, not here.
+
+[me]
+name = "Your Name"
+role = "Founder"
+emails = ["you@settleezy.de"]          # every address you send from (used to tell your mail from others')
+timezone = "Europe/Berlin"
+
+[llm]
+ollama_url = "http://localhost:11434"
+local_model = "qwen2.5:7b-instruct"     # fits the RTX 3060 6 GB; reads raw mail locally
+cloud_enabled = true                    # Claude writes drafts + analysis (inputs are redacted first)
+cloud_model = "claude-opus-5-5"
+
+[outlook]
+history_days = 365                      # first sync pulls this much history for learning your voice
+max_messages_per_sync = 5000
+draft_category = "Settleezy AI"         # every draft is tagged with this Outlook category
+calendar_write = true                   # book meetings you approve (needs Calendars.ReadWrite); false = read-only
+
+[scheduling]
+# Meeting requests from email / Instagram -> free slots -> reply draft -> booked event (only when you click "Book").
+meeting_minutes = 30
+buffer_minutes = 15                     # free time kept before and after other meetings
+day_start = "09:00"
+day_end = "18:00"
+notice_hours = 18                       # earliest slot offered, from now
+online_default = true                   # add a Teams link to booked meetings
+calendly_link = ""                      # optional: offered as "or pick a time here" in the reply
+
+[triage]
+ignore_domains = []                     # e.g. ["@hostinger.com", "@stripe.com"]
+
+[followup]
+cadence_days = [4, 7, 14]               # follow-up #1 after 4 days, #2 after 7 more, breakup after 14; `sz learn` suggests better values
+
+[drafts]
+max_per_run = 15
+
+[scraping]
+sites_file = "competitors.toml"
+min_delay_seconds = 4                   # per host; polite and avoids blocks
+respect_robots = true
+enrich_per_run = 20
+
+[instagram]
+graph_version = "v23.0"
+metrics = ["reach", "profile_views", "website_clicks", "accounts_engaged"]
+# Venue discovery (sz instagram discover): top posts of these hashtags -> mentioned accounts -> leads.
+# Instagram allows 30 different hashtags per 7 days; Setz rotates through this list within that budget.
+discovery_hashtags = ["berlinfood", "berlincafe", "berlincoffee", "berlinbrunch", "berlinvegan", "kreuzbergfood",
+                      "neukoellnfood", "berlinbakery", "berlineats", "berlinfoodie", "studentberlin", "berlinnightlife",
+                      "friedrichshainfood", "prenzlauerbergfood", "berlinstartup", "madeinberlin"]
+discovery_tags_per_run = 4
+refresh_per_run = 15         # Instagram leads whose follower counts are refreshed on each Instagram sync
+
+[voice]
+tts = "elevenlabs"                      # "elevenlabs" (needs ELEVENLABS_API_KEY) or "windows"
+elevenlabs_voice_id = "CUvmi6RSy4BQr6vnMyEw"      # main voice
+elevenlabs_voice_id_alt = "r1KmysJdVYZjJCm4mL3b"  # alternative; swap the two to change voice
+elevenlabs_model = "eleven_multilingual_v2"       # speaks English + German; "eleven_flash_v2_5" is faster
+stability = 0.45
+similarity = 0.8
+whisper_model = "small"                 # "medium" is more accurate for German, slower
+wake_mode = "phrase"                    # "phrase" = say "Hey Setz" (no training needed) | "openwakeword" (custom model)
+wake_model = ""                         # path to a trained "hey setz" .onnx when wake_mode = "openwakeword"
+wake_threshold = 0.5
+mic_threshold = 0.012                   # raise if background noise keeps waking the mic
+vad = "auto"                            # speech detection: auto (Silero if available) | silero | energy (loudness only)
+vad_threshold = 0.5                     # Silero speech probability; raise to 0.6 in a noisy café
+calibrate = true                        # measure room noise at start and raise the threshold above it
+barge_in = false                        # true = talk over Setz to interrupt it (use a headset, or it hears itself)
+barge_factor = 3.0                      # how much louder than the speech threshold an interruption must be
+rate = 185                              # Windows voice speed (fallback only)
+openjarvis_config = ""                  # empty = ~/.openjarvis/config.toml
+
+[growth]
+goals = [
+  "Reach 1,000 paying members in Berlin by the end of the winter semester",
+  "Sign 30 partner venues in Berlin (restaurants, cafés, grocery stores, activities, events)",
+  "Sign 3 Berlin universities for the Buddy platform before the next intake",
+  "Keep trial-to-paid conversion above 25%",
+  "Run 2 workshops per month (CV, portfolio)",
+]
+
+# Goal bars on the dashboard. metric = "<source>.<key>" from the metrics table:
+#   manual.*     numbers you enter on the dashboard (KPI form)  e.g. manual.paying_members
+#   ops.*        computed daily: partners_live_venue, partners_live_university, partners_onboarded_month, replies_owed, ...
+#   instagram.*  followers, reach, engagement_rate_pct, ...
+[[growth.targets]]
+label = "Paying members"
+metric = "manual.paying_members"
+target = 1000
+deadline = "end of winter semester"
+
+[[growth.targets]]
+label = "Live partner venues"
+metric = "ops.partners_live_venue"
+target = 30
+
+[[growth.targets]]
+label = "Buddy platform universities"
+metric = "ops.partners_live_university"
+target = 3
+
+[[growth.targets]]
+label = "Instagram followers"
+metric = "instagram.followers"
+target = 5000
+
+[tracking]
+# Numbers only you have (from the app / workshops). Enter them on the dashboard; they're charted over time.
+manual_kpis = ["paying_members", "trial_members", "app_downloads", "workshop_signups", "buddy_students"]
+
+[dashboard]
+port = 8765
+# Phone / other devices: the safest way is Tailscale (README: "Setz on your phone"), which needs no change here.
+# access_pin = "482915"      # PIN asked on any device that isn't this laptop (required if host isn't 127.0.0.1)
+# host = "0.0.0.0"           # only for plain home-Wi-Fi access without Tailscale (no HTTPS, so no phone push)
+
+[notifications]
+desktop = true               # Windows pop-ups (pip install -e ".[notify]")
+push = true                  # phone push when the app is installed and notifications are enabled on the phone
+quiet_hours = ["22:00", "07:30"]   # pop-ups stay silent; everything still lands in the bell
+meeting_reminder_minutes = 10
+
+[agents]
+ai_briefing = true          # Setz writes the team briefing with Claude when an API key is set (otherwise a plain summary)
+
+[partners]
+stage_stuck_days = 7        # onboarding step older than this -> flagged + auto to-do
+checkin_days = 30           # live partner without contact for this long -> "check in"
+
+[leadgen]
+# Venues within walking distance of each campus, from OpenStreetMap (free, no key). `sz leadgen scan` or weekly.
+radius_m = 800
+include_chains = false      # skip McDonald's, Rewe & co. (they decide centrally; pitch them as brands instead)
+# Add or replace campuses (defaults: FU, HU x2, TU, UdK, HTW x2, BHT, HWR, Charité, ASH, Hertie, ESMT, CODE, SRH):
+# [[leadgen.campuses]]
+# name = "IU Berlin"
+# lat = 52.5070
+# lon = 13.4500
+
+[pipeline]
+partner_goal_per_month = 6  # Setz works back from this to weekly targets for contacts, replies and meetings
+# new_sequences_per_week = 15   # default: what the goal needs at your conversion rates (5..25)
+# Custom outreach cadence (days after start). channel: email | instagram | linkedin | call | visit
+# [[pipeline.sequence]]
+# day = 0
+# channel = "email"
+# title = "Send first outreach email"
+# minutes = 15
+
+[brain]
+# Long-term memory embeddings. auto = fastembed if installed (pip install -e ".[brain]": best for English + German,
+# CPU only, ~220 MB model downloaded once into data/models), else Ollama (`ollama pull bge-m3`), else a built-in
+# offline embedder. `sz doctor` shows which one is active.
+embedder = "auto"            # auto | fastembed | ollama | hash
+fastembed_model = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+ollama_model = "bge-m3"
+
+[planner]
+days_per_week = 5
+max_meeting_hours_per_day = 4   # more than this on a day -> Setz suggests moving or shortening meetings
+
+# Your daily routine. Setz lays it around today's meetings, fills each block with the right people/tasks,
+# and (with `sz voice`) announces each block when it starts. days: 0 = Monday ... 6 = Sunday.
+[routine]
+announce = true
+[[routine.blocks]]
+start = "08:30"
+end = "09:00"
+title = "Inbox & replies"
+focus = "inbox"
+days = [0, 1, 2, 3, 4]
+[[routine.blocks]]
+start = "09:00"
+end = "10:30"
+title = "Partner outreach"
+focus = "outreach"
+days = [0, 1, 2, 3, 4]
+[[routine.blocks]]
+start = "10:30"
+end = "12:00"
+title = "Partner onboarding & universities"
+focus = "partners"
+days = [0, 1, 2, 3, 4]
+[[routine.blocks]]
+start = "13:00"
+end = "14:00"
+title = "Content & Instagram"
+focus = "content"
+days = [0, 1, 2, 3, 4]
+[[routine.blocks]]
+start = "14:00"
+end = "16:30"
+title = "Calls, venue visits & workshops"
+focus = "calls"
+days = [0, 1, 2, 3, 4]
+[[routine.blocks]]
+start = "16:30"
+end = "17:00"
+title = "Wrap-up: follow-ups & plan tomorrow"
+focus = "review"
+days = [0, 1, 2, 3, 4]

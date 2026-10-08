@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="manifest" href="/manifest.webmanifest"><meta name="theme-color" content="#030810"><link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+<title>Setz Hologram</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root { color-scheme: dark; --bg: #030810; --text: #d8f8ff; --muted: #6fa9b8; --accent: #5ee8ff; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: radial-gradient(ellipse at 50% 42%, #0b1d2c 0%, var(--bg) 68%); color: var(--text); font: 15px/1.5 Inter, system-ui, sans-serif; overflow: hidden; }
+canvas { position: fixed; inset: 0; width: 100%; height: 100%; }
+.hud { position: fixed; left: 0; right: 0; top: 0; display: flex; justify-content: space-between; align-items: center; padding: 18px 24px; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.hud .name { color: var(--text); font-weight: 600; letter-spacing: .3em; }
+.state b { color: var(--accent); font-weight: 600; }
+.caption { position: fixed; left: 50%; bottom: 5vh; transform: translateX(-50%); width: min(820px, calc(100% - 32px)); text-align: center;
+  font-size: clamp(15px, 2.1vw, 20px); text-shadow: 0 0 18px rgba(94,232,255,.45); min-height: 3em; }
+.caption .you { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+a { color: var(--muted); }
+/* widget (always-on-top window): robot + what Setz is doing + the latest notification */
+body.mini .hud { padding: 8px 10px; font-size: 10px; letter-spacing: .1em; }
+body.mini .hud .links, body.mini .hud .brand-sub { display: none; }
+body.mini .caption { bottom: 46px; font-size: 13px; min-height: 2.6em; width: calc(100% - 20px); }
+.mini-bar { display: none; }
+body.mini .mini-bar { display: flex; position: fixed; left: 8px; right: 8px; bottom: 8px; gap: 6px; }
+.mini-bar input { flex: 1; min-width: 0; font: inherit; font-size: 12.5px; color: var(--text); background: rgba(94,232,255,.07); border: 1px solid rgba(94,232,255,.35); border-radius: 8px; padding: 6px 9px; }
+.mini-bar button { font: inherit; font-size: 12px; color: var(--text); background: rgba(94,232,255,.12); border: 1px solid rgba(94,232,255,.35); border-radius: 8px; padding: 6px 9px; cursor: pointer; }
+.note-line { position: fixed; left: 10px; right: 10px; top: 34px; display: none; font-size: 12px; padding: 7px 9px; border-radius: 8px;
+  background: rgba(8,24,42,.9); border: 1px solid rgba(240,180,60,.6); cursor: pointer; }
+body.mini .note-line.on { display: block; }
+body.mini .sz-stack { display: none; }
+</style>
+</head>
+<body>
+<canvas id="holo" aria-label="Setz, the voice assistant"></canvas>
+<div class="hud"><span><span class="name">SETZ</span><span class="brand-sub"> · Settleezy</span></span><span class="state">state: <b id="state">idle</b></span><span class="links"><a href="/command">command center</a> · <a href="/">dashboard</a></span></div>
+<div class="note-line" id="note" role="status"></div>
+<form class="mini-bar" id="mini-ask"><input id="mini-q" placeholder="Ask Setz…" aria-label="Ask Setz"><button>Ask</button><button type="button" id="mini-open" title="Open the dashboard">HQ ↗</button></form>
+<div class="caption" id="caption"><span class="you">Say “Hey Setz”</span></div>
+<script src="/static/hologram.js"></script>
+<script src="/static/live.js"></script>
+<script>
+const mini = new URLSearchParams(location.search).has("mini");
+if (mini) document.body.classList.add("mini");
+const holo = new Hologram(document.getElementById("holo"), { hub: !mini });
+const cap = document.getElementById("caption"), st = document.getElementById("state");
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+connectVoiceStream(holo, (ev) => {
+  st.textContent = ev.state;
+  if (ev.state === "thinking" && ev.text) cap.innerHTML = `<span class="you">You</span>${esc(ev.text)}`;
+  else if (ev.state === "speaking" && ev.text) cap.textContent = ev.text;
+  else if (ev.state === "listening") cap.innerHTML = `<span class="you">Listening…</span>`;
+});
+async function loadHub() { if (mini) return; try { holo.setChannels(await (await fetch("/api/hub")).json()); } catch (_) {} }
+loadHub(); setInterval(loadHub, 60000);
+if (mini) {
+  const note = document.getElementById("note");
+  let noteUrl = "/";
+  SetzLive.onNotification((n) => { note.textContent = n.title + (n.body ? " · " + n.body : ""); noteUrl = n.url || "/"; note.classList.add("on");
+    clearTimeout(note.t); note.t = setTimeout(() => note.classList.remove("on"), 60000); });
+  note.onclick = () => window.open(noteUrl, "_blank");
+  document.getElementById("mini-open").onclick = () => window.open("/", "_blank");
+  document.getElementById("mini-ask").addEventListener("submit", async (e) => {
+    e.preventDefault(); const q = document.getElementById("mini-q").value.trim(); if (!q) return;
+    document.getElementById("mini-q").value = "";
+    try { await fetch("/api/ask", { method: "POST", headers: { "X-SZ": "1", "Content-Type": "application/json" }, body: JSON.stringify({ text: q, speak: true }) }); } catch (_) {}
+  });
+}
+</script>
+</body>
+</html>
