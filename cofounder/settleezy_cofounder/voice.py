@@ -268,6 +268,23 @@ def _answer(cfg: Config, text: str, lang: str) -> str:
             if b and b.get("score") is not None:
                 msg += f" That's {'up' if n['score'] >= b['score'] else 'down'} from {b['score']:g}."
             return msg
+        if re.search(r"\b(meeting requests?|who wants to meet|terminanfragen?|book (?:it|the meeting|the first|option \d))\b", t):
+            from . import scheduling as sch
+
+            reqs = sch.requests(cfg, db)
+            if not reqs:
+                return "No open meeting requests."
+            r = reqs[0]
+            options = r["proposed_free"] + [s["start"] for s in r["slots"]]
+            m2 = re.search(r"\bbook (?:it|the meeting|the first|option (\d))", t)
+            if m2 and options:
+                start = options[int(m2.group(1) or 1) - 1] if int(m2.group(1) or 1) <= len(options) else options[0]
+                res = sch.book(cfg, db, r["id"], start)
+                return f"Booked {res['subject']} on {sch.fmt_slot(res)}" + (", and Outlook sent them the invite." if res["invite_sent_by_outlook"] else ".")
+            say = f"{len(reqs)} meeting request{'s' if len(reqs) != 1 else ''}. {r['who']} wants to meet"
+            if r["proposed_free"]:
+                return say + f" and suggested {sch.fmt_slot({'start': r['proposed_free'][0], 'end': r['proposed_free'][0]})[:-6]}, which is free. Say: book it."
+            return say + (". I'd offer " + ", ".join(sch.fmt_slot(s) for s in r["slots"][:2]) + ". Say: book option 1." if r["slots"] else ".")
         if re.search(r"\b(find|search|look for|show|list|such\w*|finde|zeig\w*)\b.*\b(leads?|venues?|places|caf[eé]s?|restaurants?|bars?|"
                      r"sp[äa]tis?|gyms?|shops?|partners? for|bakeries|supermarkets?|orte|läden|kneipen)\b", t):
             from .leadquery import find, spoken

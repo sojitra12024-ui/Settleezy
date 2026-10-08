@@ -16,6 +16,17 @@ cloud_model = "claude-opus-5-5"
 history_days = 365                      # first sync pulls this much history for learning your voice
 max_messages_per_sync = 5000
 draft_category = "Settleezy AI"         # every draft is tagged with this Outlook category
+calendar_write = true                   # book meetings you approve (needs Calendars.ReadWrite); false = read-only
+
+[scheduling]
+# Meeting requests from email / Instagram -> free slots -> reply draft -> booked event (only when you click "Book").
+meeting_minutes = 30
+buffer_minutes = 15                     # free time kept before and after other meetings
+day_start = "09:00"
+day_end = "18:00"
+notice_hours = 18                       # earliest slot offered, from now
+online_default = true                   # add a Teams link to booked meetings
+calendly_link = ""                      # optional: offered as "or pick a time here" in the reply
 
 [triage]
 ignore_domains = []                     # e.g. ["@hostinger.com", "@stripe.com"]

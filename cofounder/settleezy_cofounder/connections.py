@@ -29,7 +29,9 @@ class Check:
 def _outlook(cfg: Config) -> Check:
     if not secret("MS_CLIENT_ID"):
         return Check("Outlook", False, "not configured", "Add MS_CLIENT_ID and MS_TENANT_ID to .env (README step 3), then run: sz auth outlook")
-    from .msgraph import SCOPES, Graph, GraphError
+    from .msgraph import Graph, GraphError, scopes_for
+
+    SCOPES = scopes_for(cfg)
 
     try:
         g = Graph(cfg)
@@ -39,7 +41,8 @@ def _outlook(cfg: Config) -> Check:
         result = g.app.acquire_token_silent(SCOPES, account=accounts[0])
         g._save_cache()
         if not result or "access_token" not in result:
-            return Check("Outlook", False, "sign-in expired", "Run: sz auth outlook")
+            return Check("Outlook", False, "sign-in expired or new permission needed (calendar booking)",
+                         "Run: sz auth outlook  (add Calendars.ReadWrite to the app registration first, README step 3)")
         granted = {s.lower().rsplit("/", 1)[-1] for s in (result.get("scope") or "").split()}
         missing = [s for s in SCOPES if s.lower() not in granted] if granted else []
         if any(s.startswith("mail.send") for s in granted):

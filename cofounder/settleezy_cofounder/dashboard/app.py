@@ -477,6 +477,56 @@ async def speech_analyse(request: Request, mode: str = "practice", coach: int = 
         raise HTTPException(501, f"Speech analysis needs the voice extras on this PC: pip install -e \".[voice]\" ({exc})") from exc
 
 
+# -- meeting requests -> calendar ------------------------------------------------------
+
+@app.get("/api/meetings/requests")
+def meeting_requests() -> dict:
+    from .. import scheduling
+
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        return {"requests": scheduling.requests(cfg, db), "slots": scheduling.suggest_slots(cfg, db),
+                "calendar_write": bool(cfg.get("outlook.calendar_write", True))}
+
+
+@app.post("/api/meetings/requests/{req_id}")
+def meeting_action(req_id: int, body: dict, x_sz: str | None = Header(default=None)) -> dict:
+    """action: draft (reply with slots as an Outlook draft) | book (start, minutes, invite, online) | dismiss."""
+    _guard(x_sz)
+    from .. import scheduling
+    from ..msgraph import GraphError
+
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        try:
+            a = body.get("action")
+            if a == "draft":
+                return scheduling.draft_reply(cfg, db, req_id)
+            if a == "book":
+                res = scheduling.book(cfg, db, req_id, body["start"], body.get("minutes"), invite=bool(body.get("invite", True)),
+                                      online=body.get("online"))
+                _notify_safe(cfg, "Meeting booked", f"{res['subject']} · {res['start'][5:16].replace('T', ' ')}", "calendar")
+                return res
+            if a == "dismiss":
+                scheduling.dismiss(db, req_id)
+                return {"ok": True}
+            raise HTTPException(400, "action must be draft, book or dismiss")
+        except (ValueError, KeyError) as exc:
+            raise HTTPException(400, str(exc)) from exc
+        except (GraphError, RuntimeError) as exc:
+            raise HTTPException(502, f"Outlook: {exc}") from exc
+
+
+def _notify_safe(cfg, title: str, body: str, kind: str = "info") -> None:
+    try:
+        from ..notify import notify
+
+        with DB(cfg.db_path) as db:
+            notify(cfg, db, title, body, kind=kind)
+    except Exception:
+        pass
+
+
 # -- pipeline + week planner ---------------------------------------------------
 
 @app.get("/api/pipeline")

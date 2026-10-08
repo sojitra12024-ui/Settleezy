@@ -34,7 +34,8 @@ def cmd_auth(args) -> None:
         from .msgraph import Graph
 
         who = Graph(cfg).login()
-        print(f"Signed in as {who}. Permissions: read mail, create drafts, read calendar. (No send permission.)")
+        cal = "read + book approved meetings" if cfg.get("outlook.calendar_write", True) else "read calendar"
+        print(f"Signed in as {who}. Permissions: read mail, create drafts, {cal}. (No send permission.)")
         return
     import getpass
 
@@ -348,6 +349,47 @@ def cmd_instagram(args) -> None:
             print("Next: " + ", ".join("#" + t for t in igd.pick_hashtags(cfg, db, 8)))
 
 
+def cmd_meetings(args) -> None:
+    from . import scheduling as sch
+
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        if args.action == "scan":
+            _print(sch.detect(cfg, db))
+        elif args.action == "slots":
+            for s in sch.suggest_slots(cfg, db, args.minutes or None, n=5):
+                print("  " + sch.fmt_slot(s))
+        elif args.action == "draft":
+            print(sch.draft_reply(cfg, db, int(args.args[0]))["text"])
+        elif args.action == "book":
+            req = next((r for r in sch.requests(cfg, db) if r["id"] == int(args.args[0])), None)
+            if not req:
+                sys.exit("request not found")
+            options = req["proposed_free"] + [x["start"] for x in req["slots"]]   # same numbering as the list
+            choice = args.args[1] if len(args.args) > 1 else "1"
+            start = choice if "T" in choice else options[int(choice) - 1]
+            _print(sch.book(cfg, db, req["id"], start, args.minutes or None, invite=not args.no_invite))
+        elif args.action == "dismiss":
+            sch.dismiss(db, int(args.args[0]))
+            print("ok")
+        else:
+            reqs = sch.requests(cfg, db)
+            if not reqs:
+                print("No open meeting requests.")
+            for r in reqs:
+                print(f"#{r['id']} [{r['source']}] {r['who']}: {r['subject']}  ({(r['received_at'] or '')[:10]})")
+                print(f"     {r['snippet'][:140]}")
+                n = 1
+                for p in r["proposed_free"]:
+                    print(f"     {n}. they proposed {sch.fmt_slot({'start': p, 'end': p})[:-6]} ✓ free")
+                    n += 1
+                for s in r["slots"]:
+                    print(f"     {n}. {sch.fmt_slot(s)}")
+                    n += 1
+            if reqs:
+                print("\nsz meetings draft ID  (reply draft with slots)   ·   sz meetings book ID N  (book option N)")
+
+
 def cmd_leadgen(args) -> None:
     from . import leadgen
 
@@ -624,6 +666,13 @@ def main(argv: list[str] | None = None) -> None:
     ig_.add_argument("items", nargs="*", help="hashtags (discover) or @handles / profile links (add)")
     ig_.add_argument("--max", type=int, default=40, help="discover: max profiles to look up")
     ig_.set_defaults(fn=cmd_instagram)
+
+    mt = sub.add_parser("meetings", help="meeting requests -> calendar: sz meetings | scan | slots | draft ID | book ID N | dismiss ID")
+    mt.add_argument("action", nargs="?", default="list", choices=["list", "scan", "slots", "draft", "book", "dismiss"])
+    mt.add_argument("args", nargs="*")
+    mt.add_argument("--minutes", type=int, default=0)
+    mt.add_argument("--no-invite", action="store_true", help="book: block your calendar only, no invitation to them")
+    mt.set_defaults(fn=cmd_meetings)
 
     lg = sub.add_parser("leadgen", help="campus venues from OpenStreetMap: sz leadgen scan [--campus TU] | list | coverage")
     lg.add_argument("action", nargs="?", default="list", choices=["scan", "list", "coverage"])

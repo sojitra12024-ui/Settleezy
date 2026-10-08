@@ -17,6 +17,9 @@ def _mail(cfg: Config, db: DB) -> Any:
     out = {"mail": sync(cfg, db, g), "calendar_events": sync_calendar(cfg, db, g)}
     out["tracking"] = _track(cfg, db)   # match sent drafts / replies right after new mail arrives
     out["ops"] = _ops(cfg, db)          # post-meeting follow-ups, stuck onboarding, renewals -> to-dos
+    from .scheduling import detect
+
+    out["meeting_requests"] = detect(cfg, db)   # "can we have a call?" -> slots ready on the dashboard
     return out
 
 

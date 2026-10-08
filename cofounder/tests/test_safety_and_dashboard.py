@@ -27,3 +27,12 @@ def test_brief_render_without_data():
     md = render(data, "1. Call Café Kranz (new on Groupon)")
     assert "No meetings." in md and "Call Café Kranz" in md
     assert spoken(data, "1. Call Café Kranz (new on Groupon)").endswith("Top priority: Call Café Kranz.")
+
+
+def test_calendar_write_scope_is_configurable_and_never_send(cfg):
+    from settleezy_cofounder import msgraph
+
+    assert msgraph.scopes_for(cfg) == ["User.Read", "Mail.ReadWrite", "Calendars.ReadWrite"]
+    cfg.raw["outlook"]["calendar_write"] = False
+    assert msgraph.scopes_for(cfg)[-1] == "Calendars.Read"
+    assert all("send" not in s.lower() for s in msgraph.scopes_for(cfg))

@@ -224,6 +224,12 @@ dialog .dhead { display: flex; justify-content: space-between; align-items: cent
 .lk.low { background: var(--surface-2); color: var(--text-muted); }
 .plat { display: inline-block; font-size: 10.5px; border: 1px solid var(--border); border-radius: 99px; padding: 0 6px; margin: 1px 2px 1px 0; color: var(--text-secondary); }
 .plat.comp { border-color: var(--series-2); color: var(--series-2); }
+.mr { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.mr:last-child { border-bottom: 0; } .mr .snip { font-size: 12.5px; color: var(--text-secondary); margin-top: 3px; }
+.mr .slots { display: flex; flex-wrap: wrap; gap: 6px; align-content: start; }
+.mr .slots button { font-size: 12.5px; } .mr .slots button.prop { border-color: var(--good); color: var(--good-text); }
+.mr .acts { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+@media (max-width: 700px) { .mr { grid-template-columns: 1fr; } }
 .coach { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 18px; }
 .spm { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin: 6px 0 10px; }
 .spm div { background: var(--surface-2); border-radius: 8px; padding: 8px 10px; }
@@ -298,6 +304,8 @@ dialog .dhead { display: flex; justify-content: space-between; align-items: cent
     <div id="todos" class="scroll" style="max-height:420px"></div>
     <details><summary>Done recently</summary><div id="todos-done"></div></details></section>
 
+  <section class="card span-12" id="mr-card" hidden><h2>Meeting requests <small id="mr-sub">Setz found these in your inbox and Instagram</small>
+      <label class="lf-opt"><input type="checkbox" id="mr-invite" checked> send them the invite</label></h2><div id="mr-list"></div></section>
   <section class="card span-7"><h2>Who to reach out to <small>ranked by urgency</small></h2><div id="reach" class="scroll" style="max-height:440px"></div></section>
 
   <section class="card span-5"><h2>Inbox <span class="seg"><button data-inbox="replies" aria-selected="true">Replies owed</button><button data-inbox="followups">Follow-ups</button></span></h2>
@@ -672,6 +680,23 @@ async function loadLeads() {
   }).join("") : `<tr><td class="empty">No leads match. Run “Scan competitors”, <code>sz import</code>, or add one below.</td></tr>`;
 }
 
+/* ---------- MEETING REQUESTS ---------- */
+let MR = null;
+const slotLabel = (iso, end) => { const s = new Date(iso), e = end ? new Date(end) : null;
+  return s.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" }) + " · " + s.toTimeString().slice(0, 5) + (e ? "–" + e.toTimeString().slice(0, 5) : ""); };
+async function loadMeetings() {
+  MR = await (await fetch("/api/meetings/requests")).json();
+  const rs = MR.requests; $("#mr-card").hidden = !rs.length;
+  $("#mr-sub").textContent = `${rs.length} open · pick a slot to book it in Outlook${MR.calendar_write ? "" : " (booking is off in config)"}`;
+  $("#mr-list").innerHTML = rs.map((r) => `<div class="mr"><div><b>${esc(r.who)}</b> <span class="pill">${esc(r.source)}</span>${r.lead ? ` <span class="pill">${esc(r.lead.name)} · ${esc(r.lead.status)}</span>` : ""}
+      <div style="font-weight:500;margin-top:2px">${esc(r.subject || "")}</div><div class="snip">${esc((r.snippet || "").slice(0, 220))}</div>
+      <div class="acts">${r.source === "email" ? `<button class="small" data-mr-draft="${r.id}" title="Reply with these slots, saved as an Outlook draft">${r.status === "proposed" ? "Draft again" : "Draft reply with slots"}</button>` : `<button class="small" data-mr-copy="${r.id}">Copy reply for Instagram</button>`}
+        <button class="small" data-mr-dismiss="${r.id}">Not a meeting</button></div></div>
+    <div class="slots">${r.proposed_free.map((p) => `<button class="prop" data-mr-book="${r.id}" data-start="${esc(p)}" title="They proposed this and you're free">✓ ${esc(slotLabel(p))} (their time)</button>`).join("")}
+      ${r.proposed.filter((p) => !r.proposed_free.includes(p)).map((p) => `<span class="muted" style="font-size:12px;align-self:center">they asked ${esc(slotLabel(p))}: you're busy</span>`).join("")}
+      ${r.slots.map((s) => `<button data-mr-book="${r.id}" data-start="${esc(s.start)}">${esc(slotLabel(s.start, s.end))}</button>`).join("") || '<span class="muted">No free slot in the next week</span>'}</div></div>`).join("");
+}
+
 /* ---------- LEAD FINDER ---------- */
 let LF = null, lfLastVoice = "";
 const COMP = ["Groupon", "vspots", "Top10 Berlin", "UNiDAYS", "Student Beans"];
@@ -953,7 +978,7 @@ async function load() {
   if (!$("#lead-status").options[1]) $("#lead-status").innerHTML += STATUSES.map(s => `<option>${s}</option>`).join("");
   if (!$("#pedit [name=stage]").options[0]) $("#pedit [name=stage]").innerHTML = o.stages.map(([k, n]) => `<option value="${k}">${esc(n)}</option>`).join("");
   renderToday(d, o); renderPartners(o); renderGrowth(d, o); renderLeadsPage(d); renderInsights(d);
-  loadPipeline().catch(() => {}); loadWeek().catch(() => {}); loadSpeech().catch(() => {}); checkVoiceFinder();
+  loadPipeline().catch(() => {}); loadWeek().catch(() => {}); loadSpeech().catch(() => {}); loadMeetings().catch(() => {}); checkVoiceFinder();
   document.querySelectorAll("[data-job]").forEach(b => b.disabled = d.running[b.dataset.job] === "running");
 }
 async function poll(job) {
@@ -1002,6 +1027,13 @@ document.addEventListener("click", async (e) => {
   if (e.target.id === "pl-auto") { e.target.disabled = true; try { const r = await post("/api/pipeline/sequences/auto"); toast(r.started.length ? `Started ${r.started.length} sequences: ${r.started.slice(0, 3).map(x => x.name).join(", ")}${r.started.length > 3 ? "…" : ""}` : "Weekly capacity reached or no leads with contacts"); refreshOps(); } catch (err) { toast(err.message); e.target.disabled = false; } return; }
   if (e.target.id === "sp-rec") return toggleRecord();
   if (t("[data-lf]")) return runFinder(t("[data-lf]").dataset.lf);
+  const mb = t("[data-mr-book]");
+  if (mb) { if (!confirm(`Book ${slotLabel(mb.dataset.start)} in Outlook${$("#mr-invite").checked ? " and send them an invite" : ""}?`)) return;
+    mb.disabled = true; try { const r = await post(`/api/meetings/requests/${mb.dataset.mrBook}`, { action: "book", start: mb.dataset.start, invite: $("#mr-invite").checked });
+      toast(`Booked: ${r.subject}${r.teams ? " (Teams)" : ""}`); loadMeetings(); refreshOps(); } catch (err) { toast(err.message); mb.disabled = false; } return; }
+  if (t("[data-mr-draft]")) { try { await post(`/api/meetings/requests/${t("[data-mr-draft]").dataset.mrDraft}`, { action: "draft" }); toast("Reply with slots saved in Outlook → Drafts"); loadMeetings(); } catch (err) { toast(err.message); } return; }
+  if (t("[data-mr-copy]")) { try { const r = await post(`/api/meetings/requests/${t("[data-mr-copy]").dataset.mrCopy}`, { action: "draft" }); await navigator.clipboard.writeText(r.text); toast("Reply copied: paste it in the Instagram DM"); } catch (err) { toast(err.message); } return; }
+  if (t("[data-mr-dismiss]")) { await post(`/api/meetings/requests/${t("[data-mr-dismiss]").dataset.mrDismiss}`, { action: "dismiss" }); return loadMeetings(); }
   if (e.target.id === "lf-enrich") return finderEnrich();
   if (e.target.id === "lf-seq") return finderSequence();
   if (e.target.id === "lf-all") { document.querySelectorAll("[data-pick]").forEach((c) => c.checked = e.target.checked); return; }

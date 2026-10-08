@@ -1,8 +1,9 @@
 """Microsoft Graph client for Outlook mail + calendar.
 
 Safety by construction: the app only ever requests ``Mail.ReadWrite`` (read mail, create drafts)
-and ``Calendars.Read``. It never requests ``Mail.Send``, so Microsoft itself will refuse any attempt
-to send email from this code. Every draft is tagged with an Outlook category so you can find them.
+and ``Calendars.ReadWrite`` (read the calendar; book a meeting only when you click "Book"; set
+``[outlook] calendar_write = false`` for read-only). It never requests ``Mail.Send``, so Microsoft itself
+will refuse any attempt to send email from this code. Every draft is tagged with an Outlook category.
 """
 
 from __future__ import annotations
@@ -18,6 +19,13 @@ from .config import Config, secret
 GRAPH = "https://graph.microsoft.com/v1.0"
 SCOPES = ["User.Read", "Mail.ReadWrite", "Calendars.Read"]
 assert not any(s.lower().startswith("mail.send") for s in SCOPES), "drafts-only: never request Mail.Send"
+
+
+def scopes_for(cfg: Config) -> list[str]:
+    """Calendar write (booking meetings you approve) unless turned off in config. Never Mail.Send."""
+    out = ["User.Read", "Mail.ReadWrite", "Calendars.ReadWrite" if cfg.get("outlook.calendar_write", True) else "Calendars.Read"]
+    assert not any(s.lower().startswith("mail.send") for s in out)
+    return out
 
 
 class GraphError(RuntimeError):
@@ -40,6 +48,7 @@ class Graph:
             token_cache=self.cache,
         )
         self.http = httpx.Client(timeout=60)
+        self.scopes = scopes_for(cfg)
 
     # -- auth -----------------------------------------------------------
     def _save_cache(self) -> None:
@@ -48,7 +57,7 @@ class Graph:
 
     def login(self) -> str:
         """Interactive device-code login (run once: `sz auth outlook`)."""
-        flow = self.app.initiate_device_flow(scopes=SCOPES)
+        flow = self.app.initiate_device_flow(scopes=self.scopes)
         if "user_code" not in flow:
             raise GraphError(f"Could not start device login: {flow}")
         print(flow["message"], flush=True)
@@ -60,7 +69,7 @@ class Graph:
 
     def token(self) -> str:
         accounts = self.app.get_accounts()
-        result = self.app.acquire_token_silent(SCOPES, account=accounts[0]) if accounts else None
+        result = self.app.acquire_token_silent(self.scopes, account=accounts[0]) if accounts else None
         self._save_cache()
         if not result or "access_token" not in result:
             raise GraphError("Not signed in to Outlook. Run: sz auth outlook")
@@ -151,3 +160,24 @@ class Graph:
         }
         tz = self.cfg.get("me.timezone", "Europe/Berlin")
         return [e for e in self.paged("/me/calendarView", params, headers={"Prefer": f'outlook.timezone="{tz}"'}) if not e.get("isCancelled")]
+
+    def create_event(self, subject: str, start: datetime, end: datetime, *, attendees: list[tuple[str, str]] | None = None,
+                     body: str = "", location: str = "", online: bool = False) -> dict:
+        """Book a calendar event (only called after you approve a slot). With attendees, Outlook sends them the
+        meeting invitation itself; that's a calendar invite, not an email sent by this app."""
+        if not self.cfg.get("outlook.calendar_write", True):
+            raise GraphError("Calendar booking is off ([outlook] calendar_write = false)")
+        tz = self.cfg.get("me.timezone", "Europe/Berlin")
+        event: dict[str, Any] = {
+            "subject": subject,
+            "start": {"dateTime": start.strftime("%Y-%m-%dT%H:%M:00"), "timeZone": tz},
+            "end": {"dateTime": end.strftime("%Y-%m-%dT%H:%M:00"), "timeZone": tz},
+            "body": {"contentType": "Text", "content": body},
+            "categories": [self.category],
+            "attendees": [{"emailAddress": {"address": a, "name": n or a}, "type": "required"} for a, n in attendees or []],
+        }
+        if location:
+            event["location"] = {"displayName": location}
+        if online:
+            event["isOnlineMeeting"], event["onlineMeetingProvider"] = True, "teamsForBusiness"
+        return self._send_json("POST", "/me/events", event)

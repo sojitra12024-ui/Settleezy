@@ -53,7 +53,7 @@ Register a small app in your Microsoft tenant (you only do this once):
 1. Go to <https://entra.microsoft.com> → **App registrations** → **New registration**.
    Name: `Settleezy Cofounder`. Account type: **this organizational directory only**. Redirect URI: leave empty. **Register**.
 2. **Authentication** → *Advanced settings* → **Allow public client flows: Yes** → Save.
-3. **API permissions** → *Add a permission* → **Microsoft Graph** → **Delegated** → tick `User.Read`, `Mail.ReadWrite`, `Calendars.Read` → Add → **Grant admin consent**.
+3. **API permissions** → *Add a permission* → **Microsoft Graph** → **Delegated** → tick `User.Read`, `Mail.ReadWrite`, `Calendars.ReadWrite` (lets Setz book meetings you approve; never tick `Mail.Send`) → Add → **Grant admin consent**.
    (Do **not** add `Mail.Send`. This is what makes "drafts only" guaranteed.)
 4. Copy **Application (client) ID** and **Directory (tenant) ID** into `.env` as `MS_CLIENT_ID` and `MS_TENANT_ID`.
 5. Sign in: `.\.venv\Scripts\sz.exe auth outlook` and follow the code shown.
@@ -220,6 +220,26 @@ refresh with every Instagram sync, and big followings raise a lead's score.
 
 *Meta setup:* hashtag search and business discovery work for your own app in development mode. Add the
 **Instagram Public Content Access** feature in the Meta app dashboard if hashtag search answers "permission denied".
+
+## Meeting requests → your calendar
+
+After every Outlook sync Setz finds messages that ask to meet, in English or German ("can we have a quick call?",
+"hätten Sie nächste Woche Zeit für ein Telefonat?", "are you free Tuesday at 2?"). It also catches Instagram comments
+asking to collaborate.
+
+**On the Today tab (or `sz meetings`, or "Hey Setz, any meeting requests?"):**
+- **Times they proposed** are checked against your calendar and shown with ✓ if you're free.
+- **Otherwise, 3 free slots** on different days: within working hours, with a 15-minute buffer around other
+  meetings, preferring your calls block, and skipping days that already have too many meetings.
+- **"Draft reply with slots"** writes the answer in your language into Outlook **Drafts**; Setz never sends. For
+  Instagram it copies the text for you to paste into the DM.
+- **Clicking a slot books it** in Outlook, with a Teams link and an invitation to them (untick "send them the
+  invite" to only block your own calendar). The meeting appears in today's plan, the lead moves to *meeting*, and a
+  prep to-do is created. By voice: "book it" / "book option 2".
+
+Booking needs the `Calendars.ReadWrite` permission (README step 3), then run `sz auth outlook` once more. Settings are
+in `[scheduling]`; set `[outlook] calendar_write = false` to keep the calendar read-only. Instagram DMs can't be read
+(Meta restricts that API), so Setz uses the comments it can see.
 
 ## Lead generation, pipeline and your week
 
