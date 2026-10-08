@@ -9,6 +9,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
+<script src="/static/hologram.js"></script>
 <style>
 :root {
   color-scheme: light;
@@ -16,8 +17,8 @@
   --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #7a7974;
   --accent: #2a78d6; --accent-ink: #ffffff;
   --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a; --series-4: #eda100; --series-5: #e87ba4;
-  --good: #0ca30c; --warning: #fab219; --critical: #d03b3b; --good-text: #006300;
-  --grid: #e8e7e3;
+  --good: #0ca30c; --warning: #fab219; --critical: #d03b3b; --good-text: #006300; --critical-text: #b42f2f;
+  --grid: #e8e7e3; --track: #e8e7e3;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -26,7 +27,7 @@
     --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #8f8e86;
     --accent: #3987e5;
     --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --series-4: #c98500; --series-5: #d55181;
-    --good-text: #4cc94c; --grid: #2a2a28;
+    --good-text: #4cc94c; --critical-text: #ff8a8a; --grid: #2a2a28; --track: #2c2c2a;
   }
 }
 :root[data-theme="dark"] {
@@ -35,7 +36,7 @@
   --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #8f8e86;
   --accent: #3987e5;
   --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --series-4: #c98500; --series-5: #d55181;
-  --good-text: #4cc94c; --grid: #2a2a28;
+  --good-text: #4cc94c; --critical-text: #ff8a8a; --grid: #2a2a28; --track: #2c2c2a;
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--text-primary); font: 14px/1.5 Inter, system-ui, sans-serif; }
@@ -44,23 +45,24 @@ header { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; g
 header h1 { font-size: 18px; margin: 0; letter-spacing: -0.01em; }
 header .sub { color: var(--text-secondary); font-size: 13px; }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; }
-button, select { font: inherit; font-size: 13px; border: 1px solid var(--border); background: var(--surface-1); color: var(--text-primary);
-  border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+button, select, input { font: inherit; font-size: 13px; border: 1px solid var(--border); background: var(--surface-1); color: var(--text-primary); border-radius: 8px; padding: 6px 12px; }
+button { cursor: pointer; }
+input { cursor: text; min-width: 0; }
 button:hover { background: var(--surface-2); }
 button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 button:disabled { opacity: .55; cursor: progress; }
-main { max-width: 1400px; margin: 0 auto; padding: 20px 24px 60px; display: grid; gap: 16px; grid-template-columns: repeat(12, 1fr); }
+main { max-width: 1440px; margin: 0 auto; padding: 20px 24px 60px; display: grid; gap: 16px; grid-template-columns: repeat(12, 1fr); }
 .card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; min-width: 0; }
-.card h2 { font-size: 14px; margin: 0 0 12px; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.card h2 { font-size: 14px; margin: 0 0 12px; display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
 .card h2 small { color: var(--text-muted); font-weight: 400; }
 .span-12 { grid-column: span 12; } .span-8 { grid-column: span 8; } .span-6 { grid-column: span 6; } .span-4 { grid-column: span 4; }
-.kpis { grid-column: span 12; display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.kpis { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); align-content: start; }
 .kpi { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
 .kpi .label { color: var(--text-secondary); font-size: 12px; }
-.kpi .value { font-size: 28px; font-weight: 600; letter-spacing: -0.02em; margin-top: 2px; }
+.kpi .value { font-size: 28px; font-weight: 600; letter-spacing: -0.02em; margin-top: 2px; font-variant-numeric: tabular-nums; }
 .kpi .note { color: var(--text-muted); font-size: 12px; }
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
-th { text-align: left; color: var(--text-muted); font-weight: 500; font-size: 12px; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+th { text-align: left; color: var(--text-muted); font-weight: 500; font-size: 12px; padding: 6px 8px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--surface-1); }
 td { padding: 7px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
 tr:last-child td { border-bottom: 0; }
 td a { color: var(--accent); text-decoration: none; }
@@ -81,13 +83,48 @@ td a { color: var(--accent); text-decoration: none; }
 .funnel b { display: block; font-size: 20px; }
 .funnel span { font-size: 12px; color: var(--text-secondary); text-transform: capitalize; }
 .md { font-size: 13.5px; } .md h1 { font-size: 16px; } .md h2 { font-size: 14px; margin: 14px 0 6px; } .md ul { padding-left: 18px; }
-.tabs { display: flex; gap: 6px; }
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; }
 .tabs button[aria-selected="true"] { background: var(--surface-2); font-weight: 600; }
-.toast { position: fixed; bottom: 18px; right: 18px; background: var(--text-primary); color: var(--bg); padding: 10px 14px; border-radius: 8px; font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+.toast { position: fixed; bottom: 18px; right: 18px; background: var(--text-primary); color: var(--bg); padding: 10px 14px; border-radius: 8px; font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 10; max-width: 360px; }
 .toast.show { opacity: 1; }
 details summary { cursor: pointer; color: var(--text-secondary); font-size: 12px; margin-top: 8px; }
+/* hologram card: always a dark "screen" */
+.holo-card { background: radial-gradient(ellipse at 50% 35%, #0b1c29 0%, #04080d 75%); border-color: #0f2a3a; color: #d8f8ff; display: flex; flex-direction: column; }
+.holo-card h2 { color: #d8f8ff; } .holo-card h2 small, .holo-card .muted { color: #6fa9b8; }
+.holo-card h2 a { color: #6fa9b8; font-size: 12px; font-weight: 400; }
+.holo-stage { position: relative; height: 230px; }
+.holo-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.holo-caption { min-height: 2.8em; font-size: 13px; text-align: center; text-shadow: 0 0 12px rgba(94,242,255,.4); margin: 4px 0 10px; }
+.ask { display: flex; gap: 6px; }
+.ask input { flex: 1; background: rgba(255,255,255,.06); border-color: #1d3d50; color: #d8f8ff; }
+.ask input::placeholder { color: #6fa9b8; }
+.ask button { background: #12384d; border-color: #1d5a78; color: #d8f8ff; }
+.ask button:hover { background: #18485f; }
+.ask label { display: flex; align-items: center; gap: 4px; font-size: 12px; color: #6fa9b8; white-space: nowrap; }
+/* goals */
+.goal { margin-bottom: 12px; }
+.goal .row { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
+.goal .row span:last-child { color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.bar { height: 8px; background: var(--track); border-radius: 99px; overflow: hidden; margin-top: 5px; }
+.bar i { display: block; height: 100%; background: var(--accent); border-radius: 99px; }
+/* connections */
+.conn { display: grid; grid-template-columns: 22px 1fr; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--border); }
+.conn:last-child { border-bottom: 0; }
+.conn .ic { font-weight: 700; }
+.conn.ok .ic { color: var(--good-text); } .conn.bad .ic { color: var(--critical-text); } .conn.opt .ic { color: var(--text-muted); }
+.conn .fix { font-size: 12px; color: var(--text-secondary); }
+/* forms */
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.form-grid label { font-size: 12px; color: var(--text-secondary); display: grid; gap: 3px; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.toolbar input { flex: 1 1 180px; }
+.hbar { display: grid; grid-template-columns: minmax(80px, 140px) 1fr 40px; gap: 8px; align-items: center; font-size: 12.5px; margin-bottom: 6px; }
+.hbar .bar { margin: 0; height: 10px; }
+.hbar .n { text-align: right; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.funnel-kind { margin-bottom: 12px; }
+.funnel-kind b { font-size: 12px; text-transform: capitalize; }
 @media (max-width: 1000px) { .span-8, .span-6, .span-4 { grid-column: span 12; } }
-@media (max-width: 600px) { header, main { padding-left: 16px; padding-right: 16px; } }
+@media (max-width: 600px) { header, main { padding-left: 16px; padding-right: 16px; } .form-grid { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
@@ -103,12 +140,27 @@ details summary { cursor: pointer; color: var(--text-secondary); font-size: 12px
     <button data-job="scrape">Scan competitors</button>
     <button data-job="drafts">Write drafts</button>
     <button data-job="brief" class="primary">New brief</button>
-    <button id="theme" title="Toggle theme">◐</button>
+    <button id="theme" title="Toggle light/dark theme" aria-label="Toggle theme">◐</button>
   </div>
 </header>
 
 <main>
-  <section class="kpis" id="kpis"></section>
+  <section class="card holo-card span-4" aria-label="Voice assistant">
+    <h2>Jarvis <small id="holo-state">idle</small> <a href="/hologram" target="_blank" rel="noopener">full screen ↗</a></h2>
+    <div class="holo-stage"><canvas id="holo" aria-hidden="true"></canvas></div>
+    <div class="holo-caption" id="holo-caption">Say “Hey Jarvis”, or ask here.</div>
+    <form class="ask" id="ask">
+      <input id="ask-input" placeholder="Ask: what's my day? best leads?" autocomplete="off" aria-label="Ask Jarvis">
+      <label><input type="checkbox" id="ask-speak" checked> voice</label>
+      <button type="submit">Ask</button>
+    </form>
+  </section>
+
+  <section class="kpis span-8" id="kpis"></section>
+
+  <section class="card span-6"><h2>Goals <small>edit in config.toml → [[growth.targets]]</small></h2><div id="goals"></div></section>
+
+  <section class="card span-6"><h2>Connections <button id="conn-refresh">Check again</button></h2><div id="connections"></div></section>
 
   <section class="card span-4"><h2>Today <small id="today-date"></small></h2><div class="timeline" id="today"></div>
     <details><summary>Upcoming</summary><div class="timeline" id="upcoming"></div></details></section>
@@ -116,27 +168,55 @@ details summary { cursor: pointer; color: var(--text-secondary); font-size: 12px
   <section class="card span-8"><h2>Inbox <span class="tabs"><button data-tab="replies" aria-selected="true">Replies owed</button><button data-tab="followups">Follow-ups due</button></span></h2>
     <div class="scroll"><table id="inbox"></table></div></section>
 
+  <section class="card span-8"><h2>Trends <span class="tabs"><select id="trend-key" aria-label="Metric"></select><select id="trend-days" aria-label="Range"><option value="30">30 days</option><option value="90" selected>90 days</option><option value="365">1 year</option></select></span></h2>
+    <div class="chart-wrap"><canvas id="trendChart" aria-label="Metric trend"></canvas></div></section>
+
+  <section class="card span-4"><h2>Record numbers <small>from the app</small></h2>
+    <form id="kpi-form" class="form-grid"></form>
+    <p class="muted" style="font-size:12px;margin:10px 0 0">Saved per day and charted under Trends. Add more in config.toml → [tracking].</p></section>
+
+  <section class="card span-4"><h2>AI drafts → sent → replied <small>30 days</small></h2><div id="draft-funnel"></div></section>
+
+  <section class="card span-4"><h2>Partner pipeline</h2><div class="funnel" id="funnel"></div></section>
+
+  <section class="card span-4"><h2>Outreach reply rate by weekday <small id="reply-overall"></small></h2>
+    <div class="chart-wrap" style="height:190px"><canvas id="weekdayChart" aria-label="Reply rate by weekday"></canvas><div class="empty" id="weekday-empty" style="position:absolute;inset:40% 0 auto;text-align:center" hidden>Run <code>sz learn</code> to measure which days get replies.</div></div></section>
+
   <section class="card span-8"><h2>New Berlin listings by competitor <small>last 14 days</small></h2>
     <div class="legend" id="listings-legend"></div><div class="chart-wrap"><canvas id="listingsChart" aria-label="New listings per day by competitor"></canvas></div>
     <details><summary>Table view</summary><div class="scroll"><table id="listings-table"></table></div></details></section>
 
-  <section class="card span-4"><h2>Partner pipeline</h2><div class="funnel" id="funnel"></div>
-    <h2 style="margin-top:16px">Outreach reply rate by weekday <small id="reply-overall"></small></h2>
-    <div class="chart-wrap" style="height:170px"><canvas id="weekdayChart" aria-label="Reply rate by weekday"></canvas></div></section>
+  <section class="card span-4"><h2>Where venues discount <small>new listings, 30 days</small></h2><div id="categories"></div></section>
 
-  <section class="card span-12"><h2>Best new leads <small>score = student relevance × proven discount appetite × reachability</small></h2>
-    <div class="scroll"><table id="leads"></table></div></section>
+  <section class="card span-12"><h2>Leads <small>score = student relevance × proven discount appetite × reachability</small></h2>
+    <div class="toolbar">
+      <input id="lead-q" placeholder="Search name, category, email, source…" aria-label="Search leads">
+      <select id="lead-kind" aria-label="Type"><option value="">All types</option><option>merchant</option><option>brand</option><option>university</option><option>housing</option><option>service</option></select>
+      <select id="lead-status" aria-label="Status"><option value="">All statuses</option></select>
+    </div>
+    <div class="scroll" style="max-height:440px"><table id="leads"></table></div>
+    <details><summary>Add a lead</summary>
+      <form id="lead-form" class="form-grid" style="margin-top:10px">
+        <label>Name<input name="name" required></label>
+        <label>Type<select name="kind"><option>merchant</option><option>brand</option><option>university</option><option>housing</option><option>service</option></select></label>
+        <label>Category<input name="category" placeholder="café, grocery, gym…"></label>
+        <label>Email<input name="email" type="email"></label>
+        <label>Website<input name="website"></label>
+        <label>Instagram<input name="instagram" placeholder="@handle"></label>
+        <div><button class="primary" type="submit">Add lead</button></div>
+      </form></details></section>
 
   <section class="card span-6"><h2>Latest competitor listings</h2><div class="scroll"><table id="latest"></table></div></section>
 
-  <section class="card span-6"><h2>Instagram <small id="ig-note"></small></h2>
-    <div class="chart-wrap" style="height:180px"><canvas id="igChart" aria-label="Instagram followers"></canvas></div>
-    <h2 style="margin-top:14px">Comments waiting for you</h2><div class="scroll" style="max-height:180px"><table id="igc"></table></div></section>
+  <section class="card span-6"><h2>Instagram <span class="tabs"><button data-ig="followers" aria-selected="true">Followers</button><button data-ig="reach">Reach</button><button data-ig="engagement_rate_pct">Engagement %</button></span></h2>
+    <div class="chart-wrap" style="height:170px"><canvas id="igChart" aria-label="Instagram metric"></canvas></div>
+    <h2 style="margin-top:14px">Top posts</h2><div class="scroll" style="max-height:150px"><table id="igposts"></table></div>
+    <h2 style="margin-top:14px">Comments waiting for you</h2><div class="scroll" style="max-height:160px"><table id="igc"></table></div></section>
 
   <section class="card span-6"><h2>Daily brief</h2><div class="md scroll" id="brief"></div></section>
   <section class="card span-6"><h2>Co-founder weekly review</h2><div class="md scroll" id="report"></div></section>
 </main>
-<div class="toast" id="toast"></div>
+<div class="toast" id="toast" role="status"></div>
 
 <script>
 const $ = (s) => document.querySelector(s);
@@ -144,53 +224,31 @@ const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const safeUrl = (u) => /^https?:\/\//i.test(u || "") ? esc(u) : "#";
 const md = (s) => DOMPurify.sanitize(marked.parse(s || ""));
+const fmt = (v) => v == null ? "–" : Number(v).toLocaleString(undefined, { maximumFractionDigits: 1 });
 const SOURCES = ["groupon", "vspots", "top10berlin", "unidays", "studentbeans"];   // fixed order = fixed colour
 const STATUSES = ["new", "drafted", "contacted", "replied", "meeting", "partner", "lost"];
-let DATA = null, charts = {}, tab = "replies";
+const LABELS = {
+  "manual.paying_members": "Paying members", "manual.trial_members": "Trial members", "manual.app_downloads": "App downloads",
+  "manual.workshop_signups": "Workshop sign-ups", "manual.buddy_students": "Buddy platform students",
+  "instagram.followers": "Instagram followers", "instagram.reach": "Instagram reach", "instagram.engagement_rate_pct": "Instagram engagement %",
+  "instagram.profile_views": "Instagram profile views", "instagram.website_clicks": "Instagram website clicks",
+  "ops.replies_owed": "Replies owed", "ops.followups_due": "Follow-ups due", "ops.response_hours_median_7d": "Median reply time (hours)",
+  "ops.ai_drafts_sent_pct_30d": "AI drafts you sent (%)", "ops.outreach_reply_pct_30d": "Outreach reply rate (%)",
+  "ops.partners_merchant": "Partner venues", "ops.partners_university": "Buddy platform universities", "ops.new_listings_7d": "New competitor listings (7d)",
+  "calendly.meetings_last_7d": "Calendly meetings (7d)", "calendly.upcoming": "Calendly upcoming",
+};
+const label = (k) => LABELS[k] || k.split(".").pop().replace(/_/g, " ");
+let DATA = null, charts = {}, tab = "replies", igKey = "followers";
 
-function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.add("show"); setTimeout(() => t.classList.remove("show"), 2600); }
+function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove("show"), 3200); }
 async function post(url, body) {
   const r = await fetch(url, { method: "POST", headers: { "X-SZ": "1", "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(j.detail || r.statusText);
   return j;
 }
-
-function kpi(label, value, note) { return `<div class="kpi"><div class="label">${esc(label)}</div><div class="value">${esc(value)}</div><div class="note">${esc(note || "")}</div></div>`; }
 function last(series) { return series && series.length ? series[series.length - 1][1] : null; }
-function delta(series) { if (!series || series.length < 2) return ""; const d = series[series.length - 1][1] - series[0][1]; return (d >= 0 ? "+" : "") + d + " in 14 days"; }
-
-function renderKpis(d) {
-  const ig = d.metrics["instagram.followers"];
-  const rr = d.outreach && d.outreach.reply_rate != null ? Math.round(d.outreach.reply_rate * 100) + "%" : "–";
-  $("#kpis").innerHTML = [
-    kpi("Meetings today", d.events_today.length, d.events_upcoming.length + " upcoming"),
-    kpi("Replies owed", d.replies.length, d.replies.filter(r => r.priority >= 3).length + " high priority"),
-    kpi("Follow-ups due", d.followups.length, "per your cadence"),
-    kpi("Drafts (7 days)", d.drafts_7d, "in Outlook → Drafts"),
-    kpi("New listings (7 days)", d.new_listings.length, d.listings_total + " tracked"),
-    kpi("New leads (7 days)", d.leads_new_7d, "from competitors + seeds"),
-    kpi("Instagram followers", last(ig) ?? "–", delta(ig)),
-    kpi("Outreach reply rate", rr, d.outreach.threads ? d.outreach.threads + " threads" : "run: sz learn"),
-  ].join("");
-}
-
-function renderToday(d) {
-  $("#today-date").textContent = new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short" });
-  const ev = (e) => `<div class="ev"><div class="time">${esc(e.start.slice(11, 16))}–${esc(e.end.slice(11, 16))}</div><div><div>${esc(e.title)}</div><div class="muted">${esc(e.source)}${e.location ? " · " + esc(e.location) : ""}${e.attendees ? " · " + esc(e.attendees).slice(0, 80) : ""}</div></div></div>`;
-  $("#today").innerHTML = d.events_today.map(ev).join("") || `<div class="empty">No meetings today.</div>`;
-  $("#upcoming").innerHTML = d.events_upcoming.map(e => ev({ ...e, start: e.start.slice(5, 10) + " " + e.start.slice(11, 16), end: e.end })).join("") || `<div class="empty">Nothing scheduled.</div>`;
-}
-
-function renderInbox(d) {
-  const rows = tab === "replies" ? d.replies : d.followups;
-  if (!rows.length) { $("#inbox").innerHTML = `<tr><td class="empty">${tab === "replies" ? "Inbox clear." : "No follow-ups due."}</td></tr>`; return; }
-  $("#inbox").innerHTML = `<tr><th>Who</th><th>Subject</th><th>${tab === "replies" ? "What they want" : "Status"}</th><th>Age</th></tr>` + rows.map(r =>
-    `<tr><td>${esc(r.counterpart_name || r.counterpart)}<div class="muted">${esc(r.counterpart)}</div></td>
-     <td>${esc(r.subject)}</td>
-     <td>${tab === "replies" ? `<span class="pill ${r.priority >= 3 ? "high" : "med"}">${r.priority >= 3 ? "High" : "Normal"}</span> ${esc(r.summary)}` : `Follow-up #${esc(r.followup_number)}`}</td>
-     <td class="muted">${esc(Math.round(r.age_days))}d</td></tr>`).join("");
-}
+function delta(series, unit) { if (!series || series.length < 2) return ""; const d = series[series.length - 1][1] - series[0][1]; return (d >= 0 ? "+" : "") + fmt(d) + (unit || "") + " in 30 days"; }
 
 function baseOpts(extra) {
   const grid = css("--grid"), muted = css("--text-muted");
@@ -198,96 +256,224 @@ function baseOpts(extra) {
     responsive: true, maintainAspectRatio: false, animation: false,
     interaction: { mode: "index", intersect: false },
     plugins: { legend: { display: false }, tooltip: { backgroundColor: css("--surface-1"), titleColor: css("--text-primary"), bodyColor: css("--text-secondary"), borderColor: css("--border"), borderWidth: 1, padding: 10, boxPadding: 4 } },
-    scales: { x: { grid: { display: false }, ticks: { color: muted, font: { size: 11 } }, border: { color: grid } },
+    scales: { x: { grid: { display: false }, ticks: { color: muted, font: { size: 11 }, maxRotation: 0, autoSkipPadding: 12 }, border: { color: grid } },
               y: { beginAtZero: true, grid: { color: grid }, ticks: { color: muted, font: { size: 11 }, precision: 0 }, border: { display: false } } },
   }, extra || {});
 }
-
-function renderListings(d) {
-  const days = [];
-  for (let i = 13; i >= 0; i--) { const t = new Date(Date.now() - i * 864e5); days.push(t.toISOString().slice(0, 10)); }
-  const present = SOURCES.filter(s => d.listings_by_day.some(r => r.source === s));
-  const sources = present.length ? present : SOURCES;
-  const sets = sources.map(s => ({
-    label: s, data: days.map(day => (d.listings_by_day.find(r => r.day === day && r.source === s) || {}).n || 0),
-    backgroundColor: css(`--series-${SOURCES.indexOf(s) + 1}`), borderColor: css("--surface-1"), borderWidth: { top: 2 },
-    borderRadius: 4, borderSkipped: "bottom", maxBarThickness: 22,
-  }));
-  $("#listings-legend").innerHTML = sources.map(s => `<span><i style="background:var(--series-${SOURCES.indexOf(s) + 1})"></i>${esc(s)}</span>`).join("");
-  charts.listings?.destroy();
-  charts.listings = new Chart($("#listingsChart"), { type: "bar", data: { labels: days.map(x => x.slice(5)), datasets: sets },
-    options: baseOpts({ scales: { ...baseOpts().scales, x: { ...baseOpts().scales.x, stacked: true }, y: { ...baseOpts().scales.y, stacked: true } } }) });
-  $("#listings-table").innerHTML = `<tr><th>Day</th>${sources.map(s => `<th>${esc(s)}</th>`).join("")}</tr>` +
-    days.map((day, i) => `<tr><td>${day}</td>${sets.map(ds => `<td>${ds.data[i]}</td>`).join("")}</tr>`).join("");
+function lineChart(id, key, series, beginAtZero) {
+  charts[id]?.destroy();
+  const o = baseOpts(); o.scales.y.beginAtZero = !!beginAtZero;
+  charts[id] = new Chart($("#" + id), { type: "line",
+    data: { labels: series.map(x => x[0].slice(5)), datasets: [{ label: label(key), data: series.map(x => x[1]), borderColor: css("--series-1"), backgroundColor: css("--series-1"),
+      borderWidth: 2, pointRadius: series.length < 20 ? 3 : 0, pointHoverRadius: 5, tension: 0.25 }] }, options: o });
 }
 
+/* ---------- KPIs, goals, connections ---------- */
+function kpi(lbl, value, note) { return `<div class="kpi"><div class="label">${esc(lbl)}</div><div class="value">${esc(value)}</div><div class="note">${esc(note || "")}</div></div>`; }
+function renderKpis(d) {
+  const m = d.metrics, ig = m["instagram.followers"];
+  const rr = d.outreach && d.outreach.reply_rate != null ? Math.round(d.outreach.reply_rate * 100) + "%" : "–";
+  const resp = last(m["ops.response_hours_median_7d"]);
+  const paying = d.kpi_latest.paying_members;
+  $("#kpis").innerHTML = [
+    kpi("Paying members", fmt(paying), paying == null ? "enter under Record numbers" : delta(m["manual.paying_members"])),
+    kpi("Meetings today", d.events_today.length, d.events_upcoming.length + " upcoming"),
+    kpi("Replies owed", d.replies.length, d.replies.filter(r => r.priority >= 3).length + " high priority"),
+    kpi("Follow-ups due", d.followups.length, "per your cadence"),
+    kpi("Median reply time", resp == null ? "–" : fmt(resp) + " h", "last 7 days"),
+    kpi("Drafts (7 days)", d.drafts_7d, "in Outlook → Drafts"),
+    kpi("New listings (7 days)", d.new_listings.length, d.listings_total + " tracked"),
+    kpi("Instagram followers", fmt(last(ig)), delta(ig)),
+    kpi("Outreach reply rate", rr, d.outreach.threads ? d.outreach.threads + " threads" : "run: sz learn"),
+  ].join("");
+}
+function renderGoals(d) {
+  $("#goals").innerHTML = d.goals.length ? d.goals.map(g => `<div class="goal"><div class="row"><span>${esc(g.label)}${g.deadline ? ` <span class="muted">· ${esc(g.deadline)}</span>` : ""}</span>
+    <span>${fmt(g.current)} / ${fmt(g.target)} · ${g.pct}%</span></div>
+    <div class="bar" role="progressbar" aria-valuenow="${g.pct}" aria-valuemin="0" aria-valuemax="100" aria-label="${esc(g.label)}"><i style="width:${Math.max(g.pct, 1)}%"></i></div></div>`).join("")
+    : `<div class="empty">Add goals in config.toml under [[growth.targets]].</div>`;
+}
+function renderConnections(d) {
+  const c = d.connections || {};
+  if (!c.results) { $("#connections").innerHTML = `<div class="empty">Not checked yet. Click “Check again” (or run <code>sz doctor</code>).</div>`; return; }
+  $("#connections").innerHTML = c.results.map(r => {
+    const cls = r.ok ? "ok" : (r.optional ? "opt" : "bad"), ic = r.ok ? "✓" : (r.optional ? "–" : "✕");
+    const word = r.ok ? "Connected" : (r.optional ? "Optional" : "Needs attention");
+    return `<div class="conn ${cls}"><span class="ic" aria-hidden="true">${ic}</span><div><b>${esc(r.name)}</b> <span class="muted">· ${word}</span>
+      <div class="muted">${esc(r.detail)}</div>${!r.ok && r.fix ? `<div class="fix">Fix: ${esc(r.fix)}</div>` : ""}</div></div>`;
+  }).join("") + `<div class="muted" style="font-size:12px;margin-top:6px">Checked ${esc(c.at || "")}</div>`;
+}
+
+/* ---------- today + inbox ---------- */
+function renderToday(d) {
+  $("#today-date").textContent = new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short" });
+  const ev = (e, withDate) => `<div class="ev"><div class="time">${withDate ? esc(e.start.slice(5, 10)) + " " : ""}${esc(e.start.slice(11, 16))}${withDate ? "" : "–" + esc(e.end.slice(11, 16))}</div><div><div>${esc(e.title)}</div><div class="muted">${esc(e.source)}${e.location ? " · " + esc(e.location) : ""}${e.attendees ? " · " + esc(e.attendees).slice(0, 80) : ""}</div></div></div>`;
+  $("#today").innerHTML = d.events_today.map(e => ev(e)).join("") || `<div class="empty">No meetings today.</div>`;
+  $("#upcoming").innerHTML = d.events_upcoming.map(e => ev(e, true)).join("") || `<div class="empty">Nothing scheduled.</div>`;
+}
+function renderInbox(d) {
+  const rows = tab === "replies" ? d.replies : d.followups;
+  if (!rows.length) { $("#inbox").innerHTML = `<tr><td class="empty">${tab === "replies" ? "Inbox clear." : "No follow-ups due."}</td></tr>`; return; }
+  $("#inbox").innerHTML = `<tr><th>Who</th><th>Subject</th><th>${tab === "replies" ? "What they want" : "Status"}</th><th>Age</th></tr>` + rows.map(r =>
+    `<tr><td>${esc(r.counterpart_name || r.counterpart)}<div class="muted">${esc(r.counterpart)}</div></td><td>${esc(r.subject)}</td>
+     <td>${tab === "replies" ? `<span class="pill ${r.priority >= 3 ? "high" : "med"}">${r.priority >= 3 ? "High" : "Normal"}</span> ${esc(r.summary)}` : `Follow-up #${esc(r.followup_number)}`}</td>
+     <td class="muted">${esc(Math.round(r.age_days))}d</td></tr>`).join("");
+}
+
+/* ---------- trends + KPI entry ---------- */
+function renderTrendOptions(d) {
+  const sel = $("#trend-key"), cur = sel.value;
+  const keys = Array.from(new Set([...d.kpi_keys.map(k => "manual." + k), ...d.metric_keys])).filter(k => !k.startsWith("competitors."));
+  sel.innerHTML = keys.map(k => `<option value="${esc(k)}">${esc(label(k))}</option>`).join("");
+  sel.value = keys.includes(cur) ? cur : (keys.includes("manual.paying_members") ? "manual.paying_members" : keys[0] || "");
+}
+async function loadTrend() {
+  const key = $("#trend-key").value; if (!key) return;
+  const r = await (await fetch(`/api/metric?key=${encodeURIComponent(key)}&days=${$("#trend-days").value}`)).json();
+  lineChart("trendChart", key, r.series, !key.startsWith("instagram.followers"));
+}
+function renderKpiForm(d) {
+  if ($("#kpi-form").dataset.ready) return;
+  $("#kpi-form").innerHTML = d.kpi_keys.map(k => `<label>${esc(label("manual." + k))}<input type="number" step="any" name="${esc(k)}" placeholder="${d.kpi_latest[k] ?? ""}"></label>`).join("")
+    + `<label>Day<input type="date" name="__day" value="${new Date().toISOString().slice(0, 10)}"></label><div style="align-self:end"><button class="primary" type="submit">Save</button></div>`;
+  $("#kpi-form").dataset.ready = "1";
+}
+
+/* ---------- funnels ---------- */
+function hbar(name, n, max, color) {
+  const pct = max ? Math.round(100 * n / max) : 0;
+  return `<div class="hbar"><span>${esc(name)}</span><div class="bar"><i style="width:${Math.max(pct, n ? 2 : 0)}%;background:${color || "var(--accent)"}"></i></div><span class="n">${fmt(n)}</span></div>`;
+}
+function renderDraftFunnel(d) {
+  const f = d.draft_funnel, kinds = Object.keys(f);
+  $("#draft-funnel").innerHTML = kinds.length ? kinds.map(k => { const x = f[k]; return `<div class="funnel-kind"><b>${esc(k)}</b>
+    ${hbar("Drafted", x.drafted, x.drafted)}${hbar("You sent", x.sent, x.drafted)}${hbar("Got a reply", x.replied, x.drafted)}</div>`; }).join("")
+    : `<div class="empty">No drafts yet. Sent and replied are matched automatically after each Outlook sync.</div>`;
+}
 function renderFunnel(d) {
   const totals = Object.fromEntries(STATUSES.map(s => [s, 0]));
-  Object.values(d.pipeline).forEach(byStatus => Object.entries(byStatus).forEach(([s, n]) => totals[s] = (totals[s] || 0) + n));
+  Object.values(d.pipeline).forEach(by => Object.entries(by).forEach(([s, n]) => totals[s] = (totals[s] || 0) + n));
   $("#funnel").innerHTML = STATUSES.map(s => `<div><b>${totals[s]}</b><span>${s}</span></div>`).join("");
   const by = (d.outreach && d.outreach.reply_rate_by_weekday) || {};
   const wd = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].filter(k => k in by);
+  $("#weekday-empty").hidden = wd.length > 0;
   $("#reply-overall").textContent = d.outreach.reply_rate != null ? `overall ${Math.round(d.outreach.reply_rate * 100)}%` : "run sz learn";
   charts.weekday?.destroy();
+  const o = baseOpts(); o.scales.y.max = 100; o.scales.y.ticks.callback = v => v + "%";
+  o.plugins.tooltip.callbacks = { label: c => ` ${c.parsed.y}% replied` };
   charts.weekday = new Chart($("#weekdayChart"), { type: "bar",
-    data: { labels: wd, datasets: [{ label: "Reply rate", data: wd.map(k => Math.round(by[k] * 100)), backgroundColor: css("--series-1"), borderRadius: 4, borderSkipped: "bottom", maxBarThickness: 26 }] },
-    options: baseOpts({ plugins: { ...baseOpts().plugins, tooltip: { ...baseOpts().plugins.tooltip, callbacks: { label: c => ` ${c.parsed.y}% replied` } } },
-      scales: { ...baseOpts().scales, y: { ...baseOpts().scales.y, max: 100, ticks: { ...baseOpts().scales.y.ticks, callback: v => v + "%" } } } }) });
+    data: { labels: wd, datasets: [{ label: "Reply rate", data: wd.map(k => Math.round(by[k] * 100)), backgroundColor: css("--series-1"), borderRadius: 4, borderSkipped: "bottom", maxBarThickness: 26 }] }, options: o });
 }
 
-function renderLeads(d) {
-  const rows = d.leads_top.concat(d.leads_active);
-  if (!rows.length) { $("#leads").innerHTML = `<tr><td class="empty">No leads yet. Run “Scan competitors” or <code>sz leads seed</code>.</td></tr>`; return; }
-  $("#leads").innerHTML = `<tr><th>Lead</th><th>Type</th><th>Score</th><th>Seen on</th><th>Contact</th><th>Status</th><th></th></tr>` + rows.map(l => {
-    const src = JSON.parse(l.sources || "[]").join(", ");
-    const contact = [l.email && `✉ ${esc(l.email)}`, l.instagram && esc(l.instagram), l.phone && esc(l.phone)].filter(Boolean).join("<br>") || `<span class="muted">${l.website ? "enrich pending" : "no website yet"}</span>`;
-    return `<tr><td><b>${esc(l.name)}</b><div class="muted">${esc(l.category)}</div>${l.website ? `<a href="${safeUrl(l.website)}" target="_blank" rel="noopener">${esc(l.website.replace(/^https?:\/\//, ""))}</a>` : ""}</td>
-      <td>${esc(l.kind)}</td><td>${Math.round(l.score)}</td><td class="muted">${esc(src)}</td><td>${contact}</td>
-      <td><select data-lead="${l.id}">${STATUSES.map(s => `<option ${s === l.status ? "selected" : ""}>${s}</option>`).join("")}</select></td>
-      <td>${l.email ? `<button data-draft="${l.id}">Draft email</button>` : ""}</td></tr>`;
-  }).join("");
-}
-
-function renderLatest(d) {
-  $("#latest").innerHTML = d.new_listings.length ? `<tr><th>Source</th><th>Merchant / offer</th><th>Category</th><th>Seen</th></tr>` + d.new_listings.slice(0, 40).map(l =>
+/* ---------- competitors ---------- */
+function renderListings(d) {
+  const days = [];
+  for (let i = 13; i >= 0; i--) days.push(new Date(Date.now() - i * 864e5).toISOString().slice(0, 10));
+  const present = SOURCES.filter(s => d.listings_by_day.some(r => r.source === s));
+  const sources = present.length ? present : SOURCES;
+  const sets = sources.map(s => ({ label: s, data: days.map(day => (d.listings_by_day.find(r => r.day === day && r.source === s) || {}).n || 0),
+    backgroundColor: css(`--series-${SOURCES.indexOf(s) + 1}`), borderColor: css("--surface-1"), borderWidth: { top: 2 }, borderRadius: 4, borderSkipped: "bottom", maxBarThickness: 22 }));
+  $("#listings-legend").innerHTML = sources.map(s => `<span><i style="background:var(--series-${SOURCES.indexOf(s) + 1})"></i>${esc(s)}</span>`).join("");
+  charts.listings?.destroy();
+  const o = baseOpts(); o.scales.x.stacked = true; o.scales.y.stacked = true;
+  charts.listings = new Chart($("#listingsChart"), { type: "bar", data: { labels: days.map(x => x.slice(5)), datasets: sets }, options: o });
+  $("#listings-table").innerHTML = `<tr><th>Day</th>${sources.map(s => `<th>${esc(s)}</th>`).join("")}</tr>` + days.map((day, i) => `<tr><td>${day}</td>${sets.map(ds => `<td>${ds.data[i]}</td>`).join("")}</tr>`).join("");
+  const cats = d.listing_categories, max = Math.max(1, ...cats.map(c => c.n));
+  $("#categories").innerHTML = cats.length ? cats.map(c => hbar(c.category, c.n, max)).join("") : `<div class="empty">Appears after the second competitor scan.</div>`;
+  $("#latest").innerHTML = d.new_listings.length ? `<tr><th>Source</th><th>Venue / offer</th><th>Category</th><th>Seen</th></tr>` + d.new_listings.slice(0, 40).map(l =>
     `<tr><td><span class="pill">${esc(l.source)}</span></td><td><a href="${safeUrl(l.url)}" target="_blank" rel="noopener">${esc(l.merchant || l.title)}</a><div class="muted">${esc(l.title)}</div></td><td>${esc(l.category)}</td><td class="muted">${esc((l.first_seen || "").slice(5, 10))}</td></tr>`).join("")
     : `<tr><td class="empty">No new listings this week (the first scan only records a baseline).</td></tr>`;
 }
 
+/* ---------- leads ---------- */
+async function loadLeads() {
+  const p = new URLSearchParams({ q: $("#lead-q").value, kind: $("#lead-kind").value, status: $("#lead-status").value });
+  const rows = await (await fetch("/api/leads?" + p)).json();
+  if (!rows.length) { $("#leads").innerHTML = `<tr><td class="empty">No leads match. Run “Scan competitors”, <code>sz leads seed</code>, or add one below.</td></tr>`; return; }
+  $("#leads").innerHTML = `<tr><th>Lead</th><th>Type</th><th>Score</th><th>Seen on</th><th>Contact</th><th>Status</th><th>Notes</th><th></th></tr>` + rows.map(l => {
+    const src = JSON.parse(l.sources || "[]").join(", ");
+    const contact = [l.email && `✉ ${esc(l.email)}`, l.instagram && esc(l.instagram), l.phone && esc(l.phone)].filter(Boolean).join("<br>") || `<span class="muted">${l.website ? "enrich pending" : "no website yet"}</span>`;
+    return `<tr><td><b>${esc(l.name)}</b><div class="muted">${esc(l.category)}</div>${l.website ? `<a href="${safeUrl(l.website.startsWith("http") ? l.website : "https://" + l.website)}" target="_blank" rel="noopener">${esc(l.website.replace(/^https?:\/\//, ""))}</a>` : ""}</td>
+      <td>${esc(l.kind)}</td><td>${Math.round(l.score)}</td><td class="muted">${esc(src)}</td><td>${contact}</td>
+      <td><select data-lead="${l.id}" aria-label="Status for ${esc(l.name)}">${STATUSES.map(s => `<option ${s === l.status ? "selected" : ""}>${s}</option>`).join("")}</select></td>
+      <td class="muted" style="max-width:220px">${esc(l.notes || "")}<div><button data-note="${l.id}" style="padding:2px 8px;margin-top:4px">+ note</button></div></td>
+      <td>${l.email ? `<button data-draft="${l.id}">Draft email</button>` : ""}</td></tr>`;
+  }).join("");
+}
+
+/* ---------- instagram ---------- */
 function renderInstagram(d) {
-  const f = d.metrics["instagram.followers"] || [];
+  const s = d.metrics["instagram." + igKey] || [];
   const er = last(d.metrics["instagram.engagement_rate_pct"]);
-  $("#ig-note").textContent = f.length ? `engagement ${er ?? "–"}%` : "connect in .env";
-  charts.ig?.destroy();
-  charts.ig = new Chart($("#igChart"), { type: "line",
-    data: { labels: f.map(x => x[0].slice(5)), datasets: [{ label: "Followers", data: f.map(x => x[1]), borderColor: css("--series-1"), borderWidth: 2, pointRadius: 0, pointHoverRadius: 5, tension: 0.25 }] },
-    options: baseOpts({ scales: { ...baseOpts().scales, y: { ...baseOpts().scales.y, beginAtZero: false } } }) });
+  lineChart("igChart", "instagram." + igKey, s, igKey !== "followers");
+  const posts = d.instagram_top_posts || [];
+  $("#igposts").innerHTML = posts.length ? `<tr><th>Post</th><th>Likes</th><th>Comments</th></tr>` + posts.map(p => `<tr><td><a href="${safeUrl(p.permalink)}" target="_blank" rel="noopener">${esc((p.caption || p.media_type || "post").slice(0, 70))}</a> <span class="muted">${esc((p.timestamp || "").slice(5, 10))}</span></td><td>${fmt(p.like_count)}</td><td>${fmt(p.comments_count)}</td></tr>`).join("")
+    : `<tr><td class="empty">Connect Instagram (see Connections).</td></tr>`;
   const c = d.instagram_comments;
   $("#igc").innerHTML = c.length ? c.map(x => `<tr><td><b>@${esc(x.user)}</b> ${esc(x.text)}</td><td><a href="${safeUrl(x.post)}" target="_blank" rel="noopener">post</a></td></tr>`).join("") : `<tr><td class="empty">All comments answered.</td></tr>`;
 }
 
+/* ---------- hologram + ask ---------- */
+const holo = new Hologram($("#holo"), { compact: true });
+let audioCtx = null, analyser = null, buf = null;
+function setHoloUI(state, text) { $("#holo-state").textContent = state; if (text) $("#holo-caption").textContent = text.length > 220 ? text.slice(0, 217) + "…" : text; }
+connectVoiceStream(holo, (ev) => {
+  if (analyser && ev.state === "speaking") return;   // this tab is already playing that audio
+  setHoloUI(ev.state, ev.state === "listening" ? "Listening…" : ev.text);
+});
+async function playAnswer(b64) {
+  audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+  const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+  const audio = await audioCtx.decodeAudioData(bytes.buffer);
+  const src = audioCtx.createBufferSource(); src.buffer = audio;
+  analyser = audioCtx.createAnalyser(); analyser.fftSize = 1024; buf = new Float32Array(analyser.fftSize);
+  src.connect(analyser); analyser.connect(audioCtx.destination);
+  holo.setLevelSource(() => { analyser.getFloatTimeDomainData(buf); let s = 0; for (const v of buf) s += v * v; return Math.min(1, Math.sqrt(s / buf.length) * 4.2); });
+  holo.setState("speaking"); setHoloUI("speaking");
+  src.onended = () => { holo.setLevelSource(null); analyser = null; holo.setState("idle"); setHoloUI("idle"); };
+  src.start();
+}
+$("#ask").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const text = $("#ask-input").value.trim(); if (!text) return;
+  const btn = e.target.querySelector("button"); btn.disabled = true;
+  holo.setState("thinking"); setHoloUI("thinking", "“" + text + "”");
+  try {
+    const r = await post("/api/ask", { text, speak: $("#ask-speak").checked });
+    setHoloUI("speaking", r.answer);
+    if (r.audio) await playAnswer(r.audio); else { holo.setState("idle"); setHoloUI("idle", r.answer); if (r.tts_error) toast("Voice: " + r.tts_error); }
+    $("#ask-input").value = "";
+  } catch (err) { holo.setState("idle"); setHoloUI("idle", "Sorry: " + err.message); }
+  btn.disabled = false;
+});
+
+/* ---------- load + events ---------- */
 async function load() {
   const r = await fetch("/api/summary");
   DATA = await r.json();
   const d = DATA;
   const syncs = Object.entries(d.last_sync).filter(([, v]) => v).map(([k, v]) => `${k} ${v.slice(5, 16).replace("T", " ")}`);
   $("#sub").textContent = (d.me ? d.me + " · " : "") + (syncs.length ? "Last runs: " + syncs.slice(0, 4).join(" · ") : "No data yet. Click Sync Outlook to start.");
-  renderKpis(d); renderToday(d); renderInbox(d); renderListings(d); renderFunnel(d); renderLeads(d); renderLatest(d); renderInstagram(d);
+  if (!$("#lead-status").options[1]) $("#lead-status").innerHTML += STATUSES.map(s => `<option>${s}</option>`).join("");
+  renderKpis(d); renderGoals(d); renderConnections(d); renderToday(d); renderInbox(d); renderTrendOptions(d); renderKpiForm(d);
+  renderDraftFunnel(d); renderFunnel(d); renderListings(d); renderInstagram(d);
   $("#brief").innerHTML = md(d.brief) || `<div class="empty">No brief yet. Click “New brief”.</div>`;
   $("#report").innerHTML = md(d.report) || `<div class="empty">Runs weekly (sz growth).</div>`;
-  document.querySelectorAll("[data-job]").forEach(b => b.disabled = !!(d.running[b.dataset.job] === "running"));
+  document.querySelectorAll("[data-job]").forEach(b => b.disabled = d.running[b.dataset.job] === "running");
+  loadTrend(); loadLeads();
 }
-
 document.addEventListener("click", async (e) => {
   const job = e.target.closest("[data-job]");
-  if (job) {
-    job.disabled = true;
-    try { await post(`/api/run/${job.dataset.job}`); toast(`Started: ${job.textContent}`); poll(job.dataset.job); } catch (err) { toast(err.message); job.disabled = false; }
-  }
+  if (job) { job.disabled = true; try { await post(`/api/run/${job.dataset.job}`); toast(`Started: ${job.textContent}`); poll(job.dataset.job); } catch (err) { toast(err.message); job.disabled = false; } }
   const t = e.target.closest("[data-tab]");
   if (t) { tab = t.dataset.tab; document.querySelectorAll("[data-tab]").forEach(b => b.setAttribute("aria-selected", b === t)); renderInbox(DATA); }
+  const ig = e.target.closest("[data-ig]");
+  if (ig) { igKey = ig.dataset.ig; document.querySelectorAll("[data-ig]").forEach(b => b.setAttribute("aria-selected", b === ig)); renderInstagram(DATA); }
   const dr = e.target.closest("[data-draft]");
-  if (dr) { dr.disabled = true; try { const r = await post(`/api/leads/${dr.dataset.draft}/draft`); toast(`Draft saved in Outlook: ${r.subject}`); load(); } catch (err) { toast(err.message); dr.disabled = false; } }
+  if (dr) { dr.disabled = true; try { const r = await post(`/api/leads/${dr.dataset.draft}/draft`); toast(`Draft saved in Outlook: ${r.subject}`); loadLeads(); } catch (err) { toast(err.message); dr.disabled = false; } }
+  const nt = e.target.closest("[data-note]");
+  if (nt) { const row = nt.closest("tr"), cur = row.querySelector("select").value, note = prompt("Add a note"); if (note) { try { await post(`/api/leads/${nt.dataset.note}/status`, { status: cur, note }); loadLeads(); } catch (err) { toast(err.message); } } }
+  if (e.target.id === "conn-refresh") { e.target.disabled = true; try { await post("/api/connections/refresh"); toast("Checking connections…"); poll("doctor"); } catch (err) { toast(err.message); } e.target.disabled = false; }
   if (e.target.id === "theme") {
     const cur = document.documentElement.dataset.theme || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
     const next = cur === "dark" ? "light" : "dark";
@@ -299,8 +485,22 @@ document.addEventListener("click", async (e) => {
 document.addEventListener("change", async (e) => {
   const s = e.target.closest("select[data-lead]");
   if (s) { try { await post(`/api/leads/${s.dataset.lead}/status`, { status: s.value }); toast("Lead updated"); } catch (err) { toast(err.message); } }
+  if (e.target.id === "trend-key" || e.target.id === "trend-days") loadTrend();
+  if (e.target.id === "lead-kind" || e.target.id === "lead-status") loadLeads();
 });
-
+let qTimer; $("#lead-q").addEventListener("input", () => { clearTimeout(qTimer); qTimer = setTimeout(loadLeads, 250); });
+$("#kpi-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const f = new FormData(e.target), day = f.get("__day"); let n = 0;
+  try {
+    for (const [k, v] of f.entries()) if (k !== "__day" && v !== "") { await post("/api/kpi", { key: k, value: Number(v), day }); n++; }
+    toast(n ? `Saved ${n} number${n > 1 ? "s" : ""}` : "Nothing to save"); e.target.reset(); e.target.dataset.ready = ""; load();
+  } catch (err) { toast(err.message); }
+});
+$("#lead-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  try { const r = await post("/api/leads", Object.fromEntries(new FormData(e.target))); toast(r.created ? "Lead added" : "Lead already existed: updated"); e.target.reset(); loadLeads(); } catch (err) { toast(err.message); }
+});
 async function poll(job) {
   for (let i = 0; i < 180; i++) {
     await new Promise(r => setTimeout(r, 4000));
@@ -310,7 +510,6 @@ async function poll(job) {
     if (st.startsWith("error")) { toast(`${job}: ${st}`); return load(); }
   }
 }
-
 try { const t = localStorage.getItem("sz-theme"); if (t) document.documentElement.dataset.theme = t; } catch (_) {}
 load();
 setInterval(load, 5 * 60 * 1000);

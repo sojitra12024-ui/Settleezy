@@ -15,7 +15,8 @@ _QUOTE_MARKERS = [
 _DE_WORDS = set(
     "und der die das ich nicht ist mit sie für auf ein eine wir ihr bitte danke vielen gerne "
     "viele grüße liebe lieber sehr geehrte hallo zu den dem von auch noch wie kann können haben "
-    "wäre würde freundlichen gruß beste".split()
+    "wäre würde freundlichen gruß beste heute morgen steht gibt welche welcher mein meine meinen wie wer wo "
+    "neue neuen habe hast sind zeig sag".split()
 )
 _EN_WORDS = set(
     "the and to of you for is that with your this we i be on are it have please thanks thank "

@@ -12,8 +12,9 @@ Settleezy helps students in Berlin, especially international students, save mone
 | **Watches competitors** | Groupon, vspots, Top10 Berlin, UNiDAYS, Student Beans: new Berlin listings, stored in a database |
 | **Builds your lead list** | Every merchant/brand found becomes a scored lead; it finds email/Instagram from their website and Impressum; plus 30+ Berlin universities and student-service seeds |
 | **Thinks like a co-founder** | Weekly growth review: scoreboard, what's working, competitor read, 3 experiments, next week's marketing plan (`playbook/berlin-growth-playbook.md` is its strategy; `knowledge/settleezy.md` is what it knows about Settleezy) |
-| **Voice** | "Hey Jarvis" wake word, Whisper speech recognition on your GPU, spoken answers in English or German |
-| **Dashboard** | http://127.0.0.1:8765: Outlook, Calendly, Instagram, leads pipeline, competitor charts, brief, weekly review |
+| **Voice + hologram** | "Hey Jarvis" wake word, Whisper speech recognition on your GPU, answers spoken in your chosen **ElevenLabs** voice (English or German). A **hologram** animates in sync while it listens, thinks and speaks: on the dashboard, or full screen at http://127.0.0.1:8765/hologram |
+| **Dashboard** | http://127.0.0.1:8765: ask Jarvis (typed, spoken answer), goals with progress bars, connection health, today, inbox, trends for any metric, numbers from the app (members, trials, downloads, workshops, Buddy students), AI-draft funnel (drafted → you sent → got a reply), partner pipeline, competitor charts, searchable leads with notes, Instagram (followers, reach, engagement, top posts, comments), brief, weekly review |
+| **Connection doctor** | `sz doctor` (and the dashboard's Connections card) tests Outlook, Instagram, Calendly, Claude, Ollama and ElevenLabs with real calls and tells you exactly how to fix anything broken |
 
 **Privacy:** Raw email is read by a local model (Ollama on your RTX 3060). Only what's needed for drafting and analysis goes to the Claude API, and email addresses, phone numbers and IBANs are replaced with placeholders first. Everything is stored locally in `cofounder/data/` (git-ignored).
 
@@ -58,15 +59,21 @@ Rough cost at default settings: about €15–30/month (about 15 drafts per day 
 Calendly → **Integrations & apps** → **API and webhooks** → **Personal access tokens** → generate → `.env` `CALENDLY_TOKEN`.
 
 ### 6. Instagram Business
-The account must be an Instagram **professional** account linked to a Facebook Page.
-1. <https://developers.facebook.com> → **Create app** (type *Business*) → add **Instagram** (Instagram API with Facebook Login).
-2. **Graph API Explorer** → pick your app → generate a user token with `instagram_basic`, `instagram_manage_insights`, `instagram_manage_comments`, `pages_show_list`, `pages_read_engagement`.
-3. Exchange it for a 60-day token:
-   `https://graph.facebook.com/v23.0/oauth/access_token?grant_type=fb_exchange_token&client_id=APP_ID&client_secret=APP_SECRET&fb_exchange_token=SHORT_TOKEN`
-4. Find your IG account id: `https://graph.facebook.com/v23.0/me/accounts?fields=instagram_business_account&access_token=LONG_TOKEN`
-5. Put them in `.env` as `IG_ACCESS_TOKEN` and `IG_USER_ID`. Renew the token every ~60 days (the dashboard's Instagram panel goes empty when it expires).
+The account must be an Instagram **professional** (Business or Creator) account **linked to a Facebook Page** (Instagram app → Settings → Accounts Center).
+1. <https://developers.facebook.com> → **Create app** (type *Business*) → add **Instagram** (Instagram API with Facebook Login). Copy the **App ID** and **App Secret** (App settings → Basic) into `.env` as `FB_APP_ID` and `FB_APP_SECRET`.
+2. Run `.\.venv\Scripts\sz.exe auth instagram` and follow the prompt: in the **Graph API Explorer** pick your app, add `instagram_basic`, `instagram_manage_insights`, `instagram_manage_comments`, `pages_show_list`, `pages_read_engagement`, click **Generate Access Token**, and paste it.
+3. The command exchanges it for a **Page token that doesn't expire** (unless you change your Facebook password or remove the app), finds your Instagram account id, and writes both to `.env`.
+4. Check: `sz doctor` should show `OK  Instagram  @yourhandle · … · token never expires`.
 
 DMs are not included: Meta requires app review for message access.
+
+### 6b. Voice (ElevenLabs)
+1. In ElevenLabs, open the voice you chose and click **+ / Add to My Voices** (library voices must be in your account before the API can use them):
+   - main: <https://elevenlabs.io/voices/CUvmi6RSy4BQr6vnMyEw>
+   - alternative: <https://elevenlabs.io/voices/r1KmysJdVYZjJCm4mL3b>
+2. Profile → **API keys** → create a key → `.env` `ELEVENLABS_API_KEY`.
+3. `config.toml` `[voice]` already points at both voices; swap `elevenlabs_voice_id` and `elevenlabs_voice_id_alt` to change which one speaks. `eleven_multilingual_v2` speaks English and German; `eleven_flash_v2_5` answers faster.
+4. Test: `sz brief --speak`. Open http://127.0.0.1:8765/hologram (with the dashboard running) to watch the hologram while it speaks. Without a key, Jarvis falls back to Windows voices and the hologram still animates.
 
 ### 7. Connect OpenJarvis (chat + voice brain)
 Copy `openjarvis\config.toml` and `openjarvis\mcp-servers.json` to `%USERPROFILE%\.openjarvis\`, then edit `mcp-servers.json` so `"command"` is the full path, e.g.
@@ -75,6 +82,7 @@ Now `jarvis` can call your tools: *"what's my day?"*, *"draft replies"*, *"top m
 
 ### 8. First run
 ```powershell
+.\.venv\Scripts\sz.exe doctor            # every connection tested for real; fix anything marked !!
 .\.venv\Scripts\sz.exe sync              # pulls 12 months of mail (first time: a few minutes)
 .\.venv\Scripts\sz.exe learn             # builds your voice profile + outreach playbook  -> data\
 .\.venv\Scripts\sz.exe scrape --inspect  # check what each competitor page yields, saves nothing
@@ -90,8 +98,8 @@ Read `data\voice_profile.md`. If anything sounds off, edit it; the drafts follow
 ```
 | When | What |
 |---|---|
-| Weekdays 07:45 | `morning`: sync, write drafts, build the brief (read aloud with `-Speak`) |
-| Every 2 h, 09–19 | Outlook sync |
+| Weekdays 07:45 | `morning`: check connections, sync, track, write drafts, build the brief (read aloud with `-Speak`) |
+| Every 2 h, 09–19 | Outlook sync + tracking (which AI drafts you sent, which got replies) |
 | 08:15, 14:15, 20:15 | Competitor scan → new listings → leads |
 | Daily 13:00 | Lead enrichment (website + Impressum contacts) |
 | Weekdays 14:30 | Second round of drafts |
@@ -106,6 +114,8 @@ Logs are in `data\logs\`.
 
 ## Everyday commands
 ```
+sz doctor                   test every connection, with fixes
+sz kpi paying_members 240   record a number from the app (also on the dashboard)
 sz brief --speak            today's brief, read aloud
 sz triage                   what needs you (no drafting)
 sz drafts --limit 5         write drafts now
@@ -115,13 +125,15 @@ sz leads status 42 contacted --note "met at Kranz, follow up Friday"
 sz leads add --name "Café X" --kind-new merchant --website cafe-x.de
 sz leads export             data\leads.csv
 sz growth                   co-founder weekly review now
-sz voice                    "Hey Jarvis" (or --no-wake for push-to-talk)
+sz voice                    "Hey Jarvis" (or --no-wake for push-to-talk); hologram at /hologram
 ```
 
 ## Tuning
 - **Competitor patterns:** `competitors.toml`. Run `sz scrape --inspect --site groupon` after any change. If a site only renders with JavaScript, set `render = true` and run `pip install -e ".[render]"` then `playwright install chromium`.
 - **Follow-up cadence:** `config.toml` `[followup] cadence_days`. `sz learn` reports what your own data says works.
-- **German speech:** set `whisper_model = "medium"`, and install a German Windows voice (Settings → Time & language → Speech → Add voices → Deutsch).
+- **German speech:** set `whisper_model = "medium"` for better German recognition. (Only if you don't use ElevenLabs: install a German Windows voice under Settings → Time & language → Speech.)
+- **Goals:** `config.toml` `[[growth.targets]]`, where each goal points at a metric (`manual.*` numbers you enter, `ops.*` computed daily, `instagram.*`).
+- **Hologram on a second screen:** open http://127.0.0.1:8765/hologram full screen (F11) on a second monitor.
 - **GPU speech recognition:** if Whisper falls back to CPU, run `pip install nvidia-cublas-cu12 "nvidia-cudnn-cu12==9.*"` in the venv.
 - **What goes to the cloud:** set `cloud_enabled = false` to keep everything local. Drafting quality drops, but nothing leaves your laptop.
 

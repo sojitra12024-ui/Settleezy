@@ -15,7 +15,7 @@ def test_dashboard_empty_db_and_csrf_guard(cfg):
     r = c.get("/api/summary")
     assert r.status_code == 200
     body = r.json()
-    assert body["replies"] == [] and body["leads_top"] == []
+    assert body["replies"] == [] and body["goals"][0]["current"] is None
     assert c.post("/api/run/brief").status_code == 403
     assert c.post("/api/leads/1/status", json={"status": "contacted"}).status_code == 403
     assert "Settleezy HQ" in c.get("/").text

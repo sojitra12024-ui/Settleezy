@@ -119,6 +119,15 @@ class DB:
         self.conn.row_factory = sqlite3.Row
         self.conn.execute("PRAGMA journal_mode=WAL")
         self.conn.executescript(SCHEMA)
+        self._migrate()
+
+    def _migrate(self) -> None:
+        """Add columns introduced after the first release (SQLite has no ADD COLUMN IF NOT EXISTS)."""
+        have = {r["name"] for r in self.conn.execute("PRAGMA table_info(drafts)")}
+        for col in ("sent_at", "replied_at"):
+            if col not in have:
+                self.conn.execute(f"ALTER TABLE drafts ADD COLUMN {col} TEXT")
+        self.conn.commit()
 
     def close(self) -> None:
         self.conn.close()

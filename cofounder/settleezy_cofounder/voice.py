@@ -1,8 +1,10 @@
 """Hands-free voice assistant.
 
-  wake word  : openWakeWord's pre-trained "hey jarvis" model (offline)
+  wake word   : openWakeWord's pre-trained "hey jarvis" model (offline)
   speech->text: faster-whisper on the RTX 3060 (offline, English + German)
-  text->speech: Windows' built-in voices via pyttsx3 (offline)
+  text->speech: ElevenLabs (your chosen voice), or Windows' built-in voices via pyttsx3 if no key is set
+  hologram    : every state change (listening / thinking / speaking + loudness envelope) is sent to the
+                dashboard, where the hologram at http://127.0.0.1:8765/hologram animates in sync
   brain       : quick intents handled here (brief, new listings, leads); anything else goes to OpenJarvis
                 (which can call this project's tools via MCP), or to Claude if OpenJarvis isn't installed.
 
@@ -17,18 +19,37 @@ import time
 
 from .config import Config
 from .db import DB
+from .voicebus import publish
 
 SAMPLE_RATE = 16000
 CHUNK = 1280  # 80 ms, what openWakeWord expects
 
 
+def clean_for_speech(text: str) -> str:
+    text = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", text)      # markdown links -> label
+    text = re.sub(r"https?://\S+", "", text)
+    return re.sub(r"[*_#`>\[\]|]", "", text).strip()
+
+
 class Speaker:
+    """Speaks with ElevenLabs when configured, else Windows voices. Always drives the hologram."""
+
     def __init__(self, cfg: Config):
+        from . import tts
+
+        self.cfg = cfg
+        self.tts = tts
+        self.eleven = tts.elevenlabs_enabled(cfg)
+        self.engine = None
+        self.voices = {"en": None, "de": None}
+        if not self.eleven:
+            self._init_local()
+
+    def _init_local(self) -> None:
         import pyttsx3
 
         self.engine = pyttsx3.init()
-        self.engine.setProperty("rate", int(cfg.get("voice.rate", 185)))
-        self.voices = {"en": None, "de": None}
+        self.engine.setProperty("rate", int(self.cfg.get("voice.rate", 185)))
         for v in self.engine.getProperty("voices"):
             name = (v.name + " " + " ".join(map(str, getattr(v, "languages", [])))).lower()
             if "german" in name or "deutsch" in name or "de-de" in name or "hedda" in name or "katja" in name:
@@ -37,11 +58,34 @@ class Speaker:
                 self.voices["en"] = self.voices["en"] or v.id
 
     def say(self, text: str, lang: str = "en") -> None:
-        text = re.sub(r"[*_#`>\[\]]", "", text)
+        text = clean_for_speech(text)
+        if not text:
+            return
+        if self.eleven:
+            try:
+                self._say_elevenlabs(text)
+                return
+            except Exception as exc:  # network/quota problems -> fall back, keep talking
+                print(f"(ElevenLabs unavailable: {exc}; using Windows voice)")
+                self.eleven = False
+                self._init_local()
+        publish(self.cfg, "speaking", text)
         if self.voices.get(lang):
             self.engine.setProperty("voice", self.voices[lang])
         self.engine.say(text)
         self.engine.runAndWait()
+        publish(self.cfg, "idle")
+
+    def _say_elevenlabs(self, text: str) -> None:
+        import numpy as np
+        import sounddevice as sd
+
+        pcm = self.tts.synthesize(self.cfg, text)
+        env = self.tts.envelope(pcm)
+        publish(self.cfg, "speaking", text, env, 40)
+        sd.play(np.frombuffer(pcm, dtype=np.int16), self.tts.SAMPLE_RATE)
+        sd.wait()
+        publish(self.cfg, "idle")
 
 
 class Ears:
@@ -95,6 +139,13 @@ def answer(cfg: Config, text: str, lang: str) -> str:
                 return "No new competitor listings in the last two days."
             names = ", ".join((i["merchant"] or i["title"]) for i in items[:6])
             return f"{len(items)} new listings in the last two days, including {names}."
+        if re.search(r"\b(connect|connected|connection|connections|verbunden|verbindung)", t):
+            from .connections import run_all
+
+            bad = [r for r in run_all(cfg, db) if not r["ok"] and not r["optional"]]
+            if not bad:
+                return "Everything is connected: Outlook, Instagram and the rest are working."
+            return "These need attention: " + "; ".join(f"{r['name']}: {r['detail']}" for r in bad) + "."
         if re.search(r"\b(lead|leads|partner)\b", t):
             best = top(db, status="new", limit=5)
             if not best:
@@ -154,11 +205,15 @@ def run(cfg: Config, wake_word: bool = True) -> None:
                         break
         else:
             input("[enter] to talk, ctrl+c to quit ")
+        publish(cfg, "listening")
         speaker.say("Yes?")
+        publish(cfg, "listening")
         text, lang = ears.transcribe(ears.record_until_silence())
         if not text:
+            publish(cfg, "idle")
             continue
         print(f"> {text}")
+        publish(cfg, "thinking", text)
         if re.search(r"\b(stop listening|goodbye|tschüss)\b", text.lower()):
             speaker.say("Bye." if lang == "en" else "Tschüss.", lang)
             return

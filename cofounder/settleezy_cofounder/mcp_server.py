@@ -109,6 +109,29 @@ def todays_meetings() -> str:
         return json.dumps([dict(r) for r in db.q("SELECT * FROM events WHERE substr(start,1,10)=? ORDER BY start", (date.today().isoformat(),))], ensure_ascii=False)
 
 
+@server.tool()
+def connection_status() -> str:
+    """Test Outlook, Instagram, Calendly, Claude, Ollama and ElevenLabs end to end; returns what's broken and how to fix it."""
+    from .connections import run_all
+
+    cfg, db = _db()
+    with db:
+        return json.dumps(run_all(cfg, db), ensure_ascii=False)
+
+
+@server.tool()
+def record_kpi(key: str, value: float) -> str:
+    """Record a number from the app (e.g. paying_members, trial_members, app_downloads, workshop_signups, buddy_students)."""
+    from .tracking import record_kpi as rec
+
+    cfg = load_config()
+    if key not in cfg.get("tracking.manual_kpis", []):
+        return f"unknown KPI {key}; allowed: {cfg.get('tracking.manual_kpis', [])}"
+    with DB(cfg.db_path) as db:
+        rec(db, key, value)
+    return "ok"
+
+
 def main() -> None:
     server.run("stdio")
 

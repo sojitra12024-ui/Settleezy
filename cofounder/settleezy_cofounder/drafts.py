@@ -57,7 +57,7 @@ def draft_for_item(cfg: Config, db: DB, llm: LLM, graph: Graph, item: Item) -> s
     draft = graph.create_reply_draft(item.message_id, body)
     db.x(
         "INSERT INTO drafts(kind,conversation_id,source_message_id,graph_draft_id,subject,created_at) VALUES(?,?,?,?,?,?)",
-        (item.kind, item.conversation_id, item.message_id, draft.get("id", ""), item.subject, utcnow()),
+        (item.kind, draft.get("conversationId") or item.conversation_id, item.message_id, draft.get("id", ""), item.subject, utcnow()),
     )
     return body
 
@@ -104,8 +104,8 @@ First line of your output must be "SUBJECT: ..." then a blank line, then the bod
     subject = subject.replace("SUBJECT:", "").strip() or "Settleezy x " + lead["name"]
     draft = graph.create_draft([lead["email"]], subject, body.strip())
     db.x(
-        "INSERT INTO drafts(kind,lead_id,graph_draft_id,subject,created_at) VALUES('outreach',?,?,?,?)",
-        (lead_id, draft.get("id", ""), subject, utcnow()),
+        "INSERT INTO drafts(kind,lead_id,conversation_id,graph_draft_id,subject,created_at) VALUES('outreach',?,?,?,?,?)",
+        (lead_id, draft.get("conversationId", ""), draft.get("id", ""), subject, utcnow()),
     )
     db.x("UPDATE leads SET status='drafted', updated_at=? WHERE id=? AND status='new'", (utcnow(), lead_id))
     return {"lead": lead["name"], "subject": subject}

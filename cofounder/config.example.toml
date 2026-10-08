@@ -37,9 +37,15 @@ graph_version = "v23.0"
 metrics = ["reach", "profile_views", "website_clicks", "accounts_engaged"]
 
 [voice]
+tts = "elevenlabs"                      # "elevenlabs" (needs ELEVENLABS_API_KEY) or "windows"
+elevenlabs_voice_id = "CUvmi6RSy4BQr6vnMyEw"      # main voice
+elevenlabs_voice_id_alt = "r1KmysJdVYZjJCm4mL3b"  # alternative; swap the two to change voice
+elevenlabs_model = "eleven_multilingual_v2"       # speaks English + German; "eleven_flash_v2_5" is faster
+stability = 0.45
+similarity = 0.8
 whisper_model = "small"                 # "medium" is more accurate for German, slower
 wake_threshold = 0.5
-rate = 185
+rate = 185                              # Windows voice speed (fallback only)
 openjarvis_config = ""                  # empty = ~/.openjarvis/config.toml
 
 [growth]
@@ -50,3 +56,35 @@ goals = [
   "Keep trial-to-paid conversion above 25%",
   "Run 2 workshops per month (CV, portfolio)",
 ]
+
+# Goal bars on the dashboard. metric = "<source>.<key>" from the metrics table:
+#   manual.*     numbers you enter on the dashboard (KPI form)  e.g. manual.paying_members
+#   ops.*        computed daily: partners_merchant, partners_university, replies_owed, response_hours_median_7d, ...
+#   instagram.*  followers, reach, engagement_rate_pct, ...
+[[growth.targets]]
+label = "Paying members"
+metric = "manual.paying_members"
+target = 1000
+deadline = "end of winter semester"
+
+[[growth.targets]]
+label = "Partner venues"
+metric = "ops.partners_merchant"
+target = 30
+
+[[growth.targets]]
+label = "Buddy platform universities"
+metric = "ops.partners_university"
+target = 3
+
+[[growth.targets]]
+label = "Instagram followers"
+metric = "instagram.followers"
+target = 5000
+
+[tracking]
+# Numbers only you have (from the app / workshops). Enter them on the dashboard; they're charted over time.
+manual_kpis = ["paying_members", "trial_members", "app_downloads", "workshop_signups", "buddy_students"]
+
+[dashboard]
+port = 8765
