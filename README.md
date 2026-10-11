@@ -11,3 +11,9 @@
 | Free trial | €0 for 30 days |
 | Semester | €40 |
 | Annual | €70 |
+
+## In this repository
+
+| Folder | What it is |
+|---|---|
+| `cofounder/` | **Setz**, the founder's AI chief of staff and growth co-founder: daily plan and to-dos, who to contact, service partner onboarding, meeting prep, email drafts in your voice (never sends), competitor and lead engine, "Hey Setz" voice with a hologram, dashboard. See `cofounder/README.md` |
