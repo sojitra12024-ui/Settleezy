@@ -1,0 +1,65 @@
+openapi: 3.1.0
+info: {title: Settleezy admin panel API for Setz, version: "1.0"}
+servers: [{url: "https://settleezy.com/api/setz/v1"}]
+security: [{bearer: []}]
+components:
+  securitySchemes: {bearer: {type: http, scheme: bearer}}
+  schemas:
+    Partner:
+      type: object
+      required: [id, name, status]
+      properties:
+        id: {type: string}
+        name: {type: string}
+        status: {type: string, enum: [draft, pending, review, live, published, active, paused, ended, archived]}
+        category: {type: string}
+        address: {type: string}
+        offer: {type: string}
+        website: {type: string}
+        instagram: {type: string}
+        redemptions_total: {type: integer}
+        redemptions_30d: {type: integer}
+        views_30d: {type: integer}
+        live_at: {type: string, format: date}
+        updated_at: {type: string, format: date-time}
+    VenueRequest:
+      type: object
+      required: [venue]
+      properties: {venue: {type: string}, category: {type: string}, count: {type: integer}, last_requested_at: {type: string, format: date}}
+paths:
+  /partners:
+    get:
+      parameters: [{name: updated_since, in: query, schema: {type: string}}, {name: cursor, in: query, schema: {type: string}}]
+      responses:
+        "200":
+          description: Partners
+          content: {application/json: {schema: {type: object, properties: {items: {type: array, items: {$ref: "#/components/schemas/Partner"}}, next: {type: [string, "null"]}}}}}
+    post:
+      summary: Create a DRAFT listing (sent only after the founder approves it in Setz). The server must force status=draft.
+      requestBody: {content: {application/json: {schema: {$ref: "#/components/schemas/Partner"}}}}
+      responses: {"201": {description: Created, content: {application/json: {schema: {type: object, properties: {id: {type: string}}}}}}}
+  /stats/members:
+    get:
+      responses:
+        "200":
+          description: Flat object of numbers (each becomes metric app.<key> in Setz)
+          content: {application/json: {schema: {type: object, additionalProperties: {type: number}}}}
+  /venue-requests:
+    get:
+      parameters: [{name: since, in: query, schema: {type: string}}]
+      responses:
+        "200": {description: Venues members asked for, content: {application/json: {schema: {type: array, items: {$ref: "#/components/schemas/VenueRequest"}}}}}
+webhooks:
+  setzEvent:
+    post:
+      summary: "Standard Webhooks to https://<laptop>.ts.net/api/bridge/webhook (headers webhook-id, webhook-timestamp, webhook-signature)"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type, data]
+              properties:
+                type: {type: string, enum: [member.signed_up, member.trial_started, member.converted, member.cancelled, redemption.created, partner.updated, venue.requested, support.ticket.created]}
+                data: {type: object}
+      responses: {"200": {description: Accepted}}

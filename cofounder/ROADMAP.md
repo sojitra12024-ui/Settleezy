@@ -200,3 +200,27 @@ The next ones, ranked by impact on partners and members:
 - **Prefer official APIs** (Meta, Google, Microsoft). Unofficial ones get accounts banned.
 - **GDPR:** students are the product's users. Keep data in the EU, record consent, have a data processing agreement (AVV) with each processor, and delete on request.
 - **Licences:** AGPL tools (Twenty, Documenso, Listmonk, Metabase, Formbricks) are fine to self-host for your own use. Only modifying them *and offering them to others as a service* triggers source-sharing obligations.
+
+## Researched for contracts, expansion, agents and the phone (October 2026)
+
+Integrated now: `python-docx`, `docxtpl` and `pypdf` (Lex, under the `contracts` extra), OSM university discovery,
+Standard Webhooks signatures (the admin bridge, built without a dependency), and the PWA share target, shortcuts,
+`adb reverse` and Tailscale for the phone.
+
+| Area | Project | License | Why / next step |
+|---|---|---|---|
+| Contracts | [microsoft/markitdown](https://github.com/microsoft/markitdown) | MIT | Converts any PDF, DOCX or XLSX to clean Markdown, giving better text for Lex and for memory. A drop-in for `contracts.extract_text`. |
+| Contracts | [urchade/GLiNER](https://github.com/urchade/GLiNER) | Apache-2.0 | Zero-shot extraction of clauses and terms ("Kündigungsfrist", "Vertragsstrafe") that runs on the RTX 3060. It would add to Lex's rules. |
+| Contracts | [4teamwork/docxcompose](https://github.com/4teamwork/docxcompose) | MIT | Builds a contract from separate clause files (Haftung, AVV, Exklusivität) per deal. |
+| Contracts | [pdfplumber](https://github.com/jsvine/pdfplumber) | MIT | Reads tables in PDFs (price lists, commission tables). Avoid PyMuPDF, which is AGPL. |
+| Expansion | [gboeing/osmnx](https://github.com/gboeing/osmnx) | MIT | Berlin's walking network, giving real walking minutes instead of straight-line metres from campus. |
+| Expansion | [valhalla/valhalla](https://github.com/valhalla/valhalla) + [routingpy](https://github.com/routingpy/routingpy) | MIT / Apache-2.0 | Local isochrones ("everything within 10 minutes' walk of TU"), run in Docker in about 1–2 GB. |
+| Competitors | [dgtlmoon/changedetection.io](https://github.com/dgtlmoon/changedetection.io) | Apache-2.0 | Watches UNiDAYS and Student Beans pages and webhooks Setz on every change. |
+| Competitors | [unclecode/crawl4ai](https://github.com/unclecode/crawl4ai) | Apache-2.0 | Weekly crawl of offer pages into structured rows with the local model. |
+| Agents | [pydantic/pydantic-ai](https://github.com/pydantic/pydantic-ai) | MIT | Typed drafter/critic loops: qwen2.5 drafts, Claude critiques, and the blackboard is passed in as a dependency. |
+| Agents | [langchain-ai/langgraph](https://github.com/langchain-ai/langgraph) | MIT | An explicit state graph with a SQLite checkpointer and human-in-the-loop interrupts, if the council grows past rule-based checks. |
+| Agents | [mem0ai/mem0](https://github.com/mem0ai/mem0) | Apache-2.0 | Per-agent memory with Ollama. Setz's own per-agent brain covers this for now. |
+| Phone | [binwiederhier/ntfy](https://github.com/binwiederhier/ntfy) | Apache-2.0 / GPL-2 | The simplest push to the Galaxy (no VAPID keys), as a fallback for Web Push. |
+| Phone | [Genymobile/scrcpy](https://github.com/Genymobile/scrcpy) | Apache-2.0 | Mirrors the phone on the laptop (`phone_usb.ps1 -Mirror`). |
+| Admin panel | [standard-webhooks](https://github.com/standard-webhooks/standard-webhooks) | Apache-2.0 | The signature format the bridge already verifies. The panel can sign with this library. |
+| Admin panel | [openapi-python-client](https://github.com/openapi-generators/openapi-python-client) | MIT | Generates a typed client once the panel publishes its `openapi.json`. |

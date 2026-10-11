@@ -115,6 +115,7 @@ manual_kpis = ["paying_members", "trial_members", "app_downloads", "workshop_sig
 [dashboard]
 port = 8765
 # Phone / other devices: the safest way is Tailscale (README: "Setz on your phone"), which needs no change here.
+# tailscale_hostname = "laptop.tail1234.ts.net"   # your MagicDNS name, so the browser on this laptop may use it too
 # access_pin = "482915"      # PIN asked on any device that isn't this laptop (required if host isn't 127.0.0.1)
 # host = "0.0.0.0"           # only for plain home-Wi-Fi access without Tailscale (no HTTPS, so no phone push)
 
@@ -126,6 +127,52 @@ meeting_reminder_minutes = 10
 
 [agents]
 ai_briefing = true          # Setz writes the team briefing with Claude when an API key is set (otherwise a plain summary)
+parallel = true             # all agents analyse at the same time, each on its own database connection
+
+[council]
+# Agents check each other's work after every run (sz council). Safe fixes that only tidy Setz's own data:
+auto_fix = ["link_partners", "stop_sequences", "prepare_contracts"]
+escalate_after_runs = 6     # a warning that never goes away becomes an alert
+remember_findings = true    # each agent keeps its alerts in its own memory
+deliberate = false          # true: Claude reads all reports and flags contradictions the rules missed (API credits)
+
+[autopilot]
+# auto = Setz does it and tells you · ask = it waits in Autopilot → "Waiting for your OK" · off
+# Anything that reaches another person is "ask" by default; emails are always drafts only.
+tidy_data = "auto"
+prepare_contracts = "auto"
+enrich_new_leads = "auto"
+partner_checkins = "auto"
+start_sequences = "ask"
+book_meetings = "ask"       # booking sends an invite; "auto" also needs allow_auto_booking = true
+push_partners = "ask"
+plan_week = "ask"
+
+[market]
+ai_summary = true           # Claude writes a short strategy on the Market tab (button "Strategy (AI)")
+# Target share of partners per category (what members use most). Gaps push "onboard next" towards them.
+# [market.target_mix]
+# "Food & drinks" = 0.35
+# "Sport & fitness" = 0.12
+
+[contracts]
+# Your company details for every contract Lex prepares
+legal_name = ""             # e.g. "Settleezy UG (haftungsbeschränkt)"
+address = ""                # e.g. "Musterstraße 1, 10115 Berlin"
+signatory = ""              # defaults to [me] name
+default_template = "partner_de"   # partner_de | partner_en (universities get university_en)
+term_months = 12
+renewal_months = 12
+notice_weeks = 4
+ai_review = true            # "add Claude's review" when analysing a draft
+
+[admin]
+# Your website's admin panel (controls the app). Setz reads partners, member numbers and venue requests every hour.
+# API spec: docs/ADMIN_BRIDGE.md · secrets in .env: SZ_ADMIN_API_KEY, SZ_ADMIN_WEBHOOK_SECRET
+# base_url = "https://settleezy.com/api/setz/v1"
+# partner_url = "https://settleezy.com/admin/partners/{id}"   # "open in admin panel" links
+trust_panel_status = true   # the panel decides what's live; Setz follows it
+import_unknown_partners = true
 
 [partners]
 stage_stuck_days = 7        # onboarding step older than this -> flagged + auto to-do
@@ -134,6 +181,8 @@ checkin_days = 30           # live partner without contact for this long -> "che
 [leadgen]
 # Venues within walking distance of each campus, from OpenStreetMap (free, no key). `sz leadgen scan` or weekly.
 radius_m = 800
+city = "Berlin"             # `sz leadgen unis` finds every university/college here on OpenStreetMap
+use_discovered_campuses = true
 include_chains = false      # skip McDonald's, Rewe & co. (they decide centrally; pitch them as brands instead)
 # Add or replace campuses (defaults: FU, HU x2, TU, UdK, HTW x2, BHT, HWR, Charité, ASH, Hertie, ESMT, CODE, SRH):
 # [[leadgen.campuses]]

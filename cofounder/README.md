@@ -151,6 +151,12 @@ sz leads add --name "Café X" --kind-new merchant --website cafe-x.de
 sz leads export             data\leads.csv
 sz growth                   co-founder weekly review now
 sz voice                    Setz: say "Hey Setz …" (or --no-wake for push-to-talk); hologram at /hologram
+sz market                   whom to onboard next, with reasons   (sz market partners | competitors | --bucket sport)
+sz contract new partner_de --partner "Brew Lab" --set offer="15% auf Getränke"     sz contract analyse draft.docx --ai
+sz council                  what the agents found in each other's work   (sz council check --fix | brains)
+sz autopilot                waiting for your OK   (sz autopilot approve 3 | run | rules)
+sz leadgen unis             every university and college in Berlin (OpenStreetMap) -> campuses + Buddy-platform leads
+sz bridge sync              admin panel + app: partners, members, venue requests (docs/ADMIN_BRIDGE.md)
 ```
 
 ## Lead finder: ask for leads in plain words
@@ -283,6 +289,40 @@ Tailscale identifies you, so no PIN is needed. To add one anyway, set `[dashboar
 the laptop must then enter it once (5 tries per 5 minutes). On plain home Wi-Fi without Tailscale you can set
 `host = "0.0.0.0"` (a PIN is then required), but browsers allow push notifications only over HTTPS.
 
+### Samsung Galaxy (S26 Ultra): plug it in, or reach Setz anywhere
+
+**Over the USB cable.** No Wi-Fi or Tailscale is needed.
+1. On the phone:
+   - Go to Settings → About phone → Software information and tap *Build number* 7 times.
+   - Go to Developer options and turn on **USB debugging**.
+2. On the laptop: `winget install Google.PlatformTools`.
+3. Plug the phone in, tap *Allow* on the phone, and run:
+   ```powershell
+   .\scripts\phone_usb.ps1 -Watch        # keeps the link up; re-connects every time you plug the phone in
+   .\scripts\phone_usb.ps1 -Talk         # opens the push-to-talk page
+   .\scripts\phone_usb.ps1 -Mirror       # also mirrors the phone on the laptop (winget install Genymobile.scrcpy)
+   ```
+
+The phone opens `http://localhost:8765`, and `adb reverse` carries it through the cable to the laptop. Chrome treats
+`localhost` as secure, so installing the app, notifications and the microphone all work.
+
+**Anywhere.** Use Tailscale, as described above.
+
+**Once Setz is on the phone:**
+- **Install it.** Chrome ⋮ → *Install app*. Long-press the icon for the shortcuts *Talk*, *Approvals*, *Onboard next*,
+  *Lead finder* and *Command center*.
+- **Talk to it** at `/talk`. Hold the button and speak in English or German. Your laptop's Whisper transcribes the
+  recording, Setz answers and speaks back in your ElevenLabs voice. The orb moves with the voice.
+- **One press from anywhere.** Go to Settings → Advanced features → Side button → *Double press* → *Open app* → **Setz**.
+- **Share to Setz** from any app (Instagram, Gmail, Files, Chrome). Shared items wait in *Autopilot → Shared to Setz*
+  with one-tap actions:
+  - an Instagram profile → added as a lead
+  - a website → added as a lead and its Impressum read
+  - a contract PDF or DOCX → reviewed by Lex
+  - an email → meeting slots suggested
+  - anything else → a to-do or a memory
+- **Samsung DeX.** Plug into a monitor and the dashboard gets the full desktop layout.
+
 ## Lead generation, pipeline and your week
 
 **Find leads near campuses.** `sz leadgen scan` asks OpenStreetMap for every café, restaurant, supermarket, bakery,
@@ -401,6 +441,130 @@ sz brain                     sz brain learn               sz brain model
 sz brain recall who prefers WhatsApp                     sz brain remember Anna wants monthly reports --subject "Café Kranz"
 ```
 
+## Expansion: universities, competitors and whom to onboard next
+
+**Every university, not just 15.** `sz leadgen unis` asks OpenStreetMap for every university and college in Berlin.
+It groups buildings that belong together into campuses (FU's institutes in Dahlem become one campus) and adds them
+to the scan list. Each institution also becomes a `university` lead for the Buddy platform. After that,
+`sz leadgen scan` maps the venues around **every** campus. The scan now covers more than 50 venue types students use:
+- food: cafés, restaurants, bakeries, supermarkets, organic shops
+- sport: gyms, climbing, dance, yoga
+- going out: cinemas, escape rooms, bowling, arcades
+- services: copy shops, laundries, phone, laptop and bike shops, opticians, hairdressers, language and driving
+  schools, coworking spaces, second-hand shops
+
+Switch individual campuses off on the **Market** tab.
+
+**Market tab (Vega, the market strategist).**
+- **Onboard next:** one ranked list. Each lead shows the reasons and a pitch angle:
+  - how likely it is to join (neural reply model × your real conversion rates)
+  - its everyday value for students and its distance to campus
+  - whether it fills a gap in your partner mix, or is the first partner at a campus
+  - whether it already gives discounts on Groupon, vspots, Top10 Berlin, UNiDAYS or Student Beans (proven discount appetite)
+  - whether app members asked for it (admin-panel bridge)
+- **Partner performance:** redemptions per week since going live, health, which partners are also on competitor
+  platforms (make sure your offer is the better one), and which categories carry the redemptions.
+- **Competitors:** listings per platform, their strongest categories, overlap with your partners, and the venues
+  that discount elsewhere but not with you yet.
+- **Strategy (AI):** Claude turns all of this into whom to sign next and one competitive move for the month.
+
+Ask by voice: *"Hey Setz, who should I onboard next?"*
+
+## Contracts: Lex prepares and reviews them
+
+**Prepare.** Choose a template and a partner. Lex fills in everything Setz already knows:
+- legal name, managing director and address from the Impressum
+- the offer you agreed
+- term, notice and dates
+- your company details from `[contracts]` in config.toml
+
+You get Markdown and a Word file in `data/contracts/`, with anything still missing marked `[LIKE THIS]` and listed.
+
+Templates:
+- German and English partner agreements
+- university Buddy-platform agreement
+- mutual NDA
+
+To use your own Word templates, put `my_template.docx` with `{{ placeholders }}` in `data/contracts/templates/`
+(`pip install -e ".[contracts]"`).
+
+When a partner reaches *Agreed in principle*, Lex drafts the agreement automatically and tells you what's missing.
+Marking a contract *signed* moves the partner to *Agreement signed*.
+
+**Review.** Drop a draft on the Contracts tab (.docx, .pdf, .txt), or share it from the phone. Lex checks every
+clause:
+- parties, purpose and the member benefit
+- term, termination and notice
+- liability, data protection (DSGVO), use of names and logos, governing law, form and severability
+
+It flags these risks:
+- exclusivity, contractual penalties and non-competes
+- liability exclusions that are void in standard terms (§ 309 Nr. 7 BGB)
+- notice periods over 3 months and fixed terms over 2 years
+- fees payable by Settleezy, foreign law, sharing member data, unfilled placeholders
+
+It also extracts notice periods, terms, amounts, percentages and dates. With *add Claude's review* you also get
+suggested wording. Lex is a checklist and a first draft, not legal advice.
+
+## The agent council, autopilot and approvals
+
+**Twelve agents:**
+- Hermes: inbox
+- Atlas: partners
+- Scout: competitors
+- Hunter: leads
+- Nova: Instagram
+- Quant: growth
+- Chrono: schedule
+- Campus: universities
+- Sentinel: systems
+- Lex: contracts (new)
+- Vega: market and whom to onboard (new)
+- Bridge: admin panel and app (new)
+
+They run **at the same time**, each with **its own brain**:
+- It remembers what it has seen and for how long. A warning that comes back 6 runs in a row becomes an alert.
+- It learns how long its problems take to get resolved.
+- It keeps its alerts as memories you can recall.
+
+After every run they **peer-review each other** and post to a shared board, for example:
+- Sentinel → Hunter: *"2 venues appear as more than one lead"*, *"outreach is still scheduled for a lost lead"*
+- Atlas → Hunter: *"this partner still looks like an open lead"*
+- Lex → Atlas: *"3 live partners without a signed agreement"*, *"renewal in 12 days"*
+- Vega → Hunter: *"2 of the top picks have no outreach running"*
+- Hermes → Chrono: *"meeting request unanswered for 2 days"*
+- Sentinel → the owner of any job or agent that crashed, with the error
+
+Safe fixes run automatically. These only tidy Setz's own data: linking partners, stopping outreach to closed leads,
+drafting contracts. With `[council] deliberate = true`, Claude also reads all reports and points out contradictions
+the rules missed. The command center draws these messages as live connections between the agents (*Council* tab).
+
+**Autopilot.** Each responsibility has a mode in `[autopilot]`:
+- `auto`: Setz does it and tells you.
+- `ask`: it waits in **Autopilot → Waiting for your OK**, with a push to your phone.
+- `off`.
+
+Tidying data, drafting contracts, reading Impressums and adding partner check-ins are `auto`. Anything that reaches
+another person is `ask`: starting outreach, booking a meeting (which sends an invite) and creating an admin-panel
+listing. Emails are always drafts.
+
+Run it with `sz autopilot run` (hourly when scheduled), and approve with one tap or `sz autopilot approve 3`.
+Voice: *"Hey Setz, any approvals?"*, *"what does the council say?"*, *"which contracts are open?"*,
+*"run the expansion scan"*.
+
+## Admin panel and app
+
+The admin panel on your website controls the app, and Setz connects to it:
+- **Every hour Setz reads** partners (status, redemptions, views), member numbers (trials, conversions, paying
+  members, MRR) and the venues members ask for in the app.
+- **The panel can push events instantly** with signed webhooks: new member, conversion, redemption, venue request,
+  support ticket.
+- **Setz creates draft listings only after your OK.** It never publishes.
+
+The data flows into the agents (Quant's goals, Atlas's partner health, Vega's "onboard next") and the command
+center. The API the panel needs to expose, the webhook format, an example sender and the OpenAPI file are in
+[`docs/ADMIN_BRIDGE.md`](docs/ADMIN_BRIDGE.md).
+
 ## What's next
 See [`ROADMAP.md`](ROADMAP.md) for researched open-source projects that could be added next: a WhatsApp + Instagram DM inbox, partner impact reports, a content engine, OpenStreetMap venue discovery, app analytics, CRM, e-signatures, newsletters, memory and more, ranked by business impact.
 
@@ -423,6 +587,8 @@ Calendly ├─> sz jobs ─> SQLite (data/) ──────┼─> Daily bri
 Instagram┘      ▲            │               ├─> Dashboard :8765
 Competitors ────┘            │               └─> Weekly growth review
 Partners · to-dos · routine ─┘└─> MCP server ─> OpenJarvis chat  ·  Setz voice + hologram
+Admin panel / app ⇄ bridge (pull + signed webhooks)  ·  12 agents ⇄ council (peer review)  ·  autopilot ⇄ your approvals
+Phone: USB (adb reverse) or Tailscale → installed app, push, /talk, share sheet
 local model (Ollama): triage, extraction  ·  Claude API: drafts, analysis (redacted)
 ```
 
