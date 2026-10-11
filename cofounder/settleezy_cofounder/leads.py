@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import json
 import re
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from .db import DB, utcnow
@@ -23,6 +24,8 @@ CATEGORY_WEIGHTS = [
     (r"beauty|hair|friseur|barber|nail|cosmetic|kosmetik", 0.6),
     (r"spa|wellness|massage|sauna|therme", 0.5),
 ]
+# Source prefixes of competitor discount platforms (see competitors.toml / leadintel.PLATFORM_NAMES).
+COMPETITOR_SOURCES = {"groupon", "vspots", "top10berlin", "top10", "unidays", "studentbeans"}
 KIND_BASE = {"university": 30, "housing": 28, "service": 25, "brand": 22, "merchant": 20, "creator": 10}
 
 
@@ -35,8 +38,8 @@ def category_weight(text: str) -> float:
 
 
 def score(lead: dict) -> float:
-    # Only competitor listings prove discount appetite; map/seed discovery does not.
-    sources = [x for x in json.loads(lead.get("sources") or "[]") if not x.startswith(("osm:", "seed:", "import"))]
+    # Only competitor listings prove discount appetite; map/seed/Instagram discovery does not.
+    sources = {x.split(":")[0].lower() for x in json.loads(lead.get("sources") or "[]")} & COMPETITOR_SOURCES
     s = KIND_BASE.get(lead.get("kind", ""), 15)
     s += 40 * category_weight(f"{lead.get('category', '')} {lead.get('name', '')}")
     s += min(len(sources), 3) * 6          # on several competitor platforms = proven discount appetite
@@ -59,16 +62,35 @@ def rescore(db: DB, lead_id: int) -> float:
 
 
 def _norm_name(name: str) -> str:
+    """Idempotent: _norm_name(_norm_name(x)) == _norm_name(x) ("Foo - GmbH" -> "Foo")."""
     name = re.sub(r"\s+", " ", name or "").strip(" -|,.")
-    name = re.sub(r"\b(gmbh|ug|e\.?k\.?|ohg|kg|ag)\b\.?", "", name, flags=re.I).strip()
-    return name[:120]
+    name = re.sub(r"\b(gmbh|ug|e\.?k\.?|ohg|kg|ag)\b\.?", "", name, flags=re.I)
+    return re.sub(r"\s+", " ", name).strip(" -|,.")[:120].strip(" -|,.")
+
+
+def name_key(name: str) -> str:
+    """Matching key for leads and partners (Unicode-aware, unlike SQLite's lower())."""
+    return _norm_name(name).casefold()
+
+
+def ensure_name_keys(db: DB) -> None:
+    """Backfill name_key for rows written before the column existed."""
+    rows = db.q("SELECT id, name FROM leads WHERE name_key IS NULL")
+    if rows:
+        db.conn.executemany("UPDATE leads SET name_key=? WHERE id=?", [(name_key(r["name"]), r["id"]) for r in rows])
+        db.conn.commit()
+
+
+def partner_keys(db: DB) -> set[str]:
+    return {name_key(p["name"]) for p in db.q("SELECT name FROM partners")}
 
 
 def upsert(db: DB, name: str, kind: str, *, source: str = "", source_url: str = "", **fields) -> tuple[int, bool]:
     name = _norm_name(name)
     if not name:
         return 0, False
-    row = db.one("SELECT * FROM leads WHERE lower(name)=lower(?) AND kind=?", (name, kind))
+    ensure_name_keys(db)
+    row = db.one("SELECT * FROM leads WHERE name_key=? AND kind=? ORDER BY id LIMIT 1", (name.casefold(), kind))
     now = utcnow()
     if row:
         lead = dict(row)
@@ -92,9 +114,9 @@ def upsert(db: DB, name: str, kind: str, *, source: str = "", source_url: str = 
             "source_urls": json.dumps([source_url] if source_url else []), **fields}
     lead["score"] = score(lead)
     cur = db.x(
-        "INSERT INTO leads(name,kind,category,website,email,phone,instagram,city,sources,source_urls,score,status,created_at,updated_at) "
-        "VALUES(?,?,?,?,?,?,?,?,?,?,?,'new',?,?)",
-        (name, kind, fields.get("category", ""), fields.get("website", ""), fields.get("email", ""), fields.get("phone", ""),
+        "INSERT INTO leads(name,name_key,kind,category,website,email,phone,instagram,city,sources,source_urls,score,status,created_at,updated_at) "
+        "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,'new',?,?)",
+        (name, name.casefold(), kind, fields.get("category", ""), fields.get("website", ""), fields.get("email", ""), fields.get("phone", ""),
          fields.get("instagram", ""), fields.get("city", "Berlin"), lead["sources"], lead["source_urls"], lead["score"], now, now),
     )
     return cur.lastrowid, True
@@ -120,12 +142,15 @@ def enrich(db: DB, fetcher, limit: int = 20) -> int:
     """For leads with a website but no email: read homepage + Impressum (legally required in Germany)."""
     from .scraping.extractors import contacts_from_html, impressum_link
 
-    rows = db.q("SELECT * FROM leads WHERE website != '' AND (email IS NULL OR email = '') ORDER BY score DESC LIMIT ?", (limit,))
+    retry = (datetime.now(timezone.utc) - timedelta(days=30)).replace(microsecond=0).isoformat()
+    rows = db.q("SELECT * FROM leads WHERE website != '' AND (email IS NULL OR email = '') "
+                "AND (enriched_at IS NULL OR enriched_at < ?) ORDER BY score DESC LIMIT ?", (retry, limit))
     done = 0
     for r in rows:
         site = r["website"] if r["website"].startswith("http") else "https://" + r["website"]
         home = fetcher.get(site, conditional=False)
         if home.status != 200:
+            db.x("UPDATE leads SET enriched_at=? WHERE id=?", (utcnow(), r["id"]))   # don't retry a dead site every run
             continue
         found = contacts_from_html(home.text)
         imp = impressum_link(home.text, home.url)
@@ -134,9 +159,13 @@ def enrich(db: DB, fetcher, limit: int = 20) -> int:
             if page.status == 200:
                 more = contacts_from_html(page.text)
                 found = {k: found[k] or more[k] for k in found}
-        if any(found.values()):
-            upsert(db, r["name"], r["kind"], **found)
+        upd = {k: v for k, v in found.items() if v and not r[k]}
+        if upd:   # by id: re-upserting by name could miss the row and create a duplicate
+            db.x(f"UPDATE leads SET {', '.join(f'{k}=?' for k in upd)}, updated_at=? WHERE id=?", [*upd.values(), utcnow(), r["id"]])
+            rescore(db, r["id"])
             done += 1
+        else:
+            db.x("UPDATE leads SET enriched_at=? WHERE id=?", (utcnow(), r["id"]))
     return done
 
 

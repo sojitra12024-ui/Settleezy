@@ -12,7 +12,7 @@
 from __future__ import annotations
 
 import json
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Any, Callable
 
 from .config import Config
@@ -34,11 +34,15 @@ SCHEDULE: dict[str, tuple[str, list[int], list[str]]] = {
     "pipeline": ("Start outreach sequences", [0], ["07:30"]),
     "growth": ("Weekly growth review", [0], ["07:15"]),
     "learn": ("Re-learn your writing voice", [6], ["20:00"]),
+    "universities": ("Universities & campuses (OSM)", [6], ["20:30"]),
+    "autopilot": ("Autopilot: tidy, draft, ask for approvals", ALL, [f"{h:02d}:40" for h in range(8, 21)]),
+    "bridge": ("Admin panel + app sync", ALL, [f"{h:02d}:20" for h in range(7, 23)]),
 }
 JOB_AGENT = {"mail": "hermes", "track": "hermes", "drafts": "hermes", "learn": "hermes", "scrape": "scout", "leadgen": "hunter",
              "enrich": "hunter", "pipeline": "hunter", "igdiscover": "nova", "instagram": "nova", "growth": "quant",
              "calendly": "chrono", "ops": "atlas", "doctor": "sentinel", "agents": "setz", "brain": "setz", "brief": "setz",
-             "morning": "setz"}
+             "morning": "setz",
+             "universities": "campus", "autopilot": "setz", "bridge": "bridge", "council": "sentinel", "contracts": "lex"}
 PLAYBOOKS: dict[str, dict[str, Any]] = {
     "prospecting": {"label": "Prospecting run", "steps": ["leadgen", "enrich", "igdiscover", "brain", "pipeline"],
                     "what": "Find venues near campuses and on Instagram, read their Impressum, learn, start outreach"},
@@ -48,6 +52,10 @@ PLAYBOOKS: dict[str, dict[str, Any]] = {
                      "what": "Competitor listings, Instagram numbers, agent reports, growth review"},
     "learning": {"label": "Brain refresh", "steps": ["brain", "learn"],
                  "what": "Refresh memories, retrain the lead model, re-learn your writing voice"},
+    "expansion": {"label": "Expansion scan", "steps": ["universities", "leadgen", "scrape", "enrich", "agents"],
+                  "what": "Map every university, the venues around them and competitor listings; rank whom to onboard next"},
+    "operations": {"label": "Operations sweep", "steps": ["bridge", "council", "contracts", "autopilot"],
+                   "what": "Sync the admin panel, peer-review the agents, draft contracts, queue approvals"},
 }
 
 
@@ -79,11 +87,21 @@ def jobs_status(db: DB, running: dict[str, str] | None = None) -> list[dict]:
         err_newer = bool(err and (not last or err[:19] > last[:19]))
         out.append({"name": name, "label": label, "agent": JOB_AGENT.get(name, "setz"), "scheduled": name in SCHEDULE,
                     "schedule": _describe(name), "last_run": last, "next_run": next_run(name),
-                    "running": running.get(name) == "running" or bool(db.kv_get(f"running:{name}")),
+                    "running": running.get(name) == "running" or _fresh(db.kv_get(f"running:{name}")),
                     "on_demand": name not in SCHEDULE,
                     "error": err.split(" ", 1)[-1] if err_newer else (running.get(name, "")[7:] if str(running.get(name, "")).startswith("error") else "")})
     # running first, then scheduled by next run, then on-demand jobs
     return sorted(out, key=lambda j: (not j["running"], j["on_demand"], j["next_run"] or "9", j["name"]))
+
+
+def _fresh(started: str | None, hours: float = 3) -> bool:
+    """A `running:*` marker older than a few hours is left over from a crashed run, not a live one."""
+    try:
+        t = datetime.fromisoformat(started or "")
+    except ValueError:
+        return False
+    t = t if t.tzinfo else t.replace(tzinfo=timezone.utc)
+    return datetime.now(timezone.utc) - t < timedelta(hours=hours)
 
 
 def _describe(job: str) -> str:
@@ -192,21 +210,23 @@ def run_playbook(cfg: Config, name: str, progress: Callable[[dict], None] | None
         with DB(cfg.db_path) as db:
             db.kv_set("playbook:running", json.dumps(s or {}))
 
-    for step in steps:
-        state["current"] = step
-        save(state)
-        if progress:
-            progress({"agent": JOB_AGENT.get(step, "setz"), "status": "working", "summary": f"{state['label']}: {step}…"})
-        try:
-            results[step] = {"ok": True, "result": run_job(cfg, step)}
-        except Exception as exc:
-            results[step] = {"ok": False, "error": f"{type(exc).__name__}: {exc}"[:300]}
-        state["done"].append(step)
-        if progress:
-            ok = results[step]["ok"]
-            progress({"agent": JOB_AGENT.get(step, "setz"), "status": "ok" if ok else "alert",
-                      "summary": f"{step} {'done' if ok else 'failed: ' + results[step]['error'][:120]}"})
-    save(None)
+    try:
+        for step in steps:
+            state["current"] = step
+            save(state)
+            if progress:
+                progress({"agent": JOB_AGENT.get(step, "setz"), "status": "working", "summary": f"{state['label']}: {step}…"})
+            try:
+                results[step] = {"ok": True, "result": run_job(cfg, step)}
+            except Exception as exc:
+                results[step] = {"ok": False, "error": f"{type(exc).__name__}: {exc}"[:300]}
+            state["done"].append(step)
+            if progress:
+                ok = results[step]["ok"]
+                progress({"agent": JOB_AGENT.get(step, "setz"), "status": "ok" if ok else "alert",
+                          "summary": f"{step} {'done' if ok else 'failed: ' + results[step]['error'][:120]}"})
+    finally:
+        save(None)
     failed = [s for s, r in results.items() if not r["ok"]]
     try:
         from .notify import notify

@@ -124,12 +124,16 @@ class Embedder:
         return [_norm(v) for v in r.json()["embeddings"]]
 
     def embed(self, texts: list[str], query: bool = False) -> list[list[float]]:
-        if self.name.startswith("fastembed:"):
-            if "e5" in self.name:   # e5 models are trained with these prefixes; others must not get them
-                texts = [("query: " if query else "passage: ") + t for t in texts]
-            return [_norm([float(x) for x in v]) for v in self._fe.embed(texts, batch_size=32)]
-        if self.name.startswith("ollama:"):
-            return self._ollama(texts, self.name.split(":", 1)[1])
+        try:
+            if self.name.startswith("fastembed:"):
+                if "e5" in self.name:   # e5 models are trained with these prefixes; others must not get them
+                    texts = [("query: " if query else "passage: ") + t for t in texts]
+                return [_norm([float(x) for x in v]) for v in self._fe.embed(texts, batch_size=32)]
+            if self.name.startswith("ollama:"):
+                return self._ollama(texts, self.name.split(":", 1)[1])
+        except Exception as exc:   # e.g. Ollama stopped after start-up: keep working on the offline embedder
+            self.note = f"{self.name} failed ({type(exc).__name__}: {exc})"[:200] + "; using the hash embedder"
+            self.name, self._fe = f"hash:{HASH_DIM}", None
         return [_hash_embed(t) for t in texts]
 
 
@@ -161,6 +165,9 @@ def _dot(a: list[float], b: list[float]) -> float:
 
 # -- memory ---------------------------------------------------------------------------
 
+SYSTEM_KEYS = ("partner:", "partner-notes:", "kb:", "ev:", "lead-notes:", "meeting:", "insight:", "agent:")   # owned by learn()
+
+
 def _ensure(db: DB) -> None:
     db.conn.execute(
         "CREATE TABLE IF NOT EXISTS memories (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT UNIQUE, kind TEXT, subject TEXT, "
@@ -183,8 +190,11 @@ def remember(cfg: Config, db: DB, text: str, *, kind: str = "fact", subject: str
     vec = emb.embed([text])[0]
     now = utcnow()
     if key is None:
-        for m in _scan(cfg, db, subject=subject or None):
-            if _dot(vec, m["_vec"]) > 0.95:
+        name, rows = emb.name, _scan(cfg, db, kind=kind, subject=subject or None)
+        if emb.name != name:   # the embedder fell back while scanning
+            vec = emb.embed([text])[0]
+        for m in rows:
+            if not (m["key"] or "").startswith(SYSTEM_KEYS) and _dot(vec, m["_vec"]) > 0.95:
                 key = m["key"]
                 importance = max(importance, m["importance"])
                 break
@@ -210,6 +220,7 @@ def _scan(cfg: Config, db: DB, kind: str | None = None, subject: str | None = No
         sql += " AND subject=?"
         params.append(subject)
     rows = [dict(r) for r in db.q(sql, params)]
+    name = emb.name
     stale = [r for r in rows if r["embedder"] != emb.name or not r["vec"]]
     for i in range(0, len(stale), 64):
         chunk = stale[i:i + 64]
@@ -218,6 +229,8 @@ def _scan(cfg: Config, db: DB, kind: str | None = None, subject: str | None = No
             db.conn.execute("UPDATE memories SET vec=?, embedder=? WHERE id=?", (r["vec"], emb.name, r["id"]))
     if stale:
         db.conn.commit()
+    if emb.name != name:   # fell back to the hash embedder part-way: re-embed everything with it
+        return _scan(cfg, db, kind, subject)
     for r in rows:
         r["_vec"] = _unpack(r["vec"])
     return rows

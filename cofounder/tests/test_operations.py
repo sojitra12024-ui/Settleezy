@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from settleezy_cofounder import operations as op
 from settleezy_cofounder.leads import set_status, upsert
@@ -28,7 +28,7 @@ def test_missions_rank_and_resolve(cfg, db):
 def test_jobs_status_reports_errors_and_running(cfg, db):
     db.kv_set("last_run:mail", "2026-10-08T08:00:00+00:00")
     db.kv_set("last_error:mail", "2026-10-08T09:00:00+00:00 GraphError: token expired")
-    db.kv_set("running:scrape", "2026-10-08T09:01:00+00:00")
+    db.kv_set("running:scrape", datetime.now(timezone.utc).isoformat())
     js = {j["name"]: j for j in op.jobs_status(db)}
     assert js["mail"]["error"] == "GraphError: token expired" and js["scrape"]["running"] and js["mail"]["agent"] == "hermes"
     db.kv_set("last_run:mail", "2026-10-08T10:00:00+00:00")                                  # a later success clears it
@@ -66,6 +66,6 @@ def test_operations_api(cfg):
 
     c = TestClient(app)
     o = c.get("/api/operations").json()
-    assert {p["name"] for p in o["playbooks"]} == {"prospecting", "inbox", "intelligence", "learning"} and o["jobs"]
+    assert {p["name"] for p in o["playbooks"]} == {"prospecting", "inbox", "intelligence", "learning", "expansion", "operations"} and o["jobs"]
     assert c.post("/api/playbook/prospecting").status_code == 403
     assert c.post("/api/playbook/nope", headers={"X-SZ": "1"}).status_code == 404

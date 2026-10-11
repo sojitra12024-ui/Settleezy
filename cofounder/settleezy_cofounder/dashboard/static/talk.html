@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Talk to Setz</title>
+<meta name="theme-color" content="#030810">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/static/icon.svg">
+<style>
+  :root { color-scheme: dark; --bg:#030810; --ink:#e2f6ff; --mute:#8fb3c2; --cyan:#5ee8ff; --line:rgba(94,232,255,.28); --hot:#ff5d8f; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; height:100%; background: radial-gradient(ellipse at 50% 35%, #0b2233 0%, var(--bg) 68%); color:var(--ink);
+    font: 16px/1.45 Inter, system-ui, -apple-system, "Segoe UI", sans-serif; }
+  body { display:grid; grid-template-rows:auto 1fr auto; min-height:100dvh; padding: env(safe-area-inset-top) 16px calc(16px + env(safe-area-inset-bottom)); }
+  header { display:flex; align-items:center; justify-content:space-between; padding:12px 0; }
+  header b { letter-spacing:.32em; font-size:15px; }
+  header a { color:var(--mute); text-decoration:none; font-size:14px; padding:8px; }
+  main { display:grid; align-content:center; justify-items:center; gap:18px; text-align:center; }
+  #orb { width:min(62vw,260px); aspect-ratio:1; border-radius:50%; position:relative;
+    background: radial-gradient(circle at 50% 45%, rgba(94,232,255,.55), rgba(27,111,208,.25) 45%, transparent 70%);
+    box-shadow: 0 0 60px rgba(94,232,255,.25), inset 0 0 40px rgba(94,232,255,.25); transition: transform .12s ease-out; }
+  #orb::after { content:""; position:absolute; inset:-14px; border-radius:50%; border:1px solid var(--line); animation: spin 14s linear infinite;
+    border-top-color: var(--cyan); }
+  body.rec #orb { background: radial-gradient(circle at 50% 45%, rgba(255,93,143,.6), rgba(255,93,143,.2) 45%, transparent 70%); }
+  body.think #orb::after { animation-duration: 1.2s; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #you { color:var(--mute); min-height:1.4em; max-width:34rem; }
+  #reply { font-size:18px; max-width:34rem; min-height:3em; white-space:pre-wrap; }
+  footer { display:grid; gap:10px; justify-items:center; }
+  #ptt { width:min(100%, 420px); padding:20px; border-radius:18px; border:1px solid var(--line); font:inherit; font-weight:600; font-size:17px;
+    color:#fff; background:linear-gradient(135deg,#1b6fd0,#12a5c8); touch-action:none; user-select:none; -webkit-user-select:none; }
+  body.rec #ptt { background:linear-gradient(135deg,#c2185b,#ff5d8f); }
+  form { display:flex; gap:8px; width:min(100%, 420px); }
+  input { flex:1; min-width:0; font:inherit; padding:12px 14px; border-radius:12px; border:1px solid var(--line); background:rgba(94,232,255,.06); color:var(--ink); }
+  form button { font:inherit; padding:0 16px; border-radius:12px; border:1px solid var(--line); background:transparent; color:var(--ink); }
+  small { color:var(--mute); font-size:12.5px; }
+  @media (prefers-reduced-motion: reduce) { #orb::after { animation:none; } }
+</style>
+</head>
+<body>
+<header><b>SETZ</b><a href="/">Dashboard ›</a></header>
+<main>
+  <div id="orb" aria-hidden="true"></div>
+  <div id="you"></div>
+  <div id="reply" role="status" aria-live="polite">Hold the button and talk. English or Deutsch.</div>
+</main>
+<footer>
+  <button id="ptt" type="button">Hold to talk</button>
+  <form id="f"><input id="q" placeholder="…or type" autocomplete="off" enterkeyhint="send" aria-label="Ask Setz"><button>Ask</button></form>
+  <small id="hint">Your voice is transcribed on your laptop (Whisper), not in the cloud.</small>
+</footer>
+<script src="/static/live.js"></script>
+<script>
+const $ = (s) => document.querySelector(s);
+const orb = $("#orb"), reply = $("#reply"), you = $("#you");
+let rec, chunks = [], stream, audioCtx, analyser, raf;
+
+function pulse() {
+  if (!analyser) return;
+  const a = new Uint8Array(analyser.fftSize); analyser.getByteTimeDomainData(a);
+  let s = 0; for (const v of a) s += ((v - 128) / 128) ** 2;
+  orb.style.transform = `scale(${1 + Math.min(.35, Math.sqrt(s / a.length) * 3)})`;
+  raf = requestAnimationFrame(pulse);
+}
+
+async function play(b64) {
+  const audio = new Audio("data:audio/wav;base64," + b64);
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const src = ctx.createMediaElementSource(audio); analyser = ctx.createAnalyser(); analyser.fftSize = 512;
+  src.connect(analyser); analyser.connect(ctx.destination); pulse();
+  audio.onended = () => { cancelAnimationFrame(raf); orb.style.transform = ""; analyser = null; ctx.close(); };
+  await audio.play();
+}
+
+function show(r) {
+  document.body.classList.remove("think");
+  if (r.text !== undefined) you.textContent = r.text ? "You: " + r.text : "";
+  reply.textContent = r.answer || r.detail || "Something went wrong.";
+  if (r.audio) play(r.audio).catch(() => {});
+}
+
+async function start() {
+  if (rec && rec.state === "recording") return;
+  try {
+    stream = stream || await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+  } catch (e) {
+    reply.textContent = location.protocol === "https:" || ["localhost", "127.0.0.1"].includes(location.hostname)
+      ? "Microphone blocked: allow it in the browser's site settings." : "The microphone needs https (Tailscale) or the USB link (localhost).";
+    return;
+  }
+  const type = ["audio/webm;codecs=opus", "audio/ogg;codecs=opus", "audio/mp4"].find((t) => window.MediaRecorder && MediaRecorder.isTypeSupported(t)) || "";
+  rec = new MediaRecorder(stream, type ? { mimeType: type } : undefined); chunks = [];
+  rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+  rec.onstop = send;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  analyser = audioCtx.createAnalyser(); analyser.fftSize = 512; audioCtx.createMediaStreamSource(stream).connect(analyser); pulse();
+  rec.start(); document.body.classList.add("rec"); $("#ptt").textContent = "Listening… release to send";
+  if (navigator.vibrate) navigator.vibrate(15);
+}
+
+function stop() {
+  if (!rec || rec.state !== "recording") return;
+  rec.stop(); document.body.classList.remove("rec"); $("#ptt").textContent = "Hold to talk";
+  cancelAnimationFrame(raf); orb.style.transform = ""; analyser = null; audioCtx && audioCtx.close();
+}
+
+async function send() {
+  const blob = new Blob(chunks, { type: rec.mimeType || "audio/webm" });
+  if (blob.size < 2000) { reply.textContent = "Hold the button a bit longer while you talk."; return; }
+  document.body.classList.add("think"); reply.textContent = "Thinking…";
+  try {
+    const r = await fetch("/api/voice/ask-audio", { method: "POST", headers: { "X-SZ": "1", "Content-Type": blob.type }, body: blob });
+    show(await r.json());
+  } catch (e) { show({ detail: "Can't reach Setz on the laptop." }); }
+}
+
+const ptt = $("#ptt");
+ptt.addEventListener("pointerdown", (e) => { e.preventDefault(); ptt.setPointerCapture(e.pointerId); start(); });
+ptt.addEventListener("pointerup", stop); ptt.addEventListener("pointercancel", stop);
+ptt.addEventListener("keydown", (e) => { if ((e.key === " " || e.key === "Enter") && !e.repeat) { e.preventDefault(); start(); } });
+ptt.addEventListener("keyup", (e) => { if (e.key === " " || e.key === "Enter") stop(); });
+
+$("#f").addEventListener("submit", async (e) => {
+  e.preventDefault(); const text = $("#q").value.trim(); if (!text) return;
+  $("#q").value = ""; you.textContent = "You: " + text; document.body.classList.add("think"); reply.textContent = "Thinking…";
+  try {
+    const r = await fetch("/api/ask", { method: "POST", headers: { "X-SZ": "1", "Content-Type": "application/json" }, body: JSON.stringify({ text, speak: true }) });
+    show(await r.json());
+  } catch (_) { show({ detail: "Can't reach Setz on the laptop." }); }
+});
+</script>
+</body>
+</html>

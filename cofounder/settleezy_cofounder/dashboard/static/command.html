@@ -44,7 +44,7 @@ main { position: relative; z-index: 1; display: grid; gap: 14px; padding: 14px 2
 .panel::before, .panel::after { content: ""; position: absolute; width: 14px; height: 14px; border-color: var(--cyan); border-style: solid; opacity: .7; }
 .panel::before { top: -1px; left: -1px; border-width: 2px 0 0 2px; border-radius: 12px 0 0 0; }
 .panel::after { bottom: -1px; right: -1px; border-width: 0 2px 2px 0; border-radius: 0 0 12px 0; }
-.label { font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.label { font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; }
 .col { display: grid; gap: 14px; align-content: start; min-width: 0; }
 /* roster */
 .agent { display: grid; grid-template-columns: 34px 1fr auto; gap: 10px; align-items: center; padding: 9px 8px; border-radius: 10px; cursor: pointer; border: 1px solid transparent; }
@@ -99,7 +99,7 @@ main { position: relative; z-index: 1; display: grid; gap: 14px; padding: 14px 2
 .toast.show { opacity: 1; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 /* operations */
-.ops .seg { display: flex; gap: 2px; text-transform: none; letter-spacing: 0; }
+.ops .seg { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 2px; text-transform: none; letter-spacing: 0; }
 .ops .seg button { padding: 3px 9px; font-size: 11.5px; border-radius: 6px; background: transparent; border-color: transparent; color: var(--text-2); }
 .ops .seg button[aria-selected="true"] { background: rgba(94,232,255,.12); border-color: var(--line-strong); color: var(--text); }
 #ops-body { max-height: 360px; overflow: auto; }
@@ -173,7 +173,7 @@ main { position: relative; z-index: 1; display: grid; gap: 14px; padding: 14px 2
   </section>
 
   <section class="col" aria-label="Operations, goals and activity">
-    <div class="panel ops"><p class="label">Operations <span class="seg" role="tablist"><button data-ops="missions" aria-selected="true">Missions</button><button data-ops="jobs">Jobs</button><button data-ops="playbooks">Playbooks</button></span></p>
+    <div class="panel ops"><p class="label">Operations <span class="seg" role="tablist"><button data-ops="missions" aria-selected="true">Missions</button><button data-ops="jobs">Jobs</button><button data-ops="playbooks">Playbooks</button><button data-ops="council">Council <span id="cc-n"></span></button><button data-ops="approvals">Approvals <span id="ap-n"></span></button></span></p>
       <div id="ops-body"></div></div>
     <div class="panel"><p class="label">Goals</p><div class="gauges" id="gauges"></div></div>
     <div class="panel"><p class="label">Thought stream <span class="dot s-ok" id="live-dot" title="live"></span></p><div class="stream" id="stream" aria-live="polite"></div></div>
@@ -201,8 +201,10 @@ main { position: relative; z-index: 1; display: grid; gap: 14px; padding: 14px 2
 <aside class="drawer" id="drawer" aria-label="Agent report" tabindex="-1"></aside>
 <div class="toast" id="toast" role="status"></div>
 
+<script src="/static/live.js"></script>
 <script>
 const $ = (s) => document.querySelector(s);
+const localISO = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;   // local date, not UTC
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 const fmt = (v) => v == null ? "–" : Number(v).toLocaleString(undefined, { maximumFractionDigits: 1 });
@@ -218,6 +220,9 @@ const ICONS = {   // SVG paths (24x24)
   clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
   globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18"/>',
   shield: '<path d="M12 3 4 6v6c0 4.5 3.4 8 8 9 4.6-1 8-4.5 8-9V6z"/><path d="m9 12 2 2 4-4"/>',
+  scroll: '<path d="M7 3h11v15a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-2h11v2a3 3 0 0 0 3 3"/><path d="M7 3a3 3 0 0 0-3 3v1h3M10 8h5M10 12h5"/>',
+  compass: '<circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2 5-5 2 2-5z"/>',
+  link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
 };
 let A = null, S = null, O = null, charts = {}, drawerKey = null;
 const toast = (m) => { const t = $("#toast"); t.textContent = m; t.classList.add("show"); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove("show"), 3000); };
@@ -270,6 +275,7 @@ class Brain {
     this.mode = state || "idle"; this.env = envelope || []; this.frameMs = frameMs || 40; this.envAt = performance.now();
     if (state === "speaking" || state === "thinking") this.flash = Math.max(this.flash, 0.6);
   }
+  setLinks(links) { this.council = links || []; }
   setWorking(agent, on) { if (on) this.working.set(agent, performance.now()); else this.working.delete(agent); }
   level(now) {   // 0..1 activity that drives every animation
     if (this.mode === "speaking") {
@@ -384,6 +390,21 @@ class Brain {
       x.font = "500 11.5px Inter, system-ui, sans-serif"; x.fillStyle = "rgba(226,246,255,0.92)"; x.fillText(node.name, px, py + 38);
       x.font = "10.5px Inter, system-ui, sans-serif"; x.fillStyle = "rgba(156,195,210,0.85)"; x.fillText(node.role.length > 26 ? node.role.slice(0, 25) + "…" : node.role, px, py + 52);
     });
+    // council: agents talking to each other (bug reports, suggestions), particles flow from sender to receiver
+    for (const [li, l] of (this.council || []).entries()) {
+      const a = this.nodes.find((q) => q.key === l.from_agent), b = this.nodes.find((q) => q.key === l.to_agent);
+      if (!a || !b || a === b) continue;
+      const col = l.sev >= 3 ? "255,107,107" : l.sev >= 2 ? "240,180,60" : "94,232,255";
+      const mx = (a.pos[0] + b.pos[0]) / 2, my = (a.pos[1] + b.pos[1]) / 2, k = 0.35;
+      const qx = mx + (cx - mx) * k, qy = my + (cy - my) * k;   // bend towards the core
+      x.strokeStyle = `rgba(${col},0.32)`; x.lineWidth = 1 + Math.min(2, l.n * 0.4); x.setLineDash([3, 5]); x.lineDashOffset = this.reduced ? 0 : -t * 12;
+      x.beginPath(); x.moveTo(a.pos[0], a.pos[1]); x.quadraticCurveTo(qx, qy, b.pos[0], b.pos[1]); x.stroke(); x.setLineDash([]);
+      if (!this.reduced) for (let j = 0; j < Math.min(4, 1 + l.n); j++) {
+        const f = (t * 0.22 + j / Math.min(4, 1 + l.n) + li * 0.07) % 1, u = 1 - f;
+        const px2 = u * u * a.pos[0] + 2 * u * f * qx + f * f * b.pos[0], py2 = u * u * a.pos[1] + 2 * u * f * qy + f * f * b.pos[1];
+        x.fillStyle = `rgba(${col},${0.95 * Math.sin(f * Math.PI)})`; x.beginPath(); x.arc(px2, py2, 2.6, 0, 7); x.fill();
+      }
+    }
     // report pulses: agent -> brain
     this.pulses = this.pulses.filter((p) => p.t < 1);
     for (const p of this.pulses) {
@@ -470,7 +491,7 @@ function renderCharts() {
   area("c-members", mem); area("c-ig", ig);
   $("#m-now").textContent = mem.length ? fmt(mem[mem.length - 1][1]) : ""; $("#ig-now").textContent = ig.length ? fmt(ig[ig.length - 1][1]) : "";
   const SOURCES = ["groupon", "vspots", "top10berlin", "unidays", "studentbeans"], days = [];
-  for (let i = 13; i >= 0; i--) days.push(new Date(Date.now() - i * 864e5).toISOString().slice(0, 10));
+  for (let i = 13; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i); days.push(localISO(d)); }
   const present = SOURCES.filter((s) => S.listings_by_day.some((r) => r.source === s)), srcs = present.length ? present : SOURCES;
   $("#lg-comp").innerHTML = srcs.map((s) => `<span><i style="background:var(--series-${SOURCES.indexOf(s) + 1})"></i>${s}</span>`).join("");
   charts.comp?.destroy(); const o = baseOpts(); o.scales.x.stacked = o.scales.y.stacked = true;
@@ -577,7 +598,13 @@ new ResizeObserver(() => B && drawNet(B.model)).observe($("#nn"));
 let OPS = null, opsTab = "missions";
 const ago = (iso) => { if (!iso) return "never"; const m = Math.round((Date.now() - new Date(iso)) / 60000); return m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} d ago`; };
 const until = (iso) => { if (!iso) return "on demand"; const m = Math.round((new Date(iso) - Date.now()) / 60000); return m < 60 ? `in ${m} min` : m < 1440 ? `in ${Math.round(m / 60)} h` : new Date(iso).toLocaleDateString([], { weekday: "short" }) + " " + iso.slice(11, 16); };
-async function loadOps() { OPS = await (await fetch("/api/operations")).json(); renderOps(); }
+let CC = null, AP = null;
+async function loadOps() {
+  [OPS, CC, AP] = await Promise.all(["/api/operations", "/api/council", "/api/autopilot"].map((u) => fetch(u).then((r) => r.json())));
+  brain.setLinks(CC.links);
+  $("#cc-n").textContent = CC.messages.length || ""; $("#ap-n").textContent = AP.pending.length || "";
+  renderOps();
+}
 function renderOps() {
   if (!OPS) return;
   const b = $("#ops-body");
@@ -591,6 +618,17 @@ function renderOps() {
     b.innerHTML = OPS.jobs.map((j) => `<div class="job"><span class="dotr ${j.running ? "run" : j.error ? "err" : j.last_run ? "ok" : ""}" title="${j.running ? "running" : j.error ? "last run failed" : ""}"></span>
       <div><b>${esc(j.label)}</b> <span class="m">${esc(j.schedule)}</span><div class="m">last ${esc(ago(j.last_run))} · next ${esc(until(j.next_run))}</div>${j.error ? `<div class="err">${esc(j.error.slice(0, 120))}</div>` : ""}</div>
       <button data-runjob="${esc(j.name)}" ${j.running || j.name === "morning" ? "disabled" : ""}>${j.running ? "Running" : "Run"}</button></div>`).join("");
+  } else if (opsTab === "council") {
+    b.innerHTML = (CC.messages.length ? CC.messages.slice(0, 12).map((m) => `<div class="msn ${m.severity === "alert" ? "prio-top" : m.severity === "warn" ? "prio-hi" : ""}">
+      <span class="n" style="font-size:11px">${esc(m.from_agent.slice(0, 3).toUpperCase())}→${esc(m.to_agent.slice(0, 3).toUpperCase())}</span>
+      <div><div class="t">${esc(m.title)}</div><div class="d">${esc(m.detail.slice(0, 160))}</div><div class="ag">${esc(m.kind)}${m.count > 1 ? " · seen " + m.count + "×" : ""}</div></div>
+      ${m.fix_label ? `<button data-ccfix="${m.id}" title="${esc(m.fix_label)}">Fix</button>` : `<button data-ccdismiss="${m.id}">Dismiss</button>`}</div>`).join("")
+      : `<div style="color:var(--muted);font-size:13px;padding:8px 0">The agents agree: no open issues between them.</div>`)
+      + `<div style="margin-top:8px"><button data-ccrun>Run peer review</button></div>`;
+  } else if (opsTab === "approvals") {
+    b.innerHTML = AP.pending.length ? AP.pending.map((a) => `<div class="msn prio-hi"><span class="n">?</span><div><div class="t">${esc(a.title)}</div><div class="d">${esc(a.detail.slice(0, 160))}</div></div>
+      <div style="display:grid;gap:4px"><button class="primary" data-apok="${a.id}">Approve</button><button data-apno="${a.id}">Skip</button></div></div>`).join("")
+      : `<div style="color:var(--muted);font-size:13px;padding:8px 0">Nothing waiting for your OK.</div>`;
   } else {
     const cur = OPS.playbook;
     b.innerHTML = OPS.playbooks.map((p) => `<div class="pb"><b>${esc(p.label)}</b><div class="d" style="font-size:12px;color:var(--muted)">${esc(p.what)}</div>
@@ -603,16 +641,18 @@ document.addEventListener("click", async (e) => {
   if (tb) { opsTab = tb.dataset.ops; document.querySelectorAll("[data-ops]").forEach((x) => x.setAttribute("aria-selected", x === tb)); return renderOps(); }
   const rj = e.target.closest("[data-runjob]");
   if (rj) { rj.disabled = true; try { await post(`/api/run/${rj.dataset.runjob}`); toast(`Setz is running ${rj.dataset.runjob}`); setTimeout(loadOps, 600); } catch (err) { toast(err.message); rj.disabled = false; } return; }
+  const cf = e.target.closest("[data-ccfix],[data-ccdismiss],[data-ccrun],[data-apok],[data-apno]");
+  if (cf) { cf.disabled = true; try {
+      if (cf.dataset.ccrun !== undefined) { const r = await post("/api/council/run"); toast(`Peer review: ${r.messages} open, ${r.new.length} new`); }
+      else if (cf.dataset.ccfix) toast((await post(`/api/council/messages/${cf.dataset.ccfix}`, { action: "fix" })).result);
+      else if (cf.dataset.ccdismiss) await post(`/api/council/messages/${cf.dataset.ccdismiss}`, { action: "dismiss" });
+      else { const r = await post(`/api/approvals/${cf.dataset.apok || cf.dataset.apno}`, { approve: !!cf.dataset.apok }); toast(r.result || r.status); }
+    } catch (err) { toast(err.message); } return loadOps(); }
   const pb = e.target.closest("[data-playbook]");
   if (pb) { pb.disabled = true; try { const r = await post(`/api/playbook/${pb.dataset.playbook}`); toast(r.started ? `Playbook started: ${r.steps.join(" → ")}` : r.status); setTimeout(loadOps, 600); } catch (err) { toast(err.message); } }
 });
 // voice state -> brain animation (thinking / speaking with the real loudness / listening)
-function voiceStream() {
-  const es = new EventSource("/api/voice/stream");
-  es.onmessage = (m) => { const v = JSON.parse(m.data); brain.setMode(v.state, v.envelope, v.frame_ms, v.at); if (v.state === "speaking" && v.text) $("#answer").textContent = v.text; };
-  es.onerror = () => { es.close(); setTimeout(voiceStream, 4000); };
-}
-voiceStream();
+SetzLive.on("voice", (v) => { brain.setMode(v.state, v.envelope, v.frame_ms, v.at); if (v.state === "speaking" && v.text) $("#answer").textContent = v.text; });
 if (window.SetzLive) { SetzLive.onRefresh(() => { loadOps(); }); SetzLive.onNotification((n) => {
   const div = document.createElement("div"); div.className = `${n.kind === "alert" ? "alert" : "report"} new`;
   div.innerHTML = `<span class="t">${esc(timeOf(new Date().toISOString()))}</span> <span class="a">SETZ</span> ${esc(n.title)}${n.body ? " · " + esc(n.body) : ""}`; $("#stream").prepend(div); }); }
@@ -626,19 +666,17 @@ async function load() {
   if (drawerKey && $("#drawer").classList.contains("open")) openDrawer(drawerKey);
 }
 async function poll() { for (let i = 0; i < 90; i++) { await new Promise((r) => setTimeout(r, 2500)); const a = await (await fetch("/api/agents")).json(); if (!a.running) { toast("Agents reported to Setz"); return load(); } } }
-function stream() {
-  const es = new EventSource("/api/agents/stream");
-  es.onmessage = (m) => { const ev = JSON.parse(m.data);
+function stream() {   // agent activity arrives on the page's shared live stream (live.js)
+  SetzLive.on("agent", (ev) => {
     if (ev.status === "working") brain.setWorking(ev.agent, true); else { brain.setWorking(ev.agent, false); brain.pulse(ev.agent, ev.status); }
     if (ev.job || ev.status === "working") setTimeout(loadOps, 400);
     const name = (A && A.agents.find((a) => a.key === ev.agent) || { name: ev.agent }).name;
     const div = document.createElement("div"); div.className = "report new"; div.innerHTML = `<span class="t">${esc(timeOf(new Date().toISOString()))}</span> <span class="a">${esc(name.toUpperCase())}</span> ${esc(ev.summary)}`;
-    $("#stream").prepend(div); };
-  es.onopen = () => $("#live-dot").className = "dot s-ok"; es.onerror = () => { $("#live-dot").className = "dot s-warn"; es.close(); setTimeout(stream, 4000); };
+    $("#stream").prepend(div); });
+  SetzLive.on("open", () => $("#live-dot").className = "dot s-ok"); SetzLive.on("error", () => $("#live-dot").className = "dot s-warn");
 }
 setInterval(() => { $("#clock").textContent = new Date().toLocaleString("de-DE", { timeZone: "Europe/Berlin", weekday: "short", hour: "2-digit", minute: "2-digit", second: "2-digit" }); }, 1000);
 load(); stream(); setInterval(load, 60000);
 </script>
-<script src="/static/live.js"></script>
 </body>
 </html>

@@ -35,10 +35,30 @@ def _today() -> date:
     return datetime.now().date()
 
 
+def _date(v: str | None) -> date | None:
+    """A stored YYYY-MM-DD(...) value as a date; None when empty or not a date."""
+    try:
+        return date.fromisoformat(str(v)[:10]) if v else None
+    except ValueError:
+        return None
+
+
+def _check_dates(data: dict) -> None:
+    for k in ("signed_at", "live_at", "renewal_date"):
+        if k in data:
+            if data[k] in (None, ""):
+                data[k] = None
+            elif not _date(data[k]):
+                raise ValueError(f"{k} must be a date like 2027-03-31, not {data[k]!r}")
+
+
 def _days_since(iso: str | None) -> float | None:
     if not iso:
         return None
-    dt = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+    try:
+        dt = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+    except ValueError:
+        return None
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
     return (datetime.now(timezone.utc) - dt).total_seconds() / 86400
@@ -47,6 +67,7 @@ def _days_since(iso: str | None) -> float | None:
 def add_partner(db: DB, name: str, kind: str = "venue", **fields: Any) -> int:
     now = utcnow()
     data = {k: v for k, v in fields.items() if k in EDITABLE and v not in (None, "")}
+    _check_dates(data)
     data.update({"name": name.strip(), "kind": kind, "created_at": now, "updated_at": now, "stage_since": now})
     if "lead_id" in fields:
         data["lead_id"] = fields["lead_id"]
@@ -60,12 +81,14 @@ def add_partner(db: DB, name: str, kind: str = "venue", **fields: Any) -> int:
 
 def link_partners_to_leads(db: DB) -> int:
     """Attach partners without a lead to the lead with the same name, and mark that lead as a partner."""
-    from .leads import set_status
+    from .leads import ensure_name_keys, name_key, set_status
 
+    ensure_name_keys(db)
     n = 0
     for p in db.q("SELECT id, name FROM partners WHERE lead_id IS NULL"):
-        lead = db.one("SELECT id, status FROM leads WHERE lower(name)=lower(?) AND id NOT IN "
-                      "(SELECT lead_id FROM partners WHERE lead_id IS NOT NULL) ORDER BY id LIMIT 1", (p["name"],))
+        # name_key: "Bäckerei Hansen GmbH" (partner) matches the lead "Bäckerei Hansen"; casefold handles non-ASCII
+        lead = db.one("SELECT id, status FROM leads WHERE name_key=? AND id NOT IN "
+                      "(SELECT lead_id FROM partners WHERE lead_id IS NOT NULL) ORDER BY id LIMIT 1", (name_key(p["name"]),))
         if not lead:
             continue
         db.x("UPDATE partners SET lead_id=? WHERE id=?", (lead["id"], p["id"]))
@@ -92,6 +115,7 @@ def update_partner(db: DB, pid: int, **fields: Any) -> dict:
     if not cur:
         raise ValueError(f"no partner {pid}")
     data = {k: v for k, v in fields.items() if k in EDITABLE}
+    _check_dates(data)
     if "stage" in data:
         if data["stage"] not in STAGE_KEYS:
             raise ValueError(f"stage must be one of {STAGE_KEYS}")
@@ -136,8 +160,11 @@ def health(cfg: Config, p: dict) -> dict:
         if live_days > 30 and not p["redemptions"]:
             score -= 25
             reasons.append("live 30+ days with no recorded redemptions")
-    if p["renewal_date"]:
-        days_left = (date.fromisoformat(p["renewal_date"]) - _today()).days
+    renewal = _date(p["renewal_date"])
+    if p["renewal_date"] and not renewal:
+        reasons.append("invalid renewal date")
+    elif renewal:
+        days_left = (renewal - _today()).days
         if days_left <= 30:
             score -= 20 if days_left >= 0 else 35
             reasons.append(f"renewal {'overdue' if days_left < 0 else f'in {days_left} days'}")
@@ -167,8 +194,8 @@ def partner_stats(cfg: Config, db: DB) -> dict:
     week_start = today - timedelta(days=today.weekday())
     month_start = today.replace(day=1)
     live = [p for p in rows if p["status"] == "live"]
-    onboarded = lambda since: [p for p in live if p["live_at"] and date.fromisoformat(p["live_at"][:10]) >= since]  # noqa: E731
-    ttl = [(date.fromisoformat(p["live_at"][:10]) - date.fromisoformat(p["created_at"][:10])).days for p in live if p["live_at"]]
+    onboarded = lambda since: [p for p in live if _date(p["live_at"]) and _date(p["live_at"]) >= since]  # noqa: E731
+    ttl = [(_date(p["live_at"]) - _date(p["created_at"])).days for p in live if _date(p["live_at"]) and _date(p["created_at"])]
     by_kind: dict[str, int] = {}
     for p in live:
         by_kind[p["kind"] or "other"] = by_kind.get(p["kind"] or "other", 0) + 1
@@ -349,7 +376,7 @@ def sync_auto_tasks(cfg: Config, db: DB) -> int:
             nxt = STAGES[min(p["stage_index"] + 1, len(STAGES) - 1)][1]
             n += bool(add_task(db, f"{p['name']}: get to '{nxt}'", priority=3, source="auto", partner_id=p["id"],
                                due=_today().isoformat(), dedupe_key=f"stuck:{p['id']}:{p['stage']}"))
-        if p["renewal_date"] and (date.fromisoformat(p["renewal_date"]) - _today()).days <= 30:
+        if _date(p["renewal_date"]) and (_date(p["renewal_date"]) - _today()).days <= 30:
             n += bool(add_task(db, f"Renew agreement with {p['name']} (due {p['renewal_date']})", priority=3, source="auto",
                                partner_id=p["id"], due=p["renewal_date"], dedupe_key=f"renew:{p['id']}:{p['renewal_date']}"))
     now = datetime.now()
@@ -495,28 +522,22 @@ def scorecard(cfg: Config, db: DB) -> list[dict]:
     def window(start: date) -> tuple[str, str]:
         return start.isoformat(), (start + timedelta(days=7)).isoformat()
 
-    def count(sql: str, start: date) -> int:
-        a, b = window(start)
-        return db.one(sql, (a, b))["n"]
+    def count(sql: str, start: date, extra: tuple) -> int:
+        return db.one(sql, (*window(start), *extra))["n"]
 
     me = tuple(cfg.my_addresses) or ("",)
     rows = [
-        ("Outreach emails sent", "SELECT COUNT(*) n FROM drafts WHERE kind='outreach' AND sent_at >= ? AND sent_at < ?"),
+        ("Outreach emails sent", "SELECT COUNT(*) n FROM drafts WHERE kind='outreach' AND sent_at >= ? AND sent_at < ?", ()),
         ("Replies received", "SELECT COUNT(*) n FROM messages WHERE folder='inbox' AND automated=0 AND sent_at >= ? AND sent_at < ? "
-                             f"AND from_addr NOT IN ({','.join('?' * len(me))})"),
-        ("Meetings held", "SELECT COUNT(*) n FROM events WHERE start >= ? AND start < ?"),
-        ("Partners gone live", "SELECT COUNT(*) n FROM partners WHERE live_at >= ? AND live_at < ?"),
-        ("New leads", "SELECT COUNT(*) n FROM leads WHERE created_at >= ? AND created_at < ?"),
-        ("To-dos completed", "SELECT COUNT(*) n FROM tasks WHERE status='done' AND done_at >= ? AND done_at < ?"),
+                             f"AND from_addr NOT IN ({','.join('?' * len(me))})", me),
+        ("Meetings held", "SELECT COUNT(*) n FROM events WHERE start >= ? AND start < ? AND start <= ?",
+         (datetime.now().strftime("%Y-%m-%dT%H:%M"),)),
+        ("Partners gone live", "SELECT COUNT(*) n FROM partners WHERE live_at >= ? AND live_at < ?", ()),
+        ("New leads", "SELECT COUNT(*) n FROM leads WHERE created_at >= ? AND created_at < ?", ()),
+        ("To-dos completed", "SELECT COUNT(*) n FROM tasks WHERE status='done' AND done_at >= ? AND done_at < ?", ()),
     ]
     out = []
-    for label, sql in rows:
-        if "NOT IN" in sql:
-            a1, b1 = window(this_start)
-            a0, b0 = window(last_start)
-            cur = db.one(sql, (a1, b1, *me))["n"]
-            prev = db.one(sql, (a0, b0, *me))["n"]
-        else:
-            cur, prev = count(sql, this_start), count(sql, last_start)
+    for label, sql, extra in rows:
+        cur, prev = count(sql, this_start, extra), count(sql, last_start, extra)
         out.append({"metric": label, "this_week": cur, "last_week": prev, "delta": cur - prev})
     return out

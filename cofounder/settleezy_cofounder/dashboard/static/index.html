@@ -286,6 +286,9 @@ dialog .dhead { display: flex; justify-content: space-between; align-items: cent
     <button data-page="pipeline" role="tab">Pipeline <span class="count" id="c-pipeline"></span></button>
     <button data-page="schedule" role="tab">Schedule</button>
     <button data-page="growth" role="tab">Growth</button>
+    <button data-page="market" role="tab">Market</button>
+    <button data-page="contracts" role="tab">Contracts <span class="count" id="c-contracts"></span></button>
+    <button data-page="approvals" role="tab">Autopilot <span class="count" id="c-approvals"></span></button>
     <button data-page="leads" role="tab">Leads & competitors</button>
     <button data-page="insights" role="tab">Insights & connections</button>
   </nav>
@@ -438,6 +441,53 @@ dialog .dhead { display: flex; justify-content: space-between; align-items: cent
   <section class="card span-12"><h2>Latest competitor listings</h2><div class="scroll"><table id="latest"></table></div></section>
 </section>
 
+<!-- ================= MARKET ================= -->
+<section class="page" id="page-market">
+  <section class="kpis span-12" id="mk-kpis"></section>
+  <section class="card span-8"><h2>Onboard next <span class="seg"><select id="mk-bucket" aria-label="Category"><option value="">All categories</option></select>
+    <button id="mk-ai" title="Claude writes a short strategy from all of this">Strategy (AI)</button></span></h2>
+    <div id="mk-summary" class="md"></div><div id="mk-next" class="scroll" style="max-height:640px"></div></section>
+  <section class="card span-4"><h2>Partner mix <small>share of partners vs target</small></h2><div id="mk-mix"></div>
+    <h2 style="margin-top:16px">What Setz sees</h2><div id="mk-insights"></div></section>
+  <section class="card span-6"><h2>Competitors <small id="mk-scan"></small></h2><div class="scroll" style="max-height:380px"><table id="mk-comp"></table></div></section>
+  <section class="card span-6"><h2>Already discounting elsewhere <small>warmest leads: proven discount appetite</small></h2><div class="scroll" style="max-height:380px"><table id="mk-warm"></table></div></section>
+  <section class="card span-8"><h2>Partner performance <small>redemptions per week since going live</small></h2><div class="scroll" style="max-height:420px"><table id="mk-perf"></table></div></section>
+  <section class="card span-4"><h2>Universities & campuses <span class="seg"><button id="mk-unis" title="Find every university and college in Berlin on OpenStreetMap">Find all (OSM)</button></span></h2>
+    <div id="mk-campuses" class="scroll" style="max-height:380px"></div></section>
+</section>
+
+<!-- ================= CONTRACTS ================= -->
+<section class="page" id="page-contracts">
+  <section class="card span-5"><h2>New contract <small>Lex fills in what Setz knows</small></h2>
+    <form id="ct-form" class="form-grid">
+      <label>Template<select name="template" id="ct-tpl"></select></label>
+      <label>Partner<select name="partner_id" id="ct-partner"><option value="">– none –</option></select></label>
+      <div id="ct-fields" class="form-grid" style="grid-column:1/-1"></div>
+      <div style="grid-column:1/-1;display:flex;gap:8px"><button class="primary">Prepare draft</button><span class="muted" style="align-self:center;font-size:12px">Missing details are marked [LIKE THIS].</span></div>
+    </form></section>
+  <section class="card span-7"><h2>Review a draft <small>.docx · .pdf · .txt, or paste</small></h2>
+    <div class="toolbar"><input type="file" id="ct-file" accept=".docx,.pdf,.txt,.md" aria-label="Contract file"><label class="muted" style="display:flex;gap:6px;align-items:center;font-size:12.5px"><input type="checkbox" id="ct-ai"> add Claude's review</label>
+      <button class="primary" id="ct-analyse">Analyse</button></div>
+    <textarea id="ct-text" rows="4" placeholder="…or paste the contract text here" style="width:100%;margin-top:8px"></textarea>
+    <div id="ct-result"></div></section>
+  <section class="card span-12"><h2>Contracts</h2><div class="scroll" style="max-height:520px"><table id="ct-list"></table></div>
+    <p class="muted" style="font-size:12px;margin:8px 0 0">Lex is a checklist and first draft, not legal advice. Have important agreements checked by a lawyer.</p></section>
+</section>
+
+<!-- ================= AUTOPILOT ================= -->
+<section class="page" id="page-approvals">
+  <section class="card span-7"><h2>Waiting for your OK <span class="seg"><button id="ap-run">Run autopilot now</button></span></h2><div id="ap-pending"></div>
+    <h2 style="margin-top:16px">Shared to Setz <small>from your phone's share menu</small></h2><div id="sh-inbox"></div></section>
+  <section class="card span-5"><h2>What Setz does for you</h2><div id="ap-rules"></div>
+    <p class="muted" style="font-size:12px">Change a mode in config.toml → [autopilot], e.g. <code>start_sequences = "auto"</code>. Emails are always drafts.</p>
+    <h2 style="margin-top:14px">Recently</h2><div id="ap-history" class="scroll" style="max-height:220px"></div></section>
+  <section class="card span-8"><h2>Agent council <small>agents checking each other's work</small><span class="seg"><button id="cc-run">Peer review now</button></span></h2>
+    <div id="cc-msgs" class="scroll" style="max-height:520px"></div></section>
+  <section class="card span-4"><h2>Agents' brains</h2><div id="cc-brains" class="scroll" style="max-height:520px"></div></section>
+  <section class="card span-6"><h2>Admin panel & app <span class="seg"><button data-job="bridge">Sync now</button></span></h2><div id="br-status"></div></section>
+  <section class="card span-6"><h2>Setz on your phone</h2><div id="phone-help"></div></section>
+</section>
+
 <!-- ================= INSIGHTS ================= -->
 <section class="page" id="page-insights">
   <section class="card span-6"><h2>Connections <button id="conn-refresh">Check again</button></h2><div id="connections"></div></section>
@@ -485,6 +535,7 @@ const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const safeUrl = (u) => /^https?:\/\//i.test(u || "") ? esc(u) : "#";
 const md = (s) => DOMPurify.sanitize(marked.parse(s || ""));
+const localISO = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;   // local date, not UTC
 const fmt = (v) => v == null ? "–" : Number(v).toLocaleString(undefined, { maximumFractionDigits: 1 });
 const daysAgo = (iso) => { if (!iso) return null; const d = (Date.now() - new Date(iso.length <= 10 ? iso + "T00:00:00" : iso)) / 864e5; return Math.max(0, Math.floor(d)); };
 const SOURCES = ["groupon", "vspots", "top10berlin", "unidays", "studentbeans"];
@@ -536,6 +587,7 @@ function showPage(p) {
   history.replaceState(null, "", "#" + p);
   requestAnimationFrame(() => Object.values(charts).forEach(c => c.resize()));
   if (p === "pipeline") drawMap();
+  if (window.HQ) HQ.show(p);
 }
 
 /* ---------- TODAY ---------- */
@@ -567,7 +619,7 @@ function renderToday(d, o) {
       ${sugg ? `<div class="sugg">${sugg}</div>` : ""}</div><div>${right}</div></div>`;
   }).join("") : `<div class="empty">No routine for today. Set your routine in config.toml → [routine].</div>`;
   // to-dos
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localISO();
   $("#todo-count").textContent = `${o.tasks.length} open`;
   $("#todos").innerHTML = o.tasks.length ? o.tasks.map(t => `<div class="todo"><input type="checkbox" data-done="${t.id}" aria-label="Done: ${esc(t.title)}">
     <div><div>${t.priority >= 3 ? "❗ " : ""}${esc(t.title)}</div><div class="meta">${t.due ? (t.overdue ? `<span class="over">overdue · ${esc(t.due)}</span>` : (t.due === today ? "today" : esc(t.due))) : "no date"}${t.source !== "manual" ? " · " + esc(t.source) : ""}</div></div>
@@ -642,7 +694,7 @@ function renderGrowth(d, o) {
   sel.value = keys.includes(curKey) ? curKey : (keys.includes("manual.paying_members") ? "manual.paying_members" : keys[0] || "");
   if (!$("#kpi-form").dataset.ready) {
     $("#kpi-form").innerHTML = d.kpi_keys.map(k => `<label>${esc(label("manual." + k))}<input type="number" step="any" name="${esc(k)}" placeholder="${d.kpi_latest[k] ?? ""}"></label>`).join("")
-      + `<label>Day<input type="date" name="__day" value="${new Date().toISOString().slice(0, 10)}"></label><div style="align-self:end"><button class="primary" type="submit">Save</button></div>`;
+      + `<label>Day<input type="date" name="__day" value="${localISO()}"></label><div style="align-self:end"><button class="primary" type="submit">Save</button></div>`;
     $("#kpi-form").dataset.ready = "1";
   }
   const f = d.draft_funnel, kinds = Object.keys(f);
@@ -668,7 +720,7 @@ function renderLeadsPage(d) {
   const totals = Object.fromEntries(STATUSES.map(s => [s, 0]));
   Object.values(d.pipeline).forEach(by => Object.entries(by).forEach(([s, n]) => totals[s] = (totals[s] || 0) + n));
   $("#funnel").innerHTML = STATUSES.map(s => `<div><b>${totals[s]}</b><span>${s}</span></div>`).join("");
-  const days = []; for (let i = 13; i >= 0; i--) days.push(new Date(Date.now() - i * 864e5).toISOString().slice(0, 10));
+  const days = []; for (let i = 13; i >= 0; i--) { const x = new Date(); x.setDate(x.getDate() - i); days.push(localISO(x)); }
   const present = SOURCES.filter(s => d.listings_by_day.some(r => r.source === s)), sources = present.length ? present : SOURCES;
   const sets = sources.map(s => ({ label: s, data: days.map(day => (d.listings_by_day.find(r => r.day === day && r.source === s) || {}).n || 0),
     backgroundColor: css(`--series-${SOURCES.indexOf(s) + 1}`), borderColor: css("--surface-1"), borderWidth: { top: 2 }, borderRadius: 4, borderSkipped: "bottom", maxBarThickness: 22 }));
@@ -734,7 +786,7 @@ async function runFinder(q) {
   q = (q || $("#lf-q").value).trim(); if (!q) return; $("#lf-q").value = q;
   $("#lf-meta").textContent = "Searching…";
   try {
-    const r = await fetch(`/api/leads/find?${new URLSearchParams({ q, discover: $("#lf-discover").checked ? 1 : 0 })}`);
+    const r = await fetch(`/api/leads/find?${new URLSearchParams({ q, discover: $("#lf-discover").checked ? 1 : 0 })}`, { headers: { "X-SZ": "1" } });
     LF = await r.json(); if (!r.ok) throw new Error(LF.detail || r.statusText);
     renderFinder(LF);
   } catch (err) { $("#lf-meta").textContent = err.message; }
@@ -914,7 +966,7 @@ async function loadWeek() {
   renderWeek(WK);
 }
 function renderWeek(w) {
-  const t = w.totals, today = new Date().toISOString().slice(0, 10);
+  const t = w.totals, today = localISO();
   $("#wk-title").textContent = new Date(w.week_start + "T00:00").toLocaleDateString(undefined, { day: "numeric", month: "long" });
   $("#wk-ics").href = "/api/week.ics?start=" + w.week_start;
   $("#wk-kpis").innerHTML = [
@@ -946,7 +998,7 @@ function renderWeek(w) {
     { label: "Planned work", data: w.days.map(d => +(d.load.scheduled_min / 60).toFixed(1)), backgroundColor: css("--series-1"), borderRadius: 3 },
     { label: "Free", data: w.days.map(d => +((d.load.free_min - d.load.scheduled_min) / 60).toFixed(1)), backgroundColor: css("--track"), borderRadius: 3 }] }, options: o });
 }
-const shiftWeek = (days) => { const d = new Date((WK ? WK.week_start : new Date().toISOString().slice(0, 10)) + "T00:00"); d.setDate(d.getDate() + days); wkStart = d.toISOString().slice(0, 10); loadWeek(); };
+const shiftWeek = (days) => { const d = new Date((WK ? WK.week_start : localISO()) + "T00:00"); d.setDate(d.getDate() + days); wkStart = localISO(d); loadWeek(); };
 
 /* ---------- SPEAKING COACH ---------- */
 let REC = null, recChunks = [], recT0 = 0, recTimer = null;
@@ -1009,6 +1061,7 @@ async function load() {
   if (!$("#pedit [name=stage]").options[0]) $("#pedit [name=stage]").innerHTML = o.stages.map(([k, n]) => `<option value="${k}">${esc(n)}</option>`).join("");
   renderToday(d, o); renderPartners(o); renderGrowth(d, o); renderLeadsPage(d); renderInsights(d);
   loadPipeline().catch(() => {}); loadWeek().catch(() => {}); loadSpeech().catch(() => {}); loadMeetings().catch(() => {}); loadBell().catch(() => {}); checkVoiceFinder();
+  if (window.HQ) HQ.load();
   document.querySelectorAll("[data-job]").forEach(b => b.disabled = d.running[b.dataset.job] === "running");
 }
 async function poll(job) {
@@ -1023,7 +1076,7 @@ function openPartnerEdit(id) {
   const p = OPS.partners.find(x => x.id == id); if (!p) return;
   const f = $("#pedit"); f.dataset.id = id; $("#pdlg-title").textContent = "Edit " + p.name;
   for (const el of f.elements) if (el.name && el.name in p) el.value = p[el.name] ?? "";
-  $("#pdlg").showModal();
+  $("#pdlg").returnValue = ""; $("#pdlg").showModal();
 }
 $("#pdlg").addEventListener("close", async () => {
   if ($("#pdlg").returnValue !== "save") return;
@@ -1046,7 +1099,7 @@ document.addEventListener("click", async (e) => {
   if (nt) { const cur = nt.closest("tr").querySelector("select").value, note = prompt("Add a note"); if (note) { try { await post(`/api/leads/${nt.dataset.note}/status`, { status: cur, note }); loadLeads(); } catch (err) { toast(err.message); } } return; }
   if (t("[data-snooze]")) { await post(`/api/tasks/${t("[data-snooze]").dataset.snooze}`, { action: "snooze", days: 1 }); return refreshOps(); }
   if (t("[data-del]")) { await post(`/api/tasks/${t("[data-del]").dataset.del}`, { action: "delete" }); return refreshOps(); }
-  if (t("[data-todo-from]")) { const r = OPS.reach_out[Number(t("[data-todo-from]").dataset.todoFrom)]; const res = await post("/api/tasks", { title: `${r.action[0].toUpperCase() + r.action.slice(1)}: ${r.who}`, due: new Date().toISOString().slice(0, 10), priority: r.priority >= 75 ? 3 : 2, source: "reach-out", lead_id: r.lead_id, partner_id: r.partner_id }); toast(res.duplicate ? "Already on your list" : "Added to to-dos"); return refreshOps(); }
+  if (t("[data-todo-from]")) { const r = OPS.reach_out[Number(t("[data-todo-from]").dataset.todoFrom)]; const res = await post("/api/tasks", { title: `${r.action[0].toUpperCase() + r.action.slice(1)}: ${r.who}`, due: localISO(), priority: r.priority >= 75 ? 3 : 2, source: "reach-out", lead_id: r.lead_id, partner_id: r.partner_id }); toast(res.duplicate ? "Already on your list" : "Added to to-dos"); return refreshOps(); }
   if (t("[data-advance]")) { try { const p = await post(`/api/partners/${t("[data-advance]").dataset.advance}`, { advance: true }); toast(`${p.name}: ${p.stage === "live" ? "live 🎉" : "next step"}`); refreshOps(); } catch (err) { toast(err.message); } return; }
   if (t("[data-logcontact]")) { await post(`/api/partners/${t("[data-logcontact]").dataset.logcontact}`, { log_contact: true }); toast("Contact logged"); return refreshOps(); }
   if (t("[data-pedit]")) return openPartnerEdit(t("[data-pedit]").dataset.pedit);
@@ -1080,7 +1133,7 @@ document.addEventListener("click", async (e) => {
   const pr = t("[data-prep]");
   if (pr) {
     $("#dlg-title").textContent = "Meeting prep"; $("#dlg-body").innerHTML = `<div class="empty">Preparing…</div>`; $("#dlg").showModal();
-    try { const r = await (await fetch(`/api/prep/${encodeURIComponent(pr.dataset.prep)}?ai=1`)).json(); $("#dlg-body").innerHTML = md(r.markdown || r.detail); } catch (err) { $("#dlg-body").textContent = err.message; }
+    try { const r = await (await fetch(`/api/prep/${encodeURIComponent(pr.dataset.prep)}?ai=1`, { headers: { "X-SZ": "1" } })).json(); $("#dlg-body").innerHTML = md(r.markdown || r.detail); } catch (err) { $("#dlg-body").textContent = err.message; }
     return;
   }
   if (e.target.id === "conn-refresh") { e.target.disabled = true; try { await post("/api/connections/refresh"); toast("Checking connections…"); poll("doctor"); } catch (err) { toast(err.message); } e.target.disabled = false; return; }
@@ -1116,11 +1169,12 @@ $("#p-form").addEventListener("submit", async (e) => { e.preventDefault();
 
 try { const t = localStorage.getItem("sz-theme"); if (t) document.documentElement.dataset.theme = t; } catch (_) {}
 let startPage = (location.hash || "").slice(1); try { startPage = startPage || localStorage.getItem("sz-page") || "today"; } catch (_) { startPage = startPage || "today"; }
-const PAGES = ["today", "partners", "pipeline", "schedule", "growth", "leads", "insights"];
+const PAGES = ["today", "partners", "pipeline", "schedule", "growth", "market", "contracts", "approvals", "leads", "insights"];
 showPage(PAGES.includes(startPage) ? startPage : "today");
 window.addEventListener("hashchange", () => { const h = location.hash.slice(1); if (PAGES.includes(h) && h !== page) showPage(h); });
 load();
 setInterval(load, 5 * 60 * 1000);
 </script>
+<script src="/static/hq.js"></script>
 </body>
 </html>

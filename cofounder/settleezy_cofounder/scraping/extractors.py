@@ -12,15 +12,20 @@ from __future__ import annotations
 import json
 import re
 from typing import Any, Iterable
-from urllib.parse import urljoin, urlparse, urlunparse
+from urllib.parse import parse_qsl, urlencode, urljoin, urlparse, urlunparse
 
 from bs4 import BeautifulSoup
 from lxml import etree
 
 
+# Query parameters that track, search or sort; they don't identify a listing (deal.php?id=1 vs ?id=2 do).
+_NOISE_PARAMS = re.compile(r"^(utm(_\w+)?|fbclid|gclid|dclid|msclkid|mc_\w+|_ga|ref|referrer|source|q|query|sort|order|page)$", re.I)
+
+
 def canonical(url: str) -> str:
     p = urlparse(url)
-    return urlunparse((p.scheme, p.netloc.lower(), p.path.rstrip("/") or "/", "", "", ""))
+    query = urlencode(sorted((k, v) for k, v in parse_qsl(p.query, keep_blank_values=True) if not _NOISE_PARAMS.match(k)))
+    return urlunparse((p.scheme, p.netloc.lower(), p.path.rstrip("/") or "/", "", query, ""))
 
 
 def parse_sitemap(xml: str) -> tuple[list[dict], list[str]]:
@@ -62,10 +67,19 @@ _LISTING_TYPES = {"Offer", "Product", "LocalBusiness", "Restaurant", "FoodEstabl
                   "TouristAttraction", "EntertainmentBusiness", "Service"}
 
 
+def _text(v: Any) -> str:
+    """JSON-LD values may be a string, a list of alternatives or a nested object: always return one string."""
+    if isinstance(v, list):
+        return next((t for t in (_text(x) for x in v) if t), "")
+    if isinstance(v, dict):
+        return _text(v.get("name") or v.get("@value") or "")
+    return str(v).strip() if isinstance(v, (str, int, float)) and not isinstance(v, bool) else ""
+
+
 def _name(node: Any) -> str:
     if isinstance(node, dict):
-        return str(node.get("name") or "")
-    return node if isinstance(node, str) else ""
+        return _text(node.get("name"))
+    return _text(node)
 
 
 def jsonld_items(html: str, base_url: str) -> list[dict]:
@@ -89,16 +103,22 @@ def jsonld_items(html: str, base_url: str) -> list[dict]:
                 offers = offers[0] if offers else {}
             if not isinstance(offers, dict):
                 offers = {}
-            merchant = _name(offers.get("seller")) or _name(node.get("brand")) or _name(location)
+            # a top-level Offer names its seller directly; a Product/Event via offers.seller
+            merchant = (_name(offers.get("seller")) or _name(node.get("seller")) or _name(node.get("brand"))
+                        or _name(location))
             if types & (_LISTING_TYPES - {"Offer", "Product", "Event", "Service"}):
-                merchant = merchant or node.get("name") or ""
-            category = node.get("category") or next(iter(sorted(types - {"Offer", "Product", None})), "")
+                merchant = merchant or _text(node.get("name"))
+            category = _text(node.get("category")) or next(iter(sorted(t for t in types - {"Offer", "Product"} if isinstance(t, str))), "")
+            own_url = _text(node.get("url"))
+            # several offers on one page without their own URL: keep them apart by merchant/title
+            slug = re.sub(r"\W+", "-", (merchant or _text(node.get("name"))).lower()).strip("-")
+            url = urljoin(base_url, own_url) if own_url else (base_url.split("#")[0] + "#" + slug if slug else base_url)
             out.append(
                 {
-                    "url": urljoin(base_url, node.get("url") or base_url),
-                    "title": node.get("name") or "",
+                    "url": url,
+                    "title": _text(node.get("name")),
                     "merchant": merchant,
-                    "category": category if isinstance(category, str) else "",
+                    "category": category,
                     "city": city or "",
                     "price": str(offers.get("price", "")),
                 }
@@ -139,6 +159,7 @@ def title_from_url(url: str) -> str:
 
 
 _EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
+_IBAN = re.compile(r"\b[A-Z]{2}\d{2}(?: ?[A-Z0-9]{4}){3,7}(?: ?[A-Z0-9]{1,3})?\b")
 _PHONE = re.compile(r"(?:\+49|0049|\b0)[\s/.-]?(?:\(?\d{2,5}\)?[\s/.-]?)\d{3,}[\d\s/.-]{2,}")
 
 
@@ -157,7 +178,7 @@ def contacts_from_html(html: str) -> dict[str, str]:
         if m and m.group(1).lower() not in {"p", "reel", "explore", "accounts"}:
             ig = "@" + m.group(1)
             break
-    phone = _PHONE.search(text)
+    phone = _PHONE.search(_IBAN.sub(" ", text))   # "IBAN DE89 3704 0044 ..." is not a phone number
     preferred = sorted(set(emails), key=lambda e: (not re.match(r"(info|hello|hallo|kontakt|contact|partner|marketing|team)@", e, re.I), len(e)))
     return {"email": preferred[0] if preferred else "", "phone": phone.group(0).strip() if phone else "", "instagram": ig}
 

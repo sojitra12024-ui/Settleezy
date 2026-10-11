@@ -3,8 +3,11 @@
 //  - phone push (installed app) via the service worker
 //  - "refresh" events so numbers update the moment a job finishes
 //  - install-as-app button
+//  - the page's single live stream (/api/events): voice, agent and notify events, tagged with `ch`.
+//    Other scripts subscribe with SetzLive.on(ch, fn) ("open"/"error" report the connection) instead of
+//    opening their own EventSource, so many tabs don't exhaust the browser's ~6 connections per host.
 (function () {
-  const S = (window.SetzLive = { handlers: [], refreshers: [], unread: 0, installPrompt: null });
+  const S = (window.SetzLive = { handlers: [], refreshers: [], unread: 0, installPrompt: null, channels: {} });
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const ICON = { meeting: "📅", calendar: "📅", lead: "✨", alert: "▲", partner: "🤝", voice: "🎙", job: "⚙", success: "✓", info: "•" };
 
@@ -40,18 +43,25 @@
     const x = new Notification(n.title, opts); x.onclick = () => { window.focus(); if (n.url) location.href = n.url; };
   }
 
+  const emit = (ch, ev) => (S.channels[ch] || []).forEach((f) => { try { f(ev); } catch (err) { console.error(err); } });
+  S.on = (ch, fn) => (S.channels[ch] = S.channels[ch] || []).push(fn);
+
+  // the notify channel: in-page cards, system pop-ups, refresh hooks
+  S.on("notify", (ev) => {
+    if (ev.type === "notification") {
+      S.unread++; S.handlers.forEach((h) => h(ev));
+      if (document.hidden) systemPopup(ev); else card(ev);   // visible page: in-page card; elsewhere: system pop-up
+    } else if (ev.type === "refresh") {
+      S.refreshers.forEach((f) => f(ev.what));
+    }
+  });
+
+  // stays open while the page is hidden: system pop-ups for background tabs arrive through it
   function connect() {
-    const es = new EventSource("/api/notify/stream");
-    es.onmessage = (m) => {
-      const ev = JSON.parse(m.data);
-      if (ev.type === "notification") {
-        S.unread++; S.handlers.forEach((h) => h(ev));
-        if (document.hidden) systemPopup(ev); else card(ev);   // visible page: in-page card; elsewhere: system pop-up
-      } else if (ev.type === "refresh") {
-        S.refreshers.forEach((f) => f(ev.what));
-      }
-    };
-    es.onerror = () => { es.close(); setTimeout(connect, 5000); };
+    const es = new EventSource("/api/events");
+    es.onopen = () => emit("open");
+    es.onmessage = (m) => { const ev = JSON.parse(m.data); emit(ev.ch, ev); };
+    es.onerror = () => { emit("error"); es.close(); setTimeout(connect, 4000); };
   }
 
   S.onNotification = (h) => S.handlers.push(h);

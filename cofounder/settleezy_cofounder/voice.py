@@ -213,8 +213,15 @@ def answer(cfg: Config, text: str, lang: str) -> str:
     return reply
 
 
-_REMEMBER = re.compile(r"^\s*(?:please\s+)?(?:remember|keep in mind|note)(?: that)?[:,]?\s+(.+)|^\s*merk dir(?:,? dass)?[:,]?\s+(.+)", re.I)
+_REMEMBER = re.compile(r"^\s*(?:please\s+)?(?:remember|keep in mind|note)(?!\s+to\b)(?: that)?[:,]?\s+(.+)|^\s*merk dir(?:,? dass)?[:,]?\s+(.+)", re.I)
 _KNOW = re.compile(r"\b(?:what do you know about|what do we know about|tell me about|was weißt du über)\s+(.+?)[?.!]*$", re.I)
+_TOPIC = re.compile(r"^(?:(?:my|the|our|this|next|today'?s)\s+)*(?:week|day|pipeline|to-?dos?|tasks?|schedule|calendar|leads?|"
+                    r"partners?|meine woche|mein tag|aufgaben)\b", re.I)
+
+
+_PENDING = "voice:pending_booking"
+_NO_BOOK = re.compile(r"\b(?:don'?t|do not|not yet|nicht|noch nicht|no|nein|cancel|abbrechen|wait|never)\b", re.I)
+_CONFIRM = re.compile(r"^\W*(?:yes|yeah|yep|confirm|ja|jawohl|genau)\b", re.I)
 
 
 def _subject_in(db: DB, text: str) -> str:
@@ -244,12 +251,12 @@ def _answer(cfg: Config, text: str, lang: str) -> str:
                            subject=_subject_in(db, fact), source="voice", importance=0.85)
             return "Got it, I'll remember that." if lang != "de" else "Alles klar, ich merke es mir."
         m = _KNOW.search(text)
-        if m:
+        if m and not _TOPIC.match(m.group(1)):
             mems = brain.recall(cfg, db, m.group(1), 4)
             if not mems:
                 return f"I don't know anything about {m.group(1)} yet."
             return " ".join(x["text"].rstrip(".") + "." for x in mems if x["kind"] != "conversation")[:700] or mems[0]["text"]
-        m = re.search(r"\b(?:remind me to|add (?:a )?(?:task|to-?do)(?: to)?|note to self|erinnere mich(?: daran)?,?)\s+(.+)", text, re.I)
+        m = re.search(r"\b(?:remind me to|remember to|add (?:a )?(?:task|to-?do)(?: to)?|note to self:?|erinnere mich(?: daran)?,?)\s+(.+)", text, re.I)
         if m:
             tid = ops.add_task(db, m.group(1), source="voice")
             task = db.one("SELECT title, due FROM tasks WHERE id=?", (tid,)) if tid else None
@@ -268,16 +275,41 @@ def _answer(cfg: Config, text: str, lang: str) -> str:
             if b and b.get("score") is not None:
                 msg += f" That's {'up' if n['score'] >= b['score'] else 'down'} from {b['score']:g}."
             return msg
-        m = re.search(r"\b(?:run|start|do|mach|starte)\s+(?:a\s+|the\s+|my\s+)?(prospecting|inbox zero|inbox|market intelligence|intelligence|brain refresh|learning)\b", t)
+        m = re.search(r"\b(?:run|start|do|mach|starte)\s+(?:a\s+|the\s+|my\s+)?(prospecting|inbox zero|inbox|market intelligence|intelligence|brain refresh|learning|expansion scan|expansion|operations sweep)\b", t)
         if m:
             import threading
 
             from .operations import PLAYBOOKS, run_playbook
 
-            name = {"inbox zero": "inbox", "market intelligence": "intelligence", "brain refresh": "learning"}.get(m.group(1), m.group(1))
-            threading.Thread(target=run_playbook, args=(cfg, name), daemon=True).start()
+            name = {"inbox zero": "inbox", "market intelligence": "intelligence", "brain refresh": "learning", "expansion scan": "expansion", "operations sweep": "operations"}.get(m.group(1), m.group(1))
+            threading.Thread(target=run_playbook, args=(cfg, name), daemon=False).start()
             steps = PLAYBOOKS[name]["steps"]
             return f"Starting {PLAYBOOKS[name]['label']}: {', '.join(steps)}. I'll notify you when it's done."
+        if re.search(r"\b(onboard next|who should (i|we) (onboard|sign|pitch)|wen (soll|sollten) (ich|wir) (als nächstes )?(onboarden|gewinnen))\b", t):
+            from .market import spoken
+
+            return spoken(cfg, db)
+        if re.search(r"\b(approvals?|waiting for (my|your) (ok|okay|approval)|freigaben?)\b", t):
+            from .autopilot import pending
+
+            items = pending(db)
+            if not items:
+                return "Nothing is waiting for your OK."
+            return f"{len(items)} waiting for your OK: " + "; ".join(a["title"] for a in items[:3]) + ". Approve them on the Autopilot tab."
+        if re.search(r"\b(council|what do the agents (say|think)|any bugs|agent issues)\b", t):
+            from .council import messages
+
+            ms = messages(db)[:3]
+            if not ms:
+                return "The agents agree: no open issues between them."
+            return "From the council: " + "; ".join(f"{m['from_agent'].capitalize()} tells {m['to_agent'].capitalize()}: {m['title']}" for m in ms) + "."
+        if re.search(r"\b(contracts?|vertr(a|ä)ge?)\b", t) and re.search(r"\b(status|open|pending|draft|which|welche|offen)\b", t):
+            from .contracts import contracts
+
+            cs = [c for c in contracts(db) if c["status"] in ("draft", "sent", "review")]
+            if not cs:
+                return "No open contracts."
+            return f"{len(cs)} open contracts: " + "; ".join(f"{c['party']} ({c['status']}" + (f", {len(c['missing'])} details missing" if c["missing"] else "") + ")" for c in cs[:4]) + "."
         if re.search(r"\b(what are you working on|status report|operations|what's running|woran arbeitest du)\b", t):
             from .operations import missions
 
@@ -285,19 +317,42 @@ def _answer(cfg: Config, text: str, lang: str) -> str:
             if not ms:
                 return "Nothing is waiting. Everything is handled."
             return "Open work: " + "; ".join(f"{x['count']} {x['title'].lower()}" for x in ms) + "."
-        if re.search(r"\b(meeting requests?|who wants to meet|terminanfragen?|book (?:it|the meeting|the first|option \d))\b", t):
+        pending = json.loads(db.kv_get(_PENDING) or "null")
+        live = pending and time.time() <= pending["expires"]
+        if _NO_BOOK.search(t) and (re.search(r"\b(book|buchen?)\b", t) or (live and len(t.split()) <= 4)):
+            db.x("DELETE FROM kv WHERE key=?", (_PENDING,))
+            return "Okay, I won't book anything." if lang != "de" else "Okay, ich buche nichts."
+        if pending and _CONFIRM.match(text):
+            from . import scheduling as sch
+
+            db.x("DELETE FROM kv WHERE key=?", (_PENDING,))
+            if time.time() > pending["expires"]:
+                return "That booking offer expired. Say the option again and I'll ask once more."
+            res = sch.book(cfg, db, pending["request_id"], pending["start"])
+            return f"Booked {res['subject']} on {sch.fmt_slot(res)}" + (", and Outlook sent them the invite." if res["invite_sent_by_outlook"] else ".")
+        if re.search(r"\b(meeting requests?|who wants to meet|terminanfragen?|book (?:it|the meeting|the first|option \d+))\b", t):
+            from datetime import datetime, timedelta
+
             from . import scheduling as sch
 
             reqs = sch.requests(cfg, db)
             if not reqs:
                 return "No open meeting requests."
-            r = reqs[0]
+            m2 = re.search(r"\bbook (?:it|the meeting|the first|option (\d+))", t)
+            named = [x for x in reqs if any(w in t for w in re.findall(r"\w{3,}", (x["who"] or "").casefold()))]
+            if m2 and len(reqs) > 1 and len(named) != 1:
+                return (f"You have {len(reqs)} meeting requests, from " + ", ".join(x["who"] for x in reqs[:4])
+                        + ". Who is it for? Say, for example: book option 1 for " + reqs[0]["who"] + ".")
+            r = named[0] if len(named) == 1 else reqs[0]
             options = r["proposed_free"] + [s["start"] for s in r["slots"]]
-            m2 = re.search(r"\bbook (?:it|the meeting|the first|option (\d))", t)
             if m2 and options:
-                start = options[int(m2.group(1) or 1) - 1] if int(m2.group(1) or 1) <= len(options) else options[0]
-                res = sch.book(cfg, db, r["id"], start)
-                return f"Booked {res['subject']} on {sch.fmt_slot(res)}" + (", and Outlook sent them the invite." if res["invite_sent_by_outlook"] else ".")
+                n = int(m2.group(1) or 1)
+                if not 1 <= n <= len(options):
+                    return f"There are only {len(options)} option{'s' if len(options) != 1 else ''}. Say: book option 1."
+                start = options[n - 1]
+                end = (datetime.fromisoformat(start) + timedelta(minutes=int(cfg.get("scheduling.meeting_minutes", 30)))).isoformat()
+                db.kv_set(_PENDING, json.dumps({"request_id": r["id"], "start": start, "expires": time.time() + 120}))
+                return f"Book {r['who']} on {sch.fmt_slot({'start': start, 'end': end})}? Say 'yes, book it' to confirm."
             say = f"{len(reqs)} meeting request{'s' if len(reqs) != 1 else ''}. {r['who']} wants to meet"
             if r["proposed_free"]:
                 return say + f" and suggested {sch.fmt_slot({'start': r['proposed_free'][0], 'end': r['proposed_free'][0]})[:-6]}, which is free. Say: book it."
@@ -319,9 +374,9 @@ def _answer(cfg: Config, text: str, lang: str) -> str:
         if re.search(r"\b(plan my week|my week|week plan|this week's plan|next week|meine woche|wochenplan)\b", t):
             from datetime import date, timedelta
 
-            from .planner import plan_week, spoken_week, week_start_for
+            from .planner import _monday, plan_week, spoken_week
 
-            start = week_start_for(date.today()) + timedelta(days=7) if re.search(r"next week|nächste woche", t) else None
+            start = _monday(date.today()) + timedelta(days=7) if re.search(r"next week|nächste woche", t) else None
             return spoken_week(plan_week(cfg, db, start))
         if re.search(r"\b(pipeline|deals?|forecast|conversion|sales)\b", t):
             from . import pipeline as pl

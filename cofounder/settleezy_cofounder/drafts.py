@@ -54,7 +54,15 @@ def draft_for_item(cfg: Config, db: DB, llm: LLM, graph: Graph, item: Item) -> s
             + f"\n\nThread (oldest first):\n{thread}"
         )
     body = llm.cloud(task, _system(cfg), effort="medium", max_tokens=4000)
-    draft = graph.create_reply_draft(item.message_id, body)
+    to = cc = None
+    if item.kind == "followup":
+        # replying to my own Sent message would address me: send the draft to the original external recipients
+        me = cfg.my_addresses
+        orig = db.one("SELECT to_addrs, cc_addrs FROM messages WHERE id=?", (item.message_id,))
+        to = [a for a in json.loads((orig["to_addrs"] if orig else None) or "[]") if a and a.lower() not in me]
+        cc = [a for a in json.loads((orig["cc_addrs"] if orig else None) or "[]") if a and a.lower() not in me]
+        to = to or [item.counterpart]
+    draft = graph.create_reply_draft(item.message_id, body, to=to, cc=cc)
     db.x(
         "INSERT INTO drafts(kind,conversation_id,source_message_id,graph_draft_id,subject,created_at) VALUES(?,?,?,?,?,?)",
         (item.kind, draft.get("conversationId") or item.conversation_id, item.message_id, draft.get("id", ""), item.subject, utcnow()),

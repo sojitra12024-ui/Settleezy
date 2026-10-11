@@ -170,7 +170,9 @@ class DB:
                   # lead intelligence (leadintel.py)
                   "subcategory": "TEXT", "price_level": "INTEGER", "price_source": "TEXT", "district": "TEXT",
                   "postcode": "TEXT", "opening_hours": "TEXT", "attributes": "TEXT", "owner": "TEXT",
-                  "legal_name": "TEXT", "ig_followers": "INTEGER", "ig_bio": "TEXT", "enriched_at": "TEXT"},
+                  "legal_name": "TEXT", "ig_followers": "INTEGER", "ig_bio": "TEXT", "enriched_at": "TEXT",
+                  "ig_checked_at": "TEXT",
+                  "name_key": "TEXT"},   # casefolded leads._norm_name(name): dedupe + partner matching
         "tasks": {"est_minutes": "INTEGER", "category": "TEXT"},
     }
 
@@ -185,6 +187,7 @@ class DB:
             "CREATE TABLE IF NOT EXISTS lead_events (id INTEGER PRIMARY KEY AUTOINCREMENT, lead_id INTEGER, "
             "from_status TEXT, to_status TEXT, at TEXT)")
         self.conn.execute("CREATE INDEX IF NOT EXISTS ix_lead_events ON lead_events(lead_id, at)")
+        self.conn.execute("CREATE INDEX IF NOT EXISTS ix_leads_name_key ON leads(name_key, kind)")
         self.conn.commit()
 
     def close(self) -> None:

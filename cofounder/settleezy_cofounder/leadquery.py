@@ -90,9 +90,11 @@ class LeadQuery:
 
 
 def _num(s: str) -> int:
-    s = s.lower().replace(".", "").replace(",", "")
-    mult = 1000 if s.endswith("k") else 1
-    return int(float(s.rstrip("k")) * mult)
+    """'10.000' / '10,000' -> 10000, '1.5k' / '1,5k' -> 1500."""
+    s = s.lower().strip()
+    if s.endswith("k"):
+        return int(float(s[:-1].replace(",", ".")) * 1000)
+    return int(s.replace(".", "").replace(",", ""))
 
 
 def parse(question: str) -> LeadQuery:
@@ -141,7 +143,15 @@ def parse(question: str) -> LeadQuery:
         m = re.search(rf"\b{re.escape(alias)}\b", t)
         if m and name not in q.districts and take(m, "area: " + name):
             q.districts.append(name)
+    m = re.search(r"(?:over|more than|above|>|mehr als|über)\s*(\d+(?:[.,]\d+)?k?)\s*followers?", t) or \
+        re.search(r"(\d+(?:[.,]\d+)?k?)\+?\s*followers?", t)
+    if m and take(m, "min followers"):
+        q.min_followers = _num(m.group(1))
+    elif (m := re.search(r"\b(popular|beliebt|trending|hyped|well[- ]known)\b", t)) and take(m, "popular"):
+        q.min_followers, q.sort = 1000, "followers"
     for m in re.finditer(r"\b1[0-4]\d{3}\b", t):
+        if any(a < m.end() and m.start() < b for a, b in used):   # "over 10000 followers" is not a postcode
+            continue
         take(m, "postcode: " + m.group(0))
         q.postcodes.append(m.group(0))
     m = re.search(r"(?:within|under|less than|max(?:imum)?|unter|innerhalb(?: von)?|bis)\s*(\d+(?:[.,]\d+)?)\s*(km|m|meter|metres|meters)\b", t) \
@@ -156,7 +166,7 @@ def parse(question: str) -> LeadQuery:
         m = re.search(rf"\b(?:with|mit|having|has|incl\.?|including)\s+(?:an?\s+|eine?r?\s+)?(?:\w+\s+)?(?:{word})\b", t)
         if m and take(m, "needs " + key):
             q.need.append(key)
-    m = re.search(r"\b(not|never|un|nicht|noch nicht|nie|haven'?t|have not|hasn'?t|didn'?t|did not)\s*(yet\s+|been\s+|ever\s+)?"
+    m = re.search(r"\b(not|never|un|nicht|noch nicht|nie|haven'?t|have not|hasn'?t|didn'?t|did not)\s*((?:yet|been|ever)\s+)*"
                   r"(contacted|contact|pitched|pitch|reached(?: out to)?|kontaktiert|angeschrieben)\b(\s+yet)?|\bfresh leads?\b|\bnew leads?\b", t)
     if m and take(m, "not contacted before"):
         q.contacted = False
@@ -186,12 +196,6 @@ def parse(question: str) -> LeadQuery:
         q.min_price = 3
     elif (m := re.search(r"(?<![\w€])(€{1,4})(?![\w€])", t)) and take(m, "price: " + m.group(1)):
         q.max_price = q.min_price = len(m.group(1))
-    m = re.search(r"(?:over|more than|above|>|mehr als|über)\s*(\d+(?:[.,]\d+)?k?)\s*followers?", t) or \
-        re.search(r"(\d+(?:[.,]\d+)?k?)\+?\s*followers?", t)
-    if m and take(m, "min followers"):
-        q.min_followers = _num(m.group(1))
-    elif (m := re.search(r"\b(popular|beliebt|trending|hyped|well[- ]known)\b", t)) and take(m, "popular"):
-        q.min_followers, q.sort = 1000, "followers"
     if (m := re.search(r"\b(closest|nearest|nächste)\b", t)) and take(m, "sort: closest"):
         q.sort = "distance"
     elif (m := re.search(r"\b(?:(?:most|best|highest)\s+(?:likely|chance|potential)(?:\s+to\s+(?:join|sign|convert))?|likely to join)\b", t)) \
@@ -238,9 +242,12 @@ def find(cfg: Config, db: DB, question: str | LeadQuery, *, discover: bool = Fal
         if q.kinds:
             sql += f" AND kind IN ({','.join('?' * len(q.kinds))})"
             params += q.kinds
-        if q.campus:
+        if q.campus and " (" in q.campus:   # "near HU" means HU Mitte, not HU Adlershof
+            sql += " AND campus = ?"
+            params.append(q.campus)
+        elif q.campus:
             sql += " AND campus LIKE ?"
-            params.append(q.campus.split(" (")[0] + "%")
+            params.append(q.campus + "%")
         if q.max_distance_m is not None:
             sql += " AND distance_m IS NOT NULL AND distance_m <= ?"
             params.append(q.max_distance_m)
@@ -268,7 +275,8 @@ def find(cfg: Config, db: DB, question: str | LeadQuery, *, discover: bool = Fal
             if q.districts:
                 d = (r.get("district") or area_for(r.get("lat"), r.get("lon")) or "").lower()
                 addr = (r.get("address") or "").lower()
-                if not any(x.lower() in d or x.lower() in addr for x in q.districts):
+                # whole words: "Mitte" must not match "Mittenwalder Str."
+                if not any(re.search(rf"\b{re.escape(x.lower())}\b", f"{d} | {addr}") for x in q.districts):
                     continue
             comp = competitor_platforms(r)
             if q.not_on_competitors and comp:

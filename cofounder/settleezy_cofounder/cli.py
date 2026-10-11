@@ -372,6 +372,8 @@ def cmd_meetings(args) -> None:
                 sys.exit("request not found")
             options = req["proposed_free"] + [x["start"] for x in req["slots"]]   # same numbering as the list
             choice = args.args[1] if len(args.args) > 1 else "1"
+            if "T" not in choice and not (choice.isdigit() and 1 <= int(choice) <= len(options)):
+                sys.exit(f"option must be 1-{len(options)}" if options else "no time options for this request")
             start = choice if "T" in choice else options[int(choice) - 1]
             _print(sch.book(cfg, db, req["id"], start, args.minutes or None, invite=not args.no_invite))
         elif args.action == "dismiss":
@@ -402,6 +404,9 @@ def cmd_leadgen(args) -> None:
     with DB(cfg.db_path) as db:
         if args.action == "scan":
             _print(leadgen.discover(cfg, db, args.campus, force=args.force))
+        elif args.action == "unis":
+            _print(leadgen.discover_universities(cfg, db))
+            print(f"{len(leadgen.campuses(cfg))} campuses will be scanned by `sz leadgen scan`.")
         elif args.action == "coverage":
             for c in leadgen.coverage(cfg, db):
                 print(f"{c['campus'][:32]:<32} found {c['found']:>4}  with email {c['with_email']:>3}  active {c['active']:>3}  partners {c['partners']:>3}")
@@ -640,6 +645,122 @@ def _print_speech(m: dict) -> None:
         print("\n" + m["coaching"])
 
 
+def cmd_market(args) -> None:
+    from . import market
+
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        if args.action == "partners":
+            pa = market.partner_analysis(cfg, db)
+            for p in pa["partners"]:
+                print(f"{p['name'][:30]:<30} {p['status']:<10} {p['bucket']:<20} {p['redemptions']:>4} red. "
+                      f"{(str(p['per_week']) + '/wk') if p['per_week'] is not None else '':>8}  {p['health']['label']}")
+            print("\n".join("• " + i for i in pa["insights"]))
+        elif args.action == "competitors":
+            ca = market.competitor_analysis(cfg, db)
+            for x in ca["platforms"]:
+                print(f"{x['platform']:<14} {x['listings']:>5} listings  top: {', '.join(f'{b} {n}' for b, n in x['top_categories'][:3])}"
+                      + (f"  overlap: {', '.join(x['overlap_with_partners'][:3])}" if x["overlap_with_partners"] else ""))
+            print("\n".join("• " + i for i in ca["insights"]))
+        else:
+            for i, r in enumerate(market.onboard_next(cfg, db, args.limit, args.bucket, args.campus), 1):
+                print(f"{i:>2}. {r['name'][:32]:<32} {r['priority']:>5.1f}  {r['bucket']:<20} {r['status']:<9} {r['email'] or r['phone'] or r['instagram'] or '-'}")
+                print(f"    {'; '.join(r['reasons'])}")
+
+
+def cmd_contract(args) -> None:
+    from . import contracts as lex
+
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        if args.action == "templates":
+            for t in lex.templates(cfg):
+                print(f"{t['key']:<18} {t['label']}  fields: {', '.join(t['fields'])}")
+        elif args.action == "new":
+            fields = dict(x.split("=", 1) for x in (args.set or []))
+            pid = None
+            if args.partner:
+                row = db.one("SELECT id FROM partners WHERE id=? OR lower(name)=lower(?)", (args.partner if args.partner.isdigit() else -1, args.partner))
+                if not row:
+                    raise ValueError(f"no partner '{args.partner}'")
+                pid = row["id"]
+            r = lex.prepare(cfg, db, args.template, partner_id=pid, fields=fields, contract_id=args.id)
+            print(f"#{r['id']} {r['title']}\n  {r['path_md']}\n  {r['path_docx'] or '(install .[contracts] for .docx)'}")
+            print(f"  score {r['analysis']['score']}/100 · " + (f"missing: {', '.join(r['missing'])}" if r["missing"] else "complete"))
+        elif args.action == "analyse":
+            path = args.file or (args.template if args.template != "partner_de" else "")
+            if not path:
+                raise ValueError("give the file: sz contract analyse draft.docx")
+            a = lex.review_file(cfg, db, path, ai=args.ai)
+            print(f"{a['score']}/100 · {a['verdict']}")
+            for c in a["clauses"]:
+                print(f"  {'✓' if c['present'] else '✗'} {c['label']}")
+            for r in a["risks"]:
+                print(f"  ! [{r['severity']}] {r['why']} → {r['suggestion']}")
+            if a.get("ai"):
+                print("\n" + a["ai"])
+            print(f"\n{a['disclaimer']}")
+        elif args.action == "status":
+            lex.set_status(db, int(args.template), args.file or "")
+            print("ok")
+        else:
+            for c in lex.contracts(db):
+                print(f"#{c['id']:<4} {c['status']:<9} {c['title'][:50]:<50} score {c['score'] or '-'}"
+                      + (f"  missing {len(c['missing'])}" if c["missing"] else ""))
+
+
+def cmd_council(args) -> None:
+    from . import council
+
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        if args.action == "check":
+            _print(council.cross_check(cfg, db, autofix=args.fix))
+        elif args.action == "fix":
+            print(council.apply_fix(cfg, db, int(args.id)))
+        elif args.action == "brains":
+            from .agents import AGENTS
+
+            for k in AGENTS:
+                b = council.brain_summary(db, k)
+                print(f"{k:<9} tracking {b['tracking']:>3}  memories {b['memories']:>3}  inbox {b['inbox']:>2}  sent {b['sent']:>3}  "
+                      f"resolved {b['resolved']:>3}" + (f" (avg {b['avg_days_to_resolve']} d)" if b["avg_days_to_resolve"] is not None else ""))
+        else:
+            for m in council.messages(db):
+                print(f"#{m['id']:<4} [{m['severity']:<5}] {m['from_agent']:>8} → {m['to_agent']:<8} {m['title']}"
+                      + (f"  (fix: {m['fix_label']})" if m["fix_label"] else ""))
+
+
+def cmd_autopilot(args) -> None:
+    from . import autopilot
+
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        if args.action == "run":
+            _print(autopilot.run(cfg, db))
+        elif args.action in ("approve", "reject"):
+            _print(autopilot.decide(cfg, db, int(args.id), args.action == "approve"))
+        elif args.action == "rules":
+            for r in autopilot.rules(cfg):
+                print(f"{r['key']:<18} {r['mode']:<5} {r['label']}")
+        else:
+            items = autopilot.pending(db)
+            for a in items:
+                print(f"#{a['id']:<4} {a['title']}\n      {a['detail']}")
+            print(f"{len(items)} waiting · approve with: sz autopilot approve <id>" if items else "Nothing waiting for your OK.")
+
+
+def cmd_bridge(args) -> None:
+    from . import bridge
+
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        if args.action == "sync":
+            _print(bridge.sync(cfg, db))
+        else:
+            _print(bridge.status(cfg, db))
+
+
 def cmd_mcp(args) -> None:
     from .mcp_server import main
 
@@ -754,8 +875,8 @@ def main(argv: list[str] | None = None) -> None:
     mt.add_argument("--no-invite", action="store_true", help="book: block your calendar only, no invitation to them")
     mt.set_defaults(fn=cmd_meetings)
 
-    lg = sub.add_parser("leadgen", help="campus venues from OpenStreetMap: sz leadgen scan [--campus TU] | list | coverage")
-    lg.add_argument("action", nargs="?", default="list", choices=["scan", "list", "coverage"])
+    lg = sub.add_parser("leadgen", help="campus venues from OpenStreetMap: sz leadgen unis (find every university) | scan [--campus TU] | list | coverage")
+    lg.add_argument("action", nargs="?", default="list", choices=["scan", "unis", "list", "coverage"])
     lg.add_argument("--campus")
     lg.add_argument("--status")
     lg.add_argument("--limit", type=int, default=40)
@@ -797,12 +918,39 @@ def main(argv: list[str] | None = None) -> None:
     v.set_defaults(fn=cmd_voice)
 
     op_ = sub.add_parser("ops", help="what Setz is working on: missions, jobs, playbooks; sz ops --playbook prospecting")
-    op_.add_argument("--playbook", choices=["prospecting", "inbox", "intelligence", "learning"])
+    op_.add_argument("--playbook", choices=["prospecting", "inbox", "intelligence", "learning", "expansion", "operations"])
     op_.set_defaults(fn=cmd_ops)
     sub.add_parser("widget", help="small always-on-top Setz window (robot, live notifications, ask box)").set_defaults(fn=cmd_widget)
     nt = sub.add_parser("notify", help="send a test notification to every screen: sz notify")
     nt.add_argument("text", nargs="*")
     nt.set_defaults(fn=cmd_notify)
+    mk = sub.add_parser("market", help="whom to onboard next | partners (performance) | competitors (Groupon, vspots, ...)")
+    mk.add_argument("action", nargs="?", default="next", choices=["next", "partners", "competitors"])
+    mk.add_argument("--bucket", help="e.g. food, sport, study")
+    mk.add_argument("--campus")
+    mk.add_argument("--limit", type=int, default=15)
+    mk.set_defaults(fn=cmd_market)
+    ct = sub.add_parser("contract", help="Lex: sz contract | templates | new partner_de --partner 'Brew Lab' --set offer='15%' | analyse draft.docx [--ai] | status ID signed")
+    ct.add_argument("action", nargs="?", default="list", choices=["list", "templates", "new", "analyse", "status"])
+    ct.add_argument("template", nargs="?", default="partner_de", help="template key (new) or file (analyse)")
+    ct.add_argument("file", nargs="?", help="status value for `status`")
+    ct.add_argument("--partner")
+    ct.add_argument("--set", action="append", help="field=value (repeat)")
+    ct.add_argument("--id", type=int, help="update an existing contract")
+    ct.add_argument("--ai", action="store_true", help="add a Claude review with suggested wording")
+    ct.set_defaults(fn=cmd_contract)
+    co = sub.add_parser("council", help="agents' peer review: sz council | check [--fix] | fix ID | brains")
+    co.add_argument("action", nargs="?", default="list", choices=["list", "check", "fix", "brains"])
+    co.add_argument("id", nargs="?")
+    co.add_argument("--fix", action="store_true", help="apply the allowed automatic fixes")
+    co.set_defaults(fn=cmd_council)
+    ap = sub.add_parser("autopilot", help="what Setz does for you: sz autopilot (waiting approvals) | run | rules | approve ID | reject ID")
+    ap.add_argument("action", nargs="?", default="list", choices=["list", "run", "rules", "approve", "reject"])
+    ap.add_argument("id", nargs="?")
+    ap.set_defaults(fn=cmd_autopilot)
+    bg = sub.add_parser("bridge", help="admin panel + app link: sz bridge (status) | sync")
+    bg.add_argument("action", nargs="?", default="status", choices=["status", "sync"])
+    bg.set_defaults(fn=cmd_bridge)
     sub.add_parser("mcp", help="run the MCP server (used by OpenJarvis)").set_defaults(fn=cmd_mcp)
 
     args = p.parse_args(argv)
@@ -810,7 +958,7 @@ def main(argv: list[str] | None = None) -> None:
         args.fn(args)
     except KeyboardInterrupt:
         sys.exit(130)
-    except RuntimeError as exc:
+    except (RuntimeError, ValueError, IndexError) as exc:
         sys.exit(f"error: {exc}")
 
 

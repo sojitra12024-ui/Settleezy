@@ -60,7 +60,7 @@ def test_command_center_endpoints(cfg):
     c, h = TestClient(app), {"X-SZ": "1"}
     assert "SETZ" in c.get("/command").text
     a = c.get("/api/agents").json()
-    assert len(a["agents"]) == 9 and a["reports"] == {}
+    assert len(a["agents"]) == 12 and a["reports"] == {}
     assert c.post("/api/agents/run").status_code == 403
     assert c.post("/api/agents/event", json={"agent": "atlas", "status": "ok", "summary": "x"}, headers=h).json()["ok"]
     from settleezy_cofounder.db import DB

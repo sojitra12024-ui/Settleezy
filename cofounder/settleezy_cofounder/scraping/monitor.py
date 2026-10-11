@@ -8,6 +8,7 @@ import re
 import tomllib
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from ..config import COFOUNDER_DIR, Config
 from ..db import DB, utcnow
@@ -24,8 +25,14 @@ def load_sites(cfg: Config) -> list[dict]:
     return [s for s in tomllib.loads(path.read_text(encoding="utf-8")).get("site", []) if s.get("enabled", True)]
 
 
+def _key(url: str) -> str:
+    """Canonical URL; a fragment is kept because offers without their own URL are told apart by it (page#merchant)."""
+    frag = urlparse(url).fragment
+    return canonical(url) + ("#" + frag if frag else "")
+
+
 def _id(source: str, url: str) -> str:
-    return hashlib.sha1(f"{source}|{canonical(url)}".encode()).hexdigest()[:20]
+    return hashlib.sha1(f"{source}|{_key(url)}".encode()).hexdigest()[:20]
 
 
 def _sitemap_candidates(site: dict, f: Fetcher) -> list[dict]:
@@ -69,7 +76,7 @@ def collect(site: dict, f: Fetcher, llm: LLM | None) -> list[dict]:
 
     def add(items: list[dict]) -> None:
         for it in items:
-            key = canonical(it["url"])
+            key = _key(it["url"])
             found[key] = {**found.get(key, {}), **{k: v for k, v in it.items() if v}}
 
     if "sitemap" in strategies and site.get("sitemaps"):
@@ -100,13 +107,17 @@ def _matches_city(site: dict, item: dict) -> bool:
 
 
 def _merchant_from(site: dict, item: dict) -> str:
-    if item.get("merchant"):
-        return item["merchant"].strip()
+    merchant = item.get("merchant")
+    if isinstance(merchant, list):   # tolerate raw JSON-LD / LLM output
+        merchant = next((m for m in merchant if isinstance(m, str) and m.strip()), "")
+    if isinstance(merchant, str) and merchant.strip():
+        return merchant.strip()[:120]
     if site.get("merchant_from_url"):
         m = re.search(site["merchant_from_url"], item["url"])
         if m:
             return title_from_url("/" + m.group(1))
-    title = item.get("title") or title_from_url(item["url"])
+    title = item.get("title") if isinstance(item.get("title"), str) else ""
+    title = title or title_from_url(item["url"])
     title = re.sub(r"\s*[-|–:]\s*(berlin|groupon|top10|vspots).*$", "", title, flags=re.I)
     title = re.sub(r"\b(berlin|in berlin)\b", "", title, flags=re.I)
     return title.strip(" -|,")[:120]
@@ -120,48 +131,51 @@ def run(cfg: Config, db: DB, llm: LLM | None = None, only: str | None = None, in
         for site in load_sites(cfg):
             if only and site["name"] != only:
                 continue
-            items = collect(site, f, llm)
-            items = [i for i in items if _matches_city(site, i)]
-            if inspect:
-                results.append({"site": site["name"], "found": len(items), "sample": items[:15]})
-                continue
-            first_run = db.kv_get(f"baseline:{site['name']}") is None
-            now = utcnow()
-            new = []
-            for it in items:
-                lid = _id(site["name"], it["url"])
-                row = db.one("SELECT id FROM listings WHERE id=?", (lid,))
-                merchant = _merchant_from(site, it)
-                if row:
-                    db.x("UPDATE listings SET last_seen=? WHERE id=?", (now, lid))
+            try:   # one broken site must not stop the others
+                items = collect(site, f, llm)
+                items = [i for i in items if _matches_city(site, i)]
+                if inspect:
+                    results.append({"site": site["name"], "found": len(items), "sample": items[:15]})
                     continue
-                db.x(
-                    "INSERT INTO listings(id,source,url,title,merchant,category,city,price,first_seen,last_seen,raw) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
-                    (lid, site["name"], it["url"], it.get("title", ""), merchant, it.get("category", ""), it.get("city", ""),
-                     it.get("price", ""), "baseline" if first_run else now, now, json.dumps(it, ensure_ascii=False)),
-                )
-                new.append({**it, "merchant": merchant})
-            enrich_budget = int(site.get("detail_pages", 10))
-            for it in new[:enrich_budget] if not first_run else []:
-                page = f.get(it["url"], conditional=False, render=bool(site.get("render")))
-                details = jsonld_items(page.text, page.url) if page.status == 200 else []
-                if details:
-                    d = details[0]
-                    it["merchant"] = d.get("merchant") or it["merchant"]
-                    it["category"] = d.get("category") or it.get("category", "")
-                    it["city"] = d.get("city") or it.get("city", "")
-                    db.x("UPDATE listings SET merchant=?, category=?, city=? WHERE id=?",
-                         (it["merchant"], it["category"], it["city"], _id(site["name"], it["url"])))
-            created = 0
-            for it in new:
-                if it["merchant"]:
-                    created += leads_mod.upsert_from_listing(db, site, it)
-            if first_run:
-                db.kv_set(f"baseline:{site['name']}", now)
-            db.metric("competitors", f"{site['name']}_listings_seen", len(items))
-            db.metric("competitors", f"{site['name']}_new", 0 if first_run else len(new))
-            results.append({"site": site["name"], "seen": len(items), "new": 0 if first_run else len(new),
-                            "baseline": first_run, "baseline_size": len(new) if first_run else None, "leads_created": created})
+                first_run = db.kv_get(f"baseline:{site['name']}") is None
+                now = utcnow()
+                new = []
+                for it in items:
+                    lid = _id(site["name"], it["url"])
+                    row = db.one("SELECT id FROM listings WHERE id=?", (lid,))
+                    merchant = _merchant_from(site, it)
+                    if row:
+                        db.x("UPDATE listings SET last_seen=? WHERE id=?", (now, lid))
+                        continue
+                    db.x(
+                        "INSERT INTO listings(id,source,url,title,merchant,category,city,price,first_seen,last_seen,raw) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                        (lid, site["name"], it["url"], it.get("title", ""), merchant, it.get("category", ""), it.get("city", ""),
+                         it.get("price", ""), "baseline" if first_run else now, now, json.dumps(it, ensure_ascii=False)),
+                    )
+                    new.append({**it, "merchant": merchant})
+                enrich_budget = int(site.get("detail_pages", 10))
+                for it in new[:enrich_budget] if not first_run else []:
+                    page = f.get(it["url"], conditional=False, render=bool(site.get("render")))
+                    details = jsonld_items(page.text, page.url) if page.status == 200 else []
+                    if details:
+                        d = details[0]
+                        it["merchant"] = d.get("merchant") or it["merchant"]
+                        it["category"] = d.get("category") or it.get("category", "")
+                        it["city"] = d.get("city") or it.get("city", "")
+                        db.x("UPDATE listings SET merchant=?, category=?, city=? WHERE id=?",
+                             (it["merchant"], it["category"], it["city"], _id(site["name"], it["url"])))
+                created = 0
+                for it in new:
+                    if it["merchant"]:
+                        created += leads_mod.upsert_from_listing(db, site, it)
+                if first_run:
+                    db.kv_set(f"baseline:{site['name']}", now)
+                db.metric("competitors", f"{site['name']}_listings_seen", len(items))
+                db.metric("competitors", f"{site['name']}_new", 0 if first_run else len(new))
+                results.append({"site": site["name"], "seen": len(items), "new": 0 if first_run else len(new),
+                                "baseline": first_run, "baseline_size": len(new) if first_run else None, "leads_created": created})
+            except Exception as exc:
+                results.append({"site": site["name"], "error": f"{type(exc).__name__}: {exc}"[:300]})
     finally:
         f.close()
     return results

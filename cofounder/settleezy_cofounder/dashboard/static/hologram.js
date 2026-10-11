@@ -371,19 +371,21 @@
     }
   }
 
-  // Subscribe to Setz's state stream (from `sz voice` or the dashboard's Ask box).
+  // Subscribe to Setz's state stream (from `sz voice` or the dashboard's Ask box). Uses the page's shared
+  // stream from live.js when it is loaded; otherwise opens its own.
   function connectVoiceStream(holo, onEvent) {
+    const handle = (ev) => {
+      if (ev.state === "speaking" && ev.envelope && ev.envelope.length) {
+        const age = Date.now() / 1000 - (ev.at || 0);
+        if (age < 120) holo.speakEnvelope(ev.envelope, ev.frame_ms, performance.now() - Math.max(0, age) * 1000);
+      } else holo.setState(ev.state);
+      onEvent && onEvent(ev);
+    };
+    if (window.SetzLive && window.SetzLive.on) return window.SetzLive.on("voice", handle);
     let es;
     const open = () => {
       es = new EventSource("/api/voice/stream");
-      es.onmessage = (m) => {
-        const ev = JSON.parse(m.data);
-        if (ev.state === "speaking" && ev.envelope && ev.envelope.length) {
-          const age = Date.now() / 1000 - (ev.at || 0);
-          if (age < 120) holo.speakEnvelope(ev.envelope, ev.frame_ms, performance.now() - Math.max(0, age) * 1000);
-        } else holo.setState(ev.state);
-        onEvent && onEvent(ev);
-      };
+      es.onmessage = (m) => handle(JSON.parse(m.data));
       es.onerror = () => { es.close(); setTimeout(open, 3000); };
     };
     open();

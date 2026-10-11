@@ -6,6 +6,7 @@ so "OK" means it actually works, not just that a key is present.
 
 from __future__ import annotations
 
+import base64
 import json
 import time
 from dataclasses import asdict, dataclass
@@ -26,6 +27,17 @@ class Check:
     optional: bool = False
 
 
+def _jwt_scopes(token: str) -> str:
+    """The `scp` claim of an access token (no signature check: only used to report granted scopes).
+    Token-cache hits carry no "scope" key, so this is the only way to see what was actually granted."""
+    try:
+        payload = token.split(".")[1]
+        claims = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
+        return str(claims.get("scp") or "")
+    except (IndexError, ValueError, AttributeError):
+        return ""
+
+
 def _outlook(cfg: Config) -> Check:
     if not secret("MS_CLIENT_ID"):
         return Check("Outlook", False, "not configured", "Add MS_CLIENT_ID and MS_TENANT_ID to .env (README step 3), then run: sz auth outlook")
@@ -43,7 +55,7 @@ def _outlook(cfg: Config) -> Check:
         if not result or "access_token" not in result:
             return Check("Outlook", False, "sign-in expired or new permission needed (calendar booking)",
                          "Run: sz auth outlook  (add Calendars.ReadWrite to the app registration first, README step 3)")
-        granted = {s.lower().rsplit("/", 1)[-1] for s in (result.get("scope") or "").split()}
+        granted = {s.lower().rsplit("/", 1)[-1] for s in (result.get("scope") or _jwt_scopes(result["access_token"])).split()}
         missing = [s for s in SCOPES if s.lower() not in granted] if granted else []
         if any(s.startswith("mail.send") for s in granted):
             return Check("Outlook", False, "app has Mail.Send permission",

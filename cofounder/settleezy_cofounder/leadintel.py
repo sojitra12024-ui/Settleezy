@@ -177,7 +177,8 @@ def enrich_lead(db: DB, fetcher, lead_id: int) -> dict[str, Any]:
         return {"error": "no website on file"}
     site = site if site.startswith("http") else "https://" + site
     home = fetcher.get(site, conditional=False)
-    if home.status != 200:
+    if home.status != 200:   # remember the attempt, so enrich_batch doesn't retry a dead site every run
+        db.x("UPDATE leads SET enriched_at=? WHERE id=?", (utcnow(), lead_id))
         return {"error": f"website answered {home.status}"}
     found: dict[str, Any] = {**contacts_from_html(home.text), "owner": "", "legal_name": "", "address": "", "postcode": ""}
     imp = impressum_link(home.text, home.url)
@@ -226,24 +227,41 @@ def enrich_batch(db: DB, fetcher, limit: int = 20, ids: list[int] | None = None)
 
 # -- history + likelihood ---------------------------------------------------------------------------
 
+FREEMAIL = {"gmail.com", "googlemail.com", "web.de", "gmx.de", "gmx.net", "outlook.com", "outlook.de", "hotmail.com", "hotmail.de",
+            "yahoo.com", "yahoo.de", "t-online.de", "icloud.com", "me.com", "posteo.de", "mail.de", "aol.com", "live.com", "live.de"}
+# A "website" on one of these is a profile/link page, not the venue's own domain: matching mail by it would count
+# every Instagram notification as contact history.
+SHARED_HOSTS = {"instagram.com", "facebook.com", "fb.com", "fb.me", "linktr.ee", "linktree.com", "tiktok.com", "google.com",
+                "goo.gl", "maps.app.goo.gl", "g.page", "wa.me", "whatsapp.com", "t.me", "twitter.com", "x.com", "youtube.com",
+                "linkedin.com", "pinterest.com", "yelp.com", "yelp.de", "tripadvisor.com", "tripadvisor.de", "bit.ly",
+                "linkin.bio", "beacons.ai", "carrd.co", "wixsite.com", "business.site", "lieferando.de", "wolt.com",
+                "ubereats.com", "opentable.com", "opentable.de", "quandoo.de", "thefork.de"}
+
+
 def _domain(lead: dict) -> str:
     if lead.get("email") and "@" in lead["email"]:
-        d = lead["email"].split("@", 1)[1].lower()
-        if d not in {"gmail.com", "web.de", "gmx.de", "gmx.net", "outlook.com", "hotmail.com", "yahoo.com", "t-online.de", "icloud.com"}:
+        d = lead["email"].split("@", 1)[1].lower().strip()
+        if d not in FREEMAIL:
             return d
     if lead.get("website"):
-        return urlparse(lead["website"] if "://" in lead["website"] else "https://" + lead["website"]).netloc.lower().removeprefix("www.")
+        host = urlparse(lead["website"] if "://" in lead["website"] else "https://" + lead["website"]).netloc.lower()
+        host = host.split("@")[-1].split(":")[0].removeprefix("www.")
+        if host and not any(host == h or host.endswith("." + h) for h in SHARED_HOSTS):
+            return host
     return ""
 
 
 def contact_history(db: DB, lead: dict) -> dict[str, Any]:
-    """Have we been in touch before? Mailbox (by address or domain), drafts and pipeline history."""
+    """Have we been in touch before? Mailbox (by address or exact domain), drafts and pipeline history.
+    Automated mail (newsletters, notifications) doesn't count."""
     email, dom = (lead.get("email") or "").lower(), _domain(lead)
     msgs: list[Any] = []
     if email or dom:
-        like = f"%@{dom}%" if dom else f"%{email}%"
-        msgs = db.q("SELECT folder, sent_at FROM messages WHERE (from_addr=? OR from_addr LIKE ? OR to_addrs LIKE ?) "
-                    "ORDER BY sent_at DESC LIMIT 50", (email or "-", like, like))
+        # exact address/domain: "@foo.de" must not match "@mail.foo.de.evil" or "@notfoo.de"
+        frm, to = (f"%@{dom}", f'%@{dom}"%') if dom else (email, f'%"{email}"%')
+        msgs = db.q("SELECT folder, sent_at FROM messages WHERE coalesce(automated,0)=0 AND "
+                    "(lower(from_addr)=? OR lower(from_addr) LIKE ? OR lower(to_addrs) LIKE ?) "
+                    "ORDER BY sent_at DESC LIMIT 50", (email or "-", frm, to))
     drafts = db.one("SELECT COUNT(*) n, MAX(created_at) last FROM drafts WHERE lead_id=?", (lead["id"],)) if lead.get("id") else None
     stage = lead.get("status") or "new"
     sent = [m for m in msgs if m["folder"] == "sent"]

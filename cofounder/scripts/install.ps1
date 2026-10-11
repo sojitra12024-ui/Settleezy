@@ -13,13 +13,21 @@ if (-not (Get-Command ollama -ErrorAction SilentlyContinue)) {
     exit 1
 }
 
+# native commands don't stop on failure even with $ErrorActionPreference = "Stop": check each exit code
+function Assert-Ok($what) { if ($LASTEXITCODE -ne 0) { throw "$what failed (exit code $LASTEXITCODE)" } }
+
 python -m venv .venv
+Assert-Ok "python -m venv"
 .\.venv\Scripts\python.exe -m pip install --upgrade pip
+Assert-Ok "pip upgrade"
 # voice = speech + Silero VAD, brain = multilingual memory, notify = Windows pop-ups + phone push, widget = always-on-top window
-.\.venv\Scripts\python.exe -m pip install -e ".[voice,brain,notify,widget,dev]"
+.\.venv\Scripts\python.exe -m pip install -e ".[voice,brain,notify,widget,contracts,dev]"
+Assert-Ok "pip install"
 
 ollama pull qwen2.5:7b-instruct
+Assert-Ok "ollama pull"
 
 .\.venv\Scripts\sz.exe init
+Assert-Ok "sz init"
 Write-Host ""
 Write-Host "Done. Next: edit config.toml and .env, then run:  .\.venv\Scripts\sz.exe auth outlook  and  .\.venv\Scripts\sz.exe doctor" -ForegroundColor Green

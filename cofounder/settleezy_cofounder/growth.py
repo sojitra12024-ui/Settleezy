@@ -79,6 +79,6 @@ Be specific to Berlin and international students. Where data is missing, say wha
     )
     out = cfg.data_dir / "reports"
     out.mkdir(exist_ok=True)
-    path = out / f"growth-{datetime.now():%Y-W%V}.md"
+    path = out / f"growth-{datetime.now():%G-W%V}.md"
     path.write_text(report, encoding="utf-8")
     return report

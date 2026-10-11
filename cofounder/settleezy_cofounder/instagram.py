@@ -14,6 +14,14 @@ from .config import Config, secret
 from .db import DB
 
 
+# Graph API error codes for "too many calls": stop the run and try again later.
+RATE_LIMIT_CODES = {4, 17, 32, 613}
+
+
+class RateLimited(RuntimeError):
+    """The Graph API rate limit was hit: further calls this run would fail too."""
+
+
 class Instagram:
     def __init__(self, cfg: Config):
         self.cfg = cfg
@@ -23,10 +31,17 @@ class Instagram:
         self.http = httpx.Client(timeout=30)
 
     def get(self, path: str, **params) -> dict:
-        r = self.http.get(f"{self.base}/{path}", params={**params, "access_token": self.token})
-        data = r.json()
+        try:
+            r = self.http.get(f"{self.base}/{path}", params={**params, "access_token": self.token})
+            data = r.json()
+        except (httpx.HTTPError, ValueError) as exc:   # network trouble or a non-JSON answer (proxy, outage page)
+            raise RuntimeError(f"Instagram API: {type(exc).__name__}: {exc}"[:300]) from exc
+        if not isinstance(data, dict):
+            raise RuntimeError(f"Instagram API: unexpected answer ({r.status_code})")
         if "error" in data:
-            raise RuntimeError(f"Instagram API: {data['error'].get('message')}")
+            err = data["error"] if isinstance(data["error"], dict) else {"message": str(data["error"])}
+            cls = RateLimited if err.get("code") in RATE_LIMIT_CODES else RuntimeError
+            raise cls(f"Instagram API: {err.get('message')}")
         return data
 
     def profile(self) -> dict:

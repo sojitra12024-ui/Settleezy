@@ -378,8 +378,8 @@ def to_ics(plan: dict, include_blocks: bool = False) -> str:
     for d in plan["days"]:
         ymd = d["date"].replace("-", "")
         for b in d["blocks"]:
-            evs = [(i["start"], i["end"], i["title"], f"setz-task-{i['task_id']}-{ymd}", f"{b['title']} · {i['category']}")
-                   for i in b["items"]]
+            evs = [(i["start"], i["end"], i["title"], f"setz-task-{i['task_id']}-{ymd}-{i['start'].replace(':', '')}",
+                    f"{b['title']} · {i['category']}") for i in b["items"]]
             if include_blocks and not b["items"]:
                 evs.append((b["start"], b["end"], f"Focus: {b['title']}", f"setz-block-{ymd}-{b['start']}", ""))
             for s, e, title, uid, desc in evs:

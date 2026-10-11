@@ -428,6 +428,74 @@ def run_playbook(name: str) -> str:
     return json.dumps(run(cfg, name), ensure_ascii=False, default=str)
 
 
+@server.tool()
+def onboard_next(limit: int = 10, category: str = "", campus: str = "") -> str:
+    """Whom Settleezy should onboard next, ranked, with reasons and a pitch angle per lead (join likelihood, student
+    value, campus distance, gaps in the partner mix, competitor presence, member demand from the app)."""
+    from .market import onboard_next as rank
+
+    cfg, db = _db()
+    with db:
+        return json.dumps(rank(cfg, db, limit, category or None, campus or None), ensure_ascii=False, default=str)
+
+
+@server.tool()
+def market_overview() -> str:
+    """Partner performance (redemptions/week, health, category mix vs target) and competitor analysis (Groupon,
+    vspots, Top10 Berlin, UNiDAYS, Student Beans: listings, strongest categories, overlap with our partners)."""
+    from .market import competitor_analysis, partner_analysis
+
+    cfg, db = _db()
+    with db:
+        return json.dumps({"partners": partner_analysis(cfg, db), "competitors": competitor_analysis(cfg, db)}, ensure_ascii=False, default=str)
+
+
+@server.tool()
+def prepare_contract(template: str = "partner_de", partner: str = "", fields_json: str = "{}") -> str:
+    """Lex: draft a contract (partner_de, partner_en, university_en, nda_en) filled from what Setz knows about the
+    partner (Impressum legal name, owner, address, offer). fields_json adds/overrides fields. Returns missing fields."""
+    from .contracts import prepare
+
+    cfg, db = _db()
+    with db:
+        pid = None
+        if partner:
+            row = db.one("SELECT id FROM partners WHERE lower(name)=lower(?) OR id=?", (partner, int(partner) if partner.isdigit() else -1))
+            pid = row["id"] if row else None
+        r = prepare(cfg, db, template, partner_id=pid, fields=json.loads(fields_json or "{}"))
+        return json.dumps({k: r[k] for k in ("id", "title", "missing", "path_md", "path_docx")} | {"score": r["analysis"]["score"]}, ensure_ascii=False)
+
+
+@server.tool()
+def analyse_contract(text: str) -> str:
+    """Lex: check a contract text clause by clause (term, termination, liability, GDPR, ...) and flag risks
+    (exclusivity, penalties, non-compete, void liability exclusions, long notice, fees). Not legal advice."""
+    from .contracts import analyse
+
+    return json.dumps(analyse(text), ensure_ascii=False)
+
+
+@server.tool()
+def council_messages() -> str:
+    """Open issues the agents found in each other's work (bug reports, suggestions, hand-offs), with available fixes."""
+    from .council import messages
+
+    cfg, db = _db()
+    with db:
+        return json.dumps(messages(db), ensure_ascii=False, default=str)
+
+
+@server.tool()
+def pending_approvals() -> str:
+    """Actions Setz prepared that wait for the founder's OK (bookings, outreach starts, admin-panel drafts).
+    Read-only: approvals are given by the founder in the dashboard or CLI."""
+    from .autopilot import pending
+
+    cfg, db = _db()
+    with db:
+        return json.dumps(pending(db), ensure_ascii=False, default=str)
+
+
 def main() -> None:
     server.run("stdio")
 

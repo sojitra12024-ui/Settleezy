@@ -11,6 +11,7 @@ a written briefing and strategic recommendations on top.
 from __future__ import annotations
 
 import json
+import re
 import statistics
 import time
 from dataclasses import asdict, dataclass, field
@@ -297,9 +298,10 @@ def _chrono(cfg: Config, db: DB, rep: Report) -> None:
     overdue = [t for t in tasks(db, "open") if t.get("overdue")]
     rep.metrics = {"Meetings today": len(meetings), "To-dos today": len(plan["tasks_today"]), "Overdue": len(overdue),
                    "Now": plan["current"]["title"] if plan["current"] else "free"}
-    now = datetime.now().strftime("%H:%M")
+    now = datetime.now()
     for m in meetings:
-        if m["start"] >= now and m["start"] <= (datetime.now() + timedelta(hours=2)).strftime("%H:%M"):
+        start = datetime.combine(date.fromisoformat(plan["date"]), datetime.strptime(m["start"], "%H:%M").time())
+        if now <= start <= now + timedelta(hours=2):
             rep.findings.append(Finding(f"prep:{m['event_id']}", f"Prep for '{m['title']}' at {m['start']}", "Open the prep from the plan.", "warn",
                                         f"Prepare for {m['title']}"))
     clashes = [i for i in plan["items"] if i["type"] == "block" and i.get("clash")]
@@ -366,6 +368,79 @@ def _sentinel(cfg: Config, db: DB, rep: Report) -> None:
     rep.summary = "All systems normal." if not bad and not stale else f"{len(bad)} connection problems, {len(stale)} stale feeds."
 
 
+def _lex(cfg: Config, db: DB, rep: Report) -> None:
+    """Contracts: drafts waiting, agreements to sign, renewals."""
+    from . import contracts as lex
+
+    rows = lex.contracts(db)
+    drafts = [c for c in rows if c["status"] == "draft"]
+    missing = [c for c in drafts if c["missing"]]
+    reviews = [c for c in rows if c["status"] == "review" and (c["score"] or 0) < 70]
+    sent = [c for c in rows if c["status"] == "sent"]
+    rep.metrics = {"Drafts": len(drafts), "Need details": len(missing), "Out for signature": len(sent),
+                   "Signed": sum(1 for c in rows if c["status"] == "signed")}
+    for c in missing[:4]:
+        rep.findings.append(Finding(f"contract-missing:{c['id']}", f"{c['party']}: contract needs details",
+                                    "Missing: " + ", ".join(m.replace("_", " ") for m in c["missing"][:6]), "warn",
+                                    f"Add the missing details to the {c['party']} contract"))
+    for c in reviews[:3]:
+        rep.findings.append(Finding(f"contract-risk:{c['id']}", f"Risky draft: {c['title']}", f"Score {c['score']}/100, {c['risks']} risk(s).",
+                                    "alert", f"Fix the flagged clauses in {c['title']}"))
+    for c in sent:
+        d = _ago_days(c["updated_at"]) or 0
+        if d > 7:
+            rep.findings.append(Finding(f"contract-unsigned:{c['id']}", f"{c['party']} hasn't signed for {d:.0f} days", c["title"], "warn",
+                                        f"Nudge {c['party']} to sign"))
+    rep.summary = f"{len(drafts)} drafts ({len(missing)} need details), {len(sent)} out for signature."
+
+
+def _vega(cfg: Config, db: DB, rep: Report) -> None:
+    """Market strategist: partner performance, competitors, whom to onboard next."""
+    from . import market
+
+    pa, ca = market.partner_analysis(cfg, db), market.competitor_analysis(cfg, db)
+    nxt = market.onboard_next(cfg, db, 5)
+    gap = next((g for g in pa["mix"] if g["gap"] > 0.05), None)
+    rep.metrics = {"Live partners": pa["totals"]["live"], "Redemptions": pa["totals"]["redemptions"],
+                   "Biggest gap": gap["bucket"] if gap else "–", "Warm (on competitors)": len(ca["warm_leads"])}
+    for i, r in enumerate(nxt[:3]):
+        rep.findings.append(Finding(f"onboard:{r['id']}", f"Onboard next: {r['name']}", "; ".join(r["reasons"][:3]) + f". Pitch: {r['pitch']}",
+                                    "warn" if i == 0 and r["status"] in ("replied", "meeting") else "info"))
+    for text in (pa["insights"] + ca["insights"])[:4]:
+        rep.findings.append(Finding("insight:" + re.sub(r"\W+", "-", text.lower())[:50], text[:90], text, "info"))
+    if ca["stale"]:
+        rep.findings.append(Finding("market-stale", "Competitor data is out of date", f"Last scan: {ca['last_scan'] or 'never'}", "info",
+                                    "Run the competitor scan"))
+    rep.summary = (f"Onboard next: {', '.join(r['name'] for r in nxt[:3])}." if nxt else "No open leads to recommend yet.") + \
+                  (f" Gap: {gap['bucket'].lower()}." if gap else "")
+
+
+def _bridge(cfg: Config, db: DB, rep: Report) -> None:
+    """Admin panel & mobile app link."""
+    from . import bridge
+
+    st = bridge.status(cfg, db)
+    app_members = _series(db, "app", "paying_members", 14)
+    rep.metrics = {"Connected": "yes" if st["configured"] else "no", "Partners linked": f"{st['linked']}/{st['partners']}",
+                   "Differences": len(st["diffs"]), "Paying members (app)": int(app_members[-1][1]) if app_members else "–"}
+    if not st["configured"]:
+        rep.findings.append(Finding("bridge-off", "Admin panel not connected",
+                                    "Set [admin] base_url and SZ_ADMIN_API_KEY (docs/ADMIN_BRIDGE.md) so Setz sees members and redemptions.", "info"))
+        rep.summary = "Admin panel not connected yet."
+        return
+    d = _ago_days(st["last_sync"])
+    if d is None or d > 0.25:
+        rep.findings.append(Finding("bridge-stale", "Admin panel sync is behind", f"Last sync: {st['last_sync'] or 'never'}", "warn",
+                                    "Run the admin-panel sync"))
+    for x in st["diffs"][:3]:
+        rep.findings.append(Finding(f"bridge-diff:{x.get('name')}", x.get("text", "")[:90], x.get("text", ""), "warn"))
+    top_req = sorted(st["requests"], key=lambda r: -int(r.get("count", 1)))[:2]
+    for r in top_req:
+        rep.findings.append(Finding(f"bridge-req:{r.get('venue')}", f"Members ask for {r.get('venue')} ({r.get('count', 1)}×)",
+                                    "It's in your leads now.", "info"))
+    rep.summary = f"{st['linked']} partners linked, {len(st['diffs'])} differences, {len(st['requests'])} venue requests from the app."
+
+
 AGENTS: dict[str, Agent] = {a.key: a for a in [
     Agent("hermes", "Hermes", "Inbox & follow-ups", "mail", _hermes),
     Agent("atlas", "Atlas", "Service partners", "partners", _atlas),
@@ -376,6 +451,9 @@ AGENTS: dict[str, Agent] = {a.key: a for a in [
     Agent("chrono", "Chrono", "Schedule & to-dos", "clock", _chrono),
     Agent("campus", "Campus", "International students & universities", "globe", _campus),
     Agent("sentinel", "Sentinel", "Systems & data health", "shield", _sentinel),
+    Agent("lex", "Lex", "Contracts & agreements", "scroll", _lex),
+    Agent("vega", "Vega", "Market & whom to onboard next", "compass", _vega),
+    Agent("bridge", "Bridge", "Admin panel & app link", "link", _bridge),
 ]}
 
 
@@ -385,23 +463,35 @@ def _ensure(db: DB) -> None:
     db.conn.executescript(AGENT_SCHEMA)
 
 
-def run(cfg: Config, db: DB, only: list[str] | None = None, publish_events: bool = True) -> dict:
-    """Run the team, store reports, let Setz synthesise and create to-dos for alerts."""
+def run(cfg: Config, db: DB, only: list[str] | None = None, publish_events: bool = True, parallel: bool | None = None) -> dict:
+    """Run the team (in parallel, each agent on its own connection), let each agent's brain update, run the
+    council's peer review, then let Setz synthesise and create to-dos for alerts."""
+    from . import council
+
     _ensure(db)
-    reports = []
-    for key, agent in AGENTS.items():
-        if only and key not in only:
-            continue
-        rep = agent.run(cfg, db)
+    if parallel is None:
+        parallel = bool(cfg.get("agents.parallel", True))
+    keys = [k for k in AGENTS if not only or k in only]
+    if parallel and len(keys) > 1:
+        reports = council.run_parallel(cfg, keys)
+    else:
+        reports = [AGENTS[k].run(cfg, db) for k in keys]
+    for rep in reports:
+        findings = council.observe(cfg, db, rep.agent, [asdict(f) for f in rep.findings])
+        if any(f.get("escalated") for f in findings):
+            rep.findings = [Finding(**{k: v for k, v in f.items() if k in Finding.__dataclass_fields__}) for f in findings]
+            rep.finalize()
         db.x("INSERT INTO agent_reports(agent,run_at,status,summary,metrics,findings,duration_ms) VALUES(?,?,?,?,?,?,?)",
              (rep.agent, rep.run_at, rep.status, rep.summary, json.dumps(rep.metrics, ensure_ascii=False, default=str),
-              json.dumps([asdict(f) for f in rep.findings], ensure_ascii=False), rep.duration_ms))
-        reports.append(rep)
+              json.dumps(findings, ensure_ascii=False, default=str), rep.duration_ms))
         if publish_events:
             _publish_agent(cfg, rep)
     db.x("DELETE FROM agent_reports WHERE run_at < ?", ((datetime.now(timezone.utc) - timedelta(days=30)).isoformat(),))
+    review = council.cross_check(cfg, db)
+    if cfg.get("council.deliberate", False):
+        review["ai"] = council.deliberate(cfg, db)
     synthesis = synthesize(cfg, db)
-    return {"agents": [{"agent": r.agent, "status": r.status, "summary": r.summary} for r in reports], "setz": synthesis}
+    return {"agents": [{"agent": r.agent, "status": r.status, "summary": r.summary} for r in reports], "council": review, "setz": synthesis}
 
 
 def _publish_agent(cfg: Config, rep: Report) -> None:
@@ -450,10 +540,18 @@ def synthesize(cfg: Config, db: DB, use_ai: bool | None = None) -> dict:
             items.append({**f, "agent": key, "agent_name": AGENTS[key].name if key in AGENTS else key})
     items.sort(key=lambda f: (-SEVERITY.get(f["severity"], 1), f["agent"]))
     created = 0
+    stale = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
     for f in items:
         if f["severity"] == "alert" and f.get("action"):
+            key = f"agent:{f['key']}"
+            old = db.one("SELECT id, status, done_at FROM tasks WHERE dedupe_key=?", (key,))
+            if old:   # a persistent alert keeps one to-do; it comes back only a week after it was done
+                if old["status"] == "done" and (old["done_at"] or "") < stale:
+                    db.x("UPDATE tasks SET status='open', done_at=NULL, due=? WHERE id=?", (date.today().isoformat(), old["id"]))
+                    created += 1
+                continue
             created += bool(add_task(db, f["action"], priority=3, source=f"agent:{f['agent']}", due=date.today().isoformat(),
-                                     notes=f["detail"], dedupe_key=f"agent:{f['key']}:{date.today().isoformat()}"))
+                                     notes=f["detail"], dedupe_key=key))
     counts = {s: sum(1 for f in items if f["severity"] == s) for s in ("alert", "warn", "info")}
     status = "alert" if counts["alert"] else "warn" if counts["warn"] else "ok"
     top = items[:6]

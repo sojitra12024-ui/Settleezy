@@ -128,7 +128,45 @@ def _brain(cfg: Config, db: DB) -> Any:
     return learn(cfg, db)
 
 
+def _universities(cfg: Config, db: DB) -> Any:
+    """Monthly-ish: every university/college in the city (OSM) -> campus list + Buddy-platform leads."""
+    from .leadgen import discover_universities
+
+    return discover_universities(cfg, db)
+
+
+def _autopilot(cfg: Config, db: DB) -> Any:
+    from .autopilot import run
+
+    return run(cfg, db)
+
+
+def _bridge(cfg: Config, db: DB) -> Any:
+    from .bridge import configured, sync
+
+    if not configured(cfg):
+        return {"skipped": "admin panel not configured"}
+    return sync(cfg, db)
+
+
+def _council(cfg: Config, db: DB) -> Any:
+    from .council import cross_check
+
+    return cross_check(cfg, db)
+
+
+def _contracts(cfg: Config, db: DB) -> Any:
+    from .contracts import auto_prepare
+
+    return {"drafted": [c["title"] for c in auto_prepare(cfg, db)]}
+
+
 JOBS: dict[str, Callable[[Config, DB], Any]] = {
+    "universities": _universities,
+    "autopilot": _autopilot,
+    "bridge": _bridge,
+    "council": _council,
+    "contracts": _contracts,
     "mail": _mail,
     "track": _track,
     "ops": _ops,

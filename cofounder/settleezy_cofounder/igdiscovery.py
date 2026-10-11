@@ -123,9 +123,13 @@ def engagement(profile: dict) -> float | None:
 def business_profile(ig: IGClient, user_id: str, username: str) -> dict | None:
     fields = ("business_discovery.username({u}){{username,name,biography,website,followers_count,media_count,"
               "media.limit(6){{caption,like_count,comments_count,timestamp,permalink}}}}").format(u=username)
+    from .instagram import RateLimited
+
     try:
         return ig.get(user_id, fields=fields).get("business_discovery")
-    except RuntimeError:   # personal account, private, renamed, or rate limit
+    except RateLimited:    # not the account's fault: the caller must stop, not mark it skipped
+        raise
+    except RuntimeError:   # personal account, private or renamed
         return None
 
 
@@ -162,14 +166,22 @@ def _save(db: DB, prof: dict, source: str, extra_note: str = "") -> tuple[int, b
         return 0, False, kind
     bio = prof.get("biography") or ""
     district = next((a for a, _, _ in AREAS if a.lower() in bio.lower()), "")
-    attrs = {"instagram_engagement_pct": engagement(prof), "instagram_posts": prof.get("media_count")}
+    row = db.one("SELECT attributes FROM leads WHERE id=?", (lid,))
+    try:
+        attrs = json.loads(row["attributes"] or "{}") if row else {}
+    except ValueError:
+        attrs = {}
+    attrs = attrs if isinstance(attrs, dict) else {}   # merge: keep what OSM / the website said (vegan, wifi ...)
+    new = {"instagram_engagement_pct": engagement(prof), "instagram_posts": prof.get("media_count")}
     if kind == "creator":
-        attrs["creator"] = "yes"   # marketing collaboration, not a discount partner
+        new["creator"] = "yes"   # marketing collaboration, not a discount partner
+    attrs.update({k: v for k, v in new.items() if v is not None})
+    now = utcnow()
     db.x("UPDATE leads SET ig_followers=?, ig_bio=?, address=coalesce(nullif(address,''), ?), postcode=coalesce(nullif(postcode,''), ?), "
-         "district=coalesce(nullif(district,''), ?), attributes=?, notes=trim(coalesce(notes,'') || ' ' || ?), updated_at=? WHERE id=?",
-         (prof.get("followers_count"), bio[:500], addr, postcode, district,
-          json.dumps({k: v for k, v in attrs.items() if v is not None}, ensure_ascii=False),
-          extra_note if created and extra_note else "", utcnow(), lid))
+         "district=coalesce(nullif(district,''), ?), attributes=?, notes=trim(coalesce(notes,'') || ' ' || ?), ig_checked_at=?, "
+         "updated_at=? WHERE id=?",
+         (prof.get("followers_count"), bio[:500], addr, postcode, district, json.dumps(attrs, ensure_ascii=False),
+          extra_note if created and extra_note else "", now, now, lid))
     rescore(db, lid)
     return lid, created, kind
 
@@ -178,6 +190,7 @@ def discover(cfg: Config, db: DB, hashtags: list[str] | None = None, *, ig: IGCl
              max_profiles: int = 40, min_followers: int = 300, pause: float = 1.0) -> dict[str, Any]:
     """Hashtags -> mentioned accounts -> business profiles -> leads. Respects the 30 hashtags / 7 days limit."""
     from .config import secret
+    from .instagram import RateLimited
 
     ig = ig or _ig(cfg)
     user_id = getattr(ig, "user_id", None) or secret("IG_USER_ID", required=True)
@@ -192,6 +205,10 @@ def discover(cfg: Config, db: DB, hashtags: list[str] | None = None, *, ig: IGCl
             continue
         try:
             found = hashtag_mentions(ig, user_id, tag)
+        except RateLimited as exc:
+            report["hashtags"][tag] = f"error: {exc}"[:160]
+            report["rate_limited"] = True
+            break
         except RuntimeError as exc:
             report["hashtags"][tag] = f"error: {exc}"[:160]
             continue
@@ -214,7 +231,11 @@ def discover(cfg: Config, db: DB, hashtags: list[str] | None = None, *, ig: IGCl
     for i, h in enumerate(ranked[:max_profiles]):
         if i and pause:
             time.sleep(pause)
-        prof = business_profile(ig, user_id, h)
+        try:
+            prof = business_profile(ig, user_id, h)
+        except RateLimited:   # stop here; the remaining handles are tried next run
+            report["rate_limited"] = True
+            break
         if not prof or (prof.get("followers_count") or 0) < min_followers:
             report["skipped"] += 1
             skipped[h] = utcnow()   # don't spend API calls on it again for a month
@@ -259,13 +280,25 @@ def refresh_profiles(cfg: Config, db: DB, limit: int = 30, *, ig: IGClient | Non
 
     ig = ig or _ig(cfg)
     user_id = getattr(ig, "user_id", None) or secret("IG_USER_ID", required=True)
+    from .instagram import RateLimited
+
+    month_ago = (datetime.now(timezone.utc) - timedelta(days=30)).replace(microsecond=0).isoformat()
+    # ig_checked_at is set on every attempt, so handles that fail (personal/renamed) aren't retried every run
     rows = db.q("SELECT id, instagram FROM leads WHERE instagram != '' AND status NOT IN ('lost') AND "
-                "(ig_followers IS NULL OR updated_at < datetime('now','-30 day')) ORDER BY score DESC LIMIT ?", (limit,))
-    n = 0
+                "(ig_checked_at IS NULL OR ig_checked_at < ?) ORDER BY (ig_followers IS NULL) DESC, score DESC LIMIT ?",
+                (month_ago, limit))
+    n = checked = 0
     for r in rows:
-        prof = business_profile(ig, user_id, r["instagram"].lstrip("@"))
+        try:
+            prof = business_profile(ig, user_id, r["instagram"].lstrip("@"))
+        except RateLimited:
+            break
+        checked += 1
         if prof:
-            db.x("UPDATE leads SET ig_followers=?, ig_bio=?, website=coalesce(nullif(website,''), ?), updated_at=? WHERE id=?",
-                 (prof.get("followers_count"), (prof.get("biography") or "")[:500], prof.get("website") or "", utcnow(), r["id"]))
+            db.x("UPDATE leads SET ig_followers=?, ig_bio=?, website=coalesce(nullif(website,''), ?), ig_checked_at=?, updated_at=? "
+                 "WHERE id=?", (prof.get("followers_count"), (prof.get("biography") or "")[:500], prof.get("website") or "",
+                                utcnow(), utcnow(), r["id"]))
             n += 1
-    return {"refreshed": n, "checked": len(rows)}
+        else:
+            db.x("UPDATE leads SET ig_checked_at=? WHERE id=?", (utcnow(), r["id"]))
+    return {"refreshed": n, "checked": checked}

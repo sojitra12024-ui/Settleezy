@@ -37,15 +37,17 @@ COLUMNS = {
     "contact_name": ["contact", "contact person", "contact name", "ansprechpartner", "person", "first name", "full name"],
     "city": ["city", "stadt", "location", "ort"],
 }
-STATUS_MAP = [
+STATUS_MAP = [   # first match wins: negations before anything that could match "interested" / "partner"
+    (r"\b(not interested|no interest|uninterested|declined|rejected|lost|kein interesse|nicht interessiert|abgesagt|absage|"
+     r"abgelehnt|no)\b", "lost", None),
     (r"^\s*(new|open|to ?do|not (yet )?contacted|nicht kontaktiert|noch nicht|neu|offen)\b", None, None),
-    (r"live|active|aktiv|onboarded|launched", "partner", "live"),
-    (r"signed|contract|agreed|won|partner|zugesagt|vertrag", "partner", "agreed"),
+    (r"\b(live|active|aktiv|onboarded|launched)\b", "partner", "live"),
+    (r"\b(signed|contract signed|agreed|won|partner|zugesagt|unterschrieben)\b", "partner", "agreed"),   # "contract sent" is not signed
     (r"meeting|call booked|termin", "meeting", None),
     (r"replied|responded|interested|antwort|interessiert", "replied", None),
     (r"contacted|sent|emailed|reached|kontaktiert|angeschrieben|follow", "contacted", None),
-    (r"\b(lost|declined|no|rejected|abgesagt|kein interesse)\b", "lost", None),
 ]
+STATUS_ORDER = ["new", "drafted", "contacted", "replied", "meeting", "partner"]
 KIND_HINTS = [
     (r"uni|hochschule|college|school|international office|akademie", "university"),
     (r"housing|wohn|apartment|coliving|residence|room", "housing"),
@@ -59,11 +61,27 @@ def _norm_header(h: str) -> str:
 
 
 def _map_columns(headers: Iterable[str]) -> dict[str, str]:
+    """Header -> field: exact names first ("Partner type" is the kind, not the name), then any e-mail column
+    ("Contact email"), then prefixes ("Company name")."""
+    hs = [(h, _norm_header(h)) for h in headers]
     out: dict[str, str] = {}
-    for h in headers:
-        nh = _norm_header(h)
+
+    def free(h: str) -> bool:
+        return h not in out.values()
+
+    for h, nh in hs:
         for field, names in COLUMNS.items():
-            if field not in out and (nh in names or any(nh.startswith(n + " ") for n in names)):
+            if field not in out and nh in names:
+                out[field] = h
+                break
+    for h, nh in hs:
+        if "email" not in out and free(h) and "mail" in nh:
+            out["email"] = h
+    for h, nh in hs:
+        if not free(h):
+            continue
+        for field, names in COLUMNS.items():
+            if field not in out and any(nh.startswith(n + " ") for n in names):
                 out[field] = h
                 break
     return out
@@ -73,7 +91,10 @@ def _rows_from_file(path: Path) -> list[dict[str, Any]]:
     suf = path.suffix.lower()
     if suf == ".csv":
         text = path.read_text(encoding="utf-8-sig", errors="replace")
-        dialect = csv.Sniffer().sniff(text[:4096], delimiters=",;\t") if text.strip() else csv.excel
+        try:
+            dialect = csv.Sniffer().sniff(text[:4096], delimiters=",;\t") if text.strip() else csv.excel
+        except csv.Error:   # a single column (no delimiter to find)
+            dialect = csv.excel
         return list(csv.DictReader(text.splitlines(), dialect=dialect))
     if suf == ".json":
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -121,7 +142,7 @@ def import_table(db: DB, path: Path) -> dict[str, int]:
     stats = {"rows": len(rows), "leads_new": 0, "leads_updated": 0, "partners": 0}
     for row in rows:
         get = lambda f: str(row.get(mapping.get(f, ""), "") or "").strip()  # noqa: E731
-        name = get("name") or (get("email").split("@")[-1].split(".")[0].title() if get("email") else "")
+        name = get("name") or _name_from_email(get("email"), get("contact_name"))
         if not name:
             continue
         kind = _kind_for(row, mapping, hint)
@@ -133,24 +154,44 @@ def import_table(db: DB, path: Path) -> dict[str, int]:
         stats["leads_new" if created else "leads_updated"] += 1
         note = " · ".join(x for x in (get("contact_name") and f"Contact: {get('contact_name')}", get("notes")) if x)
         status_raw = get("status")
-        for rx, lead_status, partner_stage in STATUS_MAP:
-            if status_raw and re.search(rx, status_raw, re.I):
-                if lead_status is None:
-                    break
-                leads_mod.set_status(db, lid, lead_status, note)
-                if lead_status == "partner":
-                    pid = ensure_partner_from_lead(db, lid)
-                    fields = {"contact_name": get("contact_name"), "notes": get("notes")}
-                    if partner_stage == "live":
-                        fields["stage"] = "live"
-                    update_partner(db, pid, **{k: v for k, v in fields.items() if v})
-                    stats["partners"] += 1
-                break
-        else:
-            if note:
-                db.x("UPDATE leads SET notes=trim(coalesce(notes,'') || ' ' || ?) WHERE id=? AND coalesce(notes,'') NOT LIKE ?",
-                     (note, lid, f"%{note}%"))
+        lead_status, partner_stage = next(((st, ps) for rx, st, ps in STATUS_MAP if status_raw and re.search(rx, status_raw, re.I)),
+                                          (None, None))
+        current = db.one("SELECT status FROM leads WHERE id=?", (lid,))["status"] or "new"
+        if lead_status and _moves_forward(current, lead_status):
+            leads_mod.set_status(db, lid, lead_status, note)
+        elif note:
+            db.x("UPDATE leads SET notes=trim(coalesce(notes,'') || ' ' || ?) WHERE id=? AND coalesce(notes,'') NOT LIKE ?",
+                 (note, lid, f"%{note}%"))
+        if lead_status == "partner" and db.one("SELECT status FROM leads WHERE id=?", (lid,))["status"] == "partner":
+            pid = ensure_partner_from_lead(db, lid)
+            fields = {"contact_name": get("contact_name"), "notes": get("notes")}
+            if partner_stage == "live":
+                fields["stage"] = "live"
+            update_partner(db, pid, **{k: v for k, v in fields.items() if v})
+            stats["partners"] += 1
     return stats
+
+
+def _moves_forward(current: str, new: str) -> bool:
+    """An old spreadsheet must not move a lead back ("contacted" in the sheet, "meeting" in Setz)."""
+    if new == "lost":
+        return current not in {"partner", "lost"}
+    if current == "lost":
+        return new == "partner"
+    rank = {s: i for i, s in enumerate(STATUS_ORDER)}
+    return rank.get(new, 0) > rank.get(current, 0)
+
+
+def _name_from_email(email: str, contact: str = "") -> str:
+    """A company domain names the business; a freemail address (anna@gmail.com) doesn't, so use the person."""
+    from .leadintel import FREEMAIL
+
+    if "@" not in email:
+        return contact
+    local, dom = email.lower().rsplit("@", 1)
+    if dom not in FREEMAIL:
+        return dom.split(".")[0].title()
+    return contact or re.sub(r"[._+-]+", " ", local).strip().title()
 
 
 def _read_text(path: Path) -> str:

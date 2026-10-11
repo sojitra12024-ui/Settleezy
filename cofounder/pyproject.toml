@@ -34,6 +34,11 @@ notify = [
   "pywebpush>=2.0",                              # push to your phone (installed app)
 ]
 widget = ["pywebview>=5.0"]                      # always-on-top Setz window
+contracts = [
+  "python-docx>=1.1",   # read .docx drafts, write .docx contracts
+  "docxtpl>=0.18",      # fill your own Word templates ({{ placeholders }})
+  "pypdf>=4",           # read PDF drafts
+]
 render = ["playwright>=1.44"]
 dev = ["pytest>=8"]
 
@@ -44,7 +49,7 @@ sz = "settleezy_cofounder.cli:main"
 include = ["settleezy_cofounder*"]
 
 [tool.setuptools.package-data]
-settleezy_cofounder = ["dashboard/static/*"]
+settleezy_cofounder = ["dashboard/static/*", "contract_templates/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

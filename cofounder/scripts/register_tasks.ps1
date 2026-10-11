@@ -14,7 +14,8 @@ New-Item -ItemType Directory -Force -Path $log | Out-Null
 
 function Add-SzTask($name, $arguments, $trigger, [switch]$Hidden, [switch]$Forever) {
     $cmd = "/c `"`"$sz`" $arguments >> `"$log\$name.log`" 2>&1`""
-    $action = New-ScheduledTaskAction -Execute "cmd.exe" -Argument $cmd -WorkingDirectory $root
+    # conhost --headless (Windows 10 1809+ / 11): no console window flashes up or stays open; output still goes to the log
+    $action = New-ScheduledTaskAction -Execute "conhost.exe" -Argument "--headless cmd.exe $cmd" -WorkingDirectory $root
     if ($Forever) {
         # always-on (dashboard, voice, widget): no time limit, restart automatically if it ever stops
         $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -DontStopIfGoingOnBatteries -AllowStartIfOnBatteries `
@@ -28,6 +29,7 @@ function Add-SzTask($name, $arguments, $trigger, [switch]$Hidden, [switch]$Forev
     Write-Host "scheduled: $name"
 }
 
+$me = "$env:USERDOMAIN\$env:USERNAME"   # -AtLogOn without -User fires for any user's logon
 $weekdays = "Monday", "Tuesday", "Wednesday", "Thursday", "Friday"
 $morningArgs = if ($Speak) { "morning --speak" } else { "morning" }
 
@@ -49,8 +51,15 @@ Add-SzTask "growth-review"   "run growth"      (New-ScheduledTaskTrigger -Weekly
 Add-SzTask "campus-leadgen"  "run leadgen"     (New-ScheduledTaskTrigger -Weekly -DaysOfWeek Sunday -At 9:00pm) -Hidden
 Add-SzTask "pipeline-start"  "run pipeline"    (New-ScheduledTaskTrigger -Weekly -DaysOfWeek Monday -At 7:30am) -Hidden
 Add-SzTask "ig-discover"     "run igdiscover"  (New-ScheduledTaskTrigger -Weekly -DaysOfWeek Tuesday,Friday -At 12:15pm) -Hidden
-Add-SzTask "dashboard"       "dashboard"       (New-ScheduledTaskTrigger -AtLogOn) -Hidden -Forever
-if ($Voice) { Add-SzTask "voice" "voice" (New-ScheduledTaskTrigger -AtLogOn) -Hidden -Forever }
-if ($Widget) { Add-SzTask "widget" "widget" (New-ScheduledTaskTrigger -AtLogOn) -Forever }
+Add-SzTask "universities"    "run universities" (New-ScheduledTaskTrigger -Weekly -DaysOfWeek Sunday -At 8:30pm) -Hidden
+$t4 = New-ScheduledTaskTrigger -Daily -At 8:40am
+$t4.Repetition = (New-ScheduledTaskTrigger -Once -At 8:40am -RepetitionInterval (New-TimeSpan -Hours 1) -RepetitionDuration (New-TimeSpan -Hours 12)).Repetition
+Add-SzTask "autopilot"       "run autopilot"   $t4 -Hidden
+$t5 = New-ScheduledTaskTrigger -Daily -At 7:20am
+$t5.Repetition = (New-ScheduledTaskTrigger -Once -At 7:20am -RepetitionInterval (New-TimeSpan -Hours 1) -RepetitionDuration (New-TimeSpan -Hours 15)).Repetition
+Add-SzTask "admin-bridge"    "run bridge"      $t5 -Hidden
+Add-SzTask "dashboard"       "dashboard"       (New-ScheduledTaskTrigger -AtLogOn -User $me) -Hidden -Forever
+if ($Voice) { Add-SzTask "voice" "voice" (New-ScheduledTaskTrigger -AtLogOn -User $me) -Hidden -Forever }
+if ($Widget) { Add-SzTask "widget" "widget" (New-ScheduledTaskTrigger -AtLogOn -User $me) -Forever }
 
 Write-Host "`nDashboard: http://127.0.0.1:8765  (starts at logon; run '.venv\Scripts\sz.exe dashboard' now to open it immediately)" -ForegroundColor Green

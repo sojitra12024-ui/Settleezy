@@ -51,6 +51,7 @@ connectVoiceStream(holo, (ev) => {
   if (ev.state === "thinking" && ev.text) cap.innerHTML = `<span class="you">You</span>${esc(ev.text)}`;
   else if (ev.state === "speaking" && ev.text) cap.textContent = ev.text;
   else if (ev.state === "listening") cap.innerHTML = `<span class="you">Listening…</span>`;
+  else if (ev.state === "idle" && ev.text) cap.textContent = ev.text;   // answered without voice
 });
 async function loadHub() { if (mini) return; try { holo.setChannels(await (await fetch("/api/hub")).json()); } catch (_) {} }
 loadHub(); setInterval(loadHub, 60000);
@@ -64,7 +65,13 @@ if (mini) {
   document.getElementById("mini-ask").addEventListener("submit", async (e) => {
     e.preventDefault(); const q = document.getElementById("mini-q").value.trim(); if (!q) return;
     document.getElementById("mini-q").value = "";
-    try { await fetch("/api/ask", { method: "POST", headers: { "X-SZ": "1", "Content-Type": "application/json" }, body: JSON.stringify({ text: q, speak: true }) }); } catch (_) {}
+    cap.innerHTML = `<span class="you">You</span>${esc(q)}`;
+    try {
+      const res = await fetch("/api/ask", { method: "POST", headers: { "X-SZ": "1", "Content-Type": "application/json" }, body: JSON.stringify({ text: q, speak: true }) });
+      const r = await res.json(); if (!res.ok) throw new Error(r.detail || res.statusText);
+      if (r.answer) cap.textContent = r.answer;
+      if (r.audio) new Audio("data:audio/wav;base64," + r.audio).play().catch(() => {});
+    } catch (err) { cap.textContent = err.message; }
   });
 }
 </script>

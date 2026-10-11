@@ -38,6 +38,9 @@ MONTHS = {"en": ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", 
           "de": ["Jan.", "Feb.", "März", "Apr.", "Mai", "Juni", "Juli", "Aug.", "Sep.", "Okt.", "Nov.", "Dez."]}
 
 _TIME = r"(?:at|um|ab|gegen|@)?\s*(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm|uhr|h\b)?"
+# after a weekday, "14.10." is a date and "21st" a day of the month, not a time
+_NOT_DATE = r"(?!\s*(?:\d{1,2}\.\d{1,2}\.|\d{1,2}(?:st|nd|rd|th)\b))"
+DAYS_AHEAD = 8   # how far ahead slots are suggested; the calendar sync covers at least one day more
 
 
 def _hour(h: str, m: str | None, ampm: str | None) -> dtime | None:
@@ -56,15 +59,19 @@ def _hour(h: str, m: str | None, ampm: str | None) -> dtime | None:
 def proposed_times(text: str, sent: datetime) -> list[datetime]:
     """Times the other person suggested, resolved relative to when they wrote ('Tuesday at 2pm', 'am 14.10. um 10 Uhr')."""
     out: list[datetime] = []
-    t = text.lower()
+    t = text
     base = sent.date()
-    for m in re.finditer(r"\b(next\s+|nächsten?\s+|kommenden?\s+)?(" + "|".join(sorted(WEEKDAYS, key=len, reverse=True)) + r")\b\.?,?\s*" + _TIME, t):
+    for m in re.finditer(r"\b(next\s+|nächsten?\s+|kommenden?\s+)?(" + "|".join(sorted(WEEKDAYS, key=len, reverse=True)) + r")\b\.?,?\s*"
+                         + _NOT_DATE + _TIME, t, re.I):
         tm = _hour(m.group(3), m.group(4), m.group(5))
-        if not tm or (len(m.group(2)) <= 2 and not m.group(5) and not m.group(4)):   # "do 3" is too ambiguous in German
+        day = m.group(2).lower()
+        if not tm or (len(day) <= 2 and not m.group(5) and not m.group(4)):   # "do 3" is too ambiguous in German
             continue
-        ahead = (WEEKDAYS[m.group(2)] - base.weekday()) % 7 or 7   # the next such day after they wrote
+        if len(day) <= 2 and not m.group(2)[0].isupper():   # "could we do 10:30" is English; the German abbreviation is "Do"
+            continue
+        ahead = (WEEKDAYS[day] - base.weekday()) % 7 or 7   # the next such day after they wrote
         out.append(datetime.combine(base + timedelta(days=ahead), tm))
-    for m in re.finditer(r"\b(\d{1,2})\.(\d{1,2})\.(\d{2,4})?\s*,?\s*" + _TIME, t):
+    for m in re.finditer(r"\b(\d{1,2})\.(\d{1,2})\.(\d{2,4})?\s*,?\s*" + _TIME, t, re.I):
         tm = _hour(m.group(4), m.group(5), m.group(6))
         if not tm or not m.group(6) and not m.group(5):
             continue
@@ -76,7 +83,7 @@ def proposed_times(text: str, sent: datetime) -> list[datetime]:
         if d < base and not m.group(3):
             d = d.replace(year=d.year + 1)
         out.append(datetime.combine(d, tm))
-    for m in re.finditer(r"\b(tomorrow|morgen)\b\s*" + _TIME, t):
+    for m in re.finditer(r"\b(tomorrow|morgen)\b\s*" + _TIME, t, re.I):
         tm = _hour(m.group(2), m.group(3), m.group(4))
         if tm and (m.group(4) or m.group(3)):
             out.append(datetime.combine(base + timedelta(days=1), tm))
@@ -86,26 +93,45 @@ def proposed_times(text: str, sent: datetime) -> list[datetime]:
 # -- availability --------------------------------------------------------------------------------
 
 def _busy(db: DB, day: date) -> list[tuple[datetime, datetime]]:
+    """Events overlapping the day (a multi-day trip blocks every day of it), clipped to the day."""
+    day_start = datetime.combine(day, dtime(0, 0))
+    day_end = day_start + timedelta(days=1)
     out = []
-    for e in db.q("SELECT start, end FROM events WHERE substr(start,1,10)=?", (day.isoformat(),)):
+    for e in db.q("SELECT start, end FROM events WHERE substr(start,1,16) < ? AND substr(coalesce(nullif(end,''), start),1,16) >= ?",
+                  (day_end.isoformat(timespec="minutes"), day_start.isoformat(timespec="minutes"))):
         try:
-            out.append((datetime.fromisoformat(e["start"][:16]), datetime.fromisoformat((e["end"] or e["start"])[:16])))
+            s, en = datetime.fromisoformat(e["start"][:16]), datetime.fromisoformat((e["end"] or e["start"])[:16])
         except ValueError:
             continue
+        if s < day_end and (en > day_start or s >= day_start):   # overlap; zero-length events count on their day
+            out.append((max(s, day_start), min(en, day_end)))
     return out
 
 
-def is_free(cfg: Config, db: DB, start: datetime, minutes: int) -> bool:
+def synced_until(db: DB) -> datetime | None:
+    """End of the window the last calendar sync covered (None: unknown, e.g. events added by hand)."""
+    v = db.kv_get("calendar:synced_until")
+    return datetime.fromisoformat(v) if v else None
+
+
+def is_known(db: DB, start: datetime, minutes: int = 0) -> bool:
+    until = synced_until(db)
+    return until is None or start + timedelta(minutes=minutes) <= until
+
+
+def is_free(cfg: Config, db: DB, start: datetime, minutes: int, now: datetime | None = None) -> bool:
     buf = timedelta(minutes=int(cfg.get("scheduling.buffer_minutes", 15)))
     end = start + timedelta(minutes=minutes)
     ds, de = (dtime.fromisoformat(cfg.get("scheduling.day_start", "09:00")), dtime.fromisoformat(cfg.get("scheduling.day_end", "18:00")))
+    if start <= (now or datetime.now()):   # a time that has passed is never free
+        return False
     if start.weekday() >= 5 or start.time() < ds or end.time() > de or end.date() != start.date():
         return False
     return all(end + buf <= s or start >= e + buf for s, e in _busy(db, start.date()))
 
 
 def suggest_slots(cfg: Config, db: DB, minutes: int | None = None, n: int = 3, now: datetime | None = None,
-                  days_ahead: int = 8) -> list[dict]:
+                  days_ahead: int = DAYS_AHEAD) -> list[dict]:
     """Free slots on different days, best first by: inside the calls block, a light meeting day, soonest."""
     from .ops import DEFAULT_ROUTINE
 
@@ -124,7 +150,7 @@ def suggest_slots(cfg: Config, db: DB, minutes: int | None = None, n: int = 3, n
             continue
         t = datetime.combine(day, dtime(8, 0))
         while t.date() == day and t.hour < 20:
-            if t >= earliest and is_free(cfg, db, t, minutes):
+            if t >= earliest and is_known(db, t, minutes) and is_free(cfg, db, t, minutes, now=now):
                 in_calls = any(b["start"] <= t.strftime("%H:%M") and (t + timedelta(minutes=minutes)).strftime("%H:%M") <= b["end"]
                                and day.weekday() in b.get("days", [0, 1, 2, 3, 4]) for b in calls)
                 score = (2 if in_calls else 0) + (1 - load / max(max_load, 1)) - i * 0.15 + (0.3 if t.minute == 0 else 0)
@@ -213,9 +239,15 @@ def requests(cfg: Config, db: DB, status: tuple[str, ...] = ("open", "proposed")
     rows = [dict(r) for r in db.q(f"SELECT * FROM meeting_requests WHERE status IN ({','.join('?' * len(status))}) ORDER BY received_at DESC",
                                   status)]
     slots_cache: list[dict] | None = None
+    now = datetime.now()
     for r in rows:
         r["proposed"] = json.loads(r["proposed"] or "[]")
-        r["proposed_free"] = [p for p in r["proposed"] if is_free(cfg, db, datetime.fromisoformat(p), int(cfg.get("scheduling.meeting_minutes", 30)))]
+        minutes = int(cfg.get("scheduling.meeting_minutes", 30))
+        upcoming = [p for p in r["proposed"] if datetime.fromisoformat(p) > now]   # a proposal that has passed is moot
+        # beyond the synced calendar we can't tell: never answer "works for me" blind
+        r["proposed_unknown"] = [p for p in upcoming if not is_known(db, datetime.fromisoformat(p), minutes)]
+        r["proposed_free"] = [p for p in upcoming if p not in r["proposed_unknown"]
+                              and is_free(cfg, db, datetime.fromisoformat(p), minutes, now=now)]
         if r["slots"]:
             r["slots"] = json.loads(r["slots"])
         else:

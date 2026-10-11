@@ -38,8 +38,9 @@ def quiet_now(cfg: Config, now: datetime | None = None) -> bool:
     q = cfg.get("notifications.quiet_hours", ["22:00", "07:30"])
     if not q:
         return False
-    hm = (now or datetime.now()).strftime("%H:%M")
-    start, end = q
+    n = now or datetime.now()
+    hm = n.hour * 60 + n.minute
+    start, end = (int(h) * 60 + int(m) for h, m in (str(x).strip().split(":")[:2] for x in q))
     return (start <= hm or hm < end) if start > end else (start <= hm < end)
 
 

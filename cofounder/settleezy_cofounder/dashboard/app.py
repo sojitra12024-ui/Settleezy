@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
+import math
 import re
 import threading
 import time
@@ -33,6 +34,7 @@ _loop: asyncio.AbstractEventLoop | None = None
 _agent_subs: set[asyncio.Queue] = set()
 _notify_subs: set[asyncio.Queue] = set()
 _login_tries: dict[str, list[float]] = {}
+_run_lock = threading.Lock()   # guards the check-and-set of _running
 
 
 def _guard(x_sz: str | None) -> None:
@@ -40,10 +42,19 @@ def _guard(x_sz: str | None) -> None:
         raise HTTPException(403, "missing X-SZ header")
 
 
+def _ints(values, what: str = "ids") -> list[int]:
+    try:
+        return [int(i) for i in (values or [])]
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(400, f"{what} must be a list of numbers") from exc
+
+
 # -- access: the laptop itself is always allowed; phones/other devices need the PIN ---------------------------
 
 LOOPBACK = {"127.0.0.1", "::1", "localhost", "testclient"}
-OPEN_PATHS = {"/login", "/manifest.webmanifest", "/sw.js", "/static/icon-192.png", "/static/icon-512.png", "/static/icon.svg"}
+LOCAL_HOSTS = {"127.0.0.1", "localhost", "::1", "testserver"}   # Host names a local browser uses (anything else: DNS rebinding)
+OPEN_PATHS = {"/login", "/manifest.webmanifest", "/sw.js", "/static/icon-192.png", "/static/icon-512.png", "/static/icon.svg",
+              "/api/bridge/webhook", "/api/bridge/v1/recommendations"}   # bridge: signature / bearer token checked in the handler
 
 
 def _session_secret(cfg) -> bytes:
@@ -62,29 +73,59 @@ def _session_value(cfg) -> str:
     return hmac.new(_session_secret(cfg), str(cfg.get("dashboard.access_pin", "")).encode(), hashlib.sha256).hexdigest()
 
 
+def _peer_is_loopback(request: Request) -> bool:
+    return request.client is not None and request.client.host in LOOPBACK
+
+
 def _is_remote(request: Request) -> bool:
     """Requests through Tailscale Serve / a proxy, or from another device on the network."""
     h = request.headers
     return bool(h.get("tailscale-user-login") or h.get("x-forwarded-for")) or (request.client is not None and request.client.host not in LOOPBACK)
 
 
+def _host_allowed(request: Request) -> bool:
+    """Local requests must name this machine in Host; a foreign name means a DNS-rebinding page is talking to us."""
+    from urllib.parse import urlsplit
+
+    try:
+        name = urlsplit("//" + request.headers.get("host", "")).hostname or ""
+    except ValueError:
+        return False
+    if name in LOCAL_HOSTS:
+        return True
+    cfg = load_config()
+    extra = {str(x).lower() for x in (cfg.get("dashboard.allowed_hosts", []) or [])}
+    ts_name = str(cfg.get("dashboard.tailscale_hostname", "") or "").lower().rstrip(".")
+    if ts_name:
+        extra |= {ts_name, ts_name.split(".")[0]}
+    return name in extra
+
+
 @app.middleware("http")
 async def access_control(request: Request, call_next):
-    if not _is_remote(request) or request.url.path in OPEN_PATHS:
+    if not _is_remote(request):
+        if not _host_allowed(request):
+            return Response("misdirected request: unknown Host", 421)
+        return await call_next(request)
+    if request.url.path in OPEN_PATHS:
         return await call_next(request)
     import hmac
 
     cfg = load_config()
     pin = str(cfg.get("dashboard.access_pin", "") or "")
     if not pin:
-        if request.headers.get("tailscale-user-login"):   # your own tailnet, identified by Tailscale
+        # your own tailnet, identified by Tailscale; only `tailscale serve` (a local proxy) can set this header
+        if request.headers.get("tailscale-user-login") and _peer_is_loopback(request):
             return await call_next(request)
         return HTMLResponse("Setz: remote access needs [dashboard] access_pin in config.toml (see README: phone access).", 403)
-    if hmac.compare_digest(request.cookies.get("sz_session", ""), _session_value(cfg)):
+    if hmac.compare_digest(request.cookies.get("sz_session", "").encode(), _session_value(cfg).encode()):
         return await call_next(request)
     if request.url.path.startswith("/api/"):
         return Response('{"detail":"login required"}', 401, media_type="application/json")
-    return RedirectResponse("/login?next=" + request.url.path, 303)
+    from urllib.parse import quote
+
+    nxt = request.url.path + ("?" + request.url.query if request.url.query else "")
+    return RedirectResponse("/login?next=" + quote(nxt, safe=""), 303)
 
 
 LOGIN_HTML = """<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -110,19 +151,25 @@ async def login_submit(request: Request) -> Response:
     import hmac
     from urllib.parse import parse_qs
 
-    ip = request.headers.get("x-forwarded-for", request.client.host if request.client else "?").split(",")[0]
+    from urllib.parse import quote
+
+    ip = request.client.host if request.client else "?"
+    if ip in LOOPBACK and request.headers.get("x-forwarded-for"):   # a local proxy (tailscale serve): it appends the real client last
+        ip = request.headers["x-forwarded-for"].split(",")[-1].strip() or ip
     now = time.time()
+    for k in [k for k, ts in _login_tries.items() if not ts or now - ts[-1] >= 300]:   # forget stale clients
+        _login_tries.pop(k, None)
     tries = [t for t in _login_tries.get(ip, []) if now - t < 300]
-    if len(tries) >= 5:
+    if len(tries) >= 5 or sum(1 for ts in _login_tries.values() for t in ts if now - t < 300) >= 30:
         return HTMLResponse("Too many attempts. Wait 5 minutes.", 429)
     form = {k: v[0] for k, v in parse_qs((await request.body()).decode()).items()}
     cfg = load_config()
     pin = str(cfg.get("dashboard.access_pin", "") or "")
     nxt = form.get("next", "/")
     nxt = nxt if nxt.startswith("/") and not nxt.startswith("//") else "/"
-    if not pin or not hmac.compare_digest(form.get("pin", ""), pin):
+    if not pin or not hmac.compare_digest(form.get("pin", "").encode(), pin.encode()):
         _login_tries[ip] = tries + [now]
-        return RedirectResponse(f"/login?err=1&next={nxt}", 303)
+        return RedirectResponse(f"/login?err=1&next={quote(nxt, safe='')}", 303)
     resp = RedirectResponse(nxt, 303)
     resp.set_cookie("sz_session", _session_value(cfg), max_age=90 * 86400, httponly=True, samesite="strict",
                     secure=request.headers.get("x-forwarded-proto", request.url.scheme) == "https")
@@ -138,8 +185,16 @@ def manifest() -> Response:
             "icons": [{"src": "/static/icon-192.png", "sizes": "192x192", "type": "image/png"},
                       {"src": "/static/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"},
                       {"src": "/static/icon.svg", "sizes": "any", "type": "image/svg+xml"}],
-            "shortcuts": [{"name": "Command center", "url": "/command"}, {"name": "Lead finder", "url": "/#leads"},
-                          {"name": "Hologram", "url": "/hologram"}]}
+            "display_override": ["standalone", "minimal-ui"], "orientation": "any", "categories": ["business", "productivity"],
+            "shortcuts": [{"name": "Talk to Setz", "short_name": "Talk", "url": "/talk", "icons": [{"src": "/static/icon-192.png", "sizes": "192x192"}]},
+                          {"name": "Approvals", "url": "/#approvals"}, {"name": "Onboard next", "short_name": "Market", "url": "/#market"},
+                          {"name": "Lead finder", "url": "/#leads"}, {"name": "Command center", "url": "/command"}],
+            # share a link, an Instagram profile, an email text or a contract file from any app straight to Setz
+            "share_target": {"action": "/share", "method": "POST", "enctype": "multipart/form-data",
+                             "params": {"title": "title", "text": "text", "url": "url",
+                                        "files": [{"name": "file", "accept": [".pdf", ".docx", ".txt", ".md", "application/pdf",
+                                                                               "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                                                               "text/plain", "image/*"]}]}}}
     return Response(json.dumps(data), media_type="application/manifest+json")
 
 
@@ -309,7 +364,7 @@ def _safe_replies(cfg, db) -> list:
 def metric_series(key: str, days: int = 90) -> dict:
     cfg = load_config()
     source, _, k = key.partition(".")
-    since = (datetime.now() - timedelta(days=days)).date().isoformat()
+    since = (datetime.now() - timedelta(days=max(1, min(days, 3650)))).date().isoformat()
     with DB(cfg.db_path) as db:
         rows = db.q("SELECT day, value FROM metrics WHERE source=? AND key=? AND day >= ? ORDER BY day", (source, k, since))
     return {"key": key, "series": [[r["day"], r["value"]] for r in rows]}
@@ -331,14 +386,16 @@ def leads(q: str = "", kind: str = "", status: str = "", limit: int = 300) -> li
         sql += " AND status=?"
         params.append(status)
     sql += " ORDER BY CASE status WHEN 'meeting' THEN 0 WHEN 'replied' THEN 1 WHEN 'contacted' THEN 2 WHEN 'drafted' THEN 3 ELSE 4 END, score DESC LIMIT ?"
-    params.append(min(limit, 1000))
+    params.append(max(1, min(limit, 1000)))
     with DB(cfg.db_path) as db:
         return [dict(r) for r in db.q(sql, params)]
 
 
 @app.get("/api/leads/find")
-def leads_find(q: str, discover: int = 0, limit: int = 0) -> dict:
+def leads_find(q: str, discover: int = 0, limit: int = 0, x_sz: str | None = Header(default=None)) -> dict:
     """Natural-language lead search: 'vegan cafés near HU with email, not contacted'."""
+    if discover:   # scans OpenStreetMap and writes leads: a state change
+        _guard(x_sz)
     from ..leadquery import find, parse
 
     cfg = load_config()
@@ -378,7 +435,7 @@ def leads_enrich(body: dict, x_sz: str | None = Header(default=None)) -> dict:
     from ..leadintel import enrich_lead, profile
     from ..scraping.fetcher import Fetcher
 
-    ids = [int(i) for i in (body.get("ids") or [])][:25]
+    ids = _ints(body.get("ids"))[:25]
     if not ids:
         raise HTTPException(400, "ids required")
     cfg = load_config()
@@ -483,9 +540,13 @@ def task_add(body: dict, x_sz: str | None = Header(default=None)) -> dict:
     title = (body.get("title") or "").strip()
     if not title:
         raise HTTPException(400, "title is required")
+    try:
+        priority = int(body.get("priority", 2))
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(400, "priority must be a number") from exc
     cfg = load_config()
     with DB(cfg.db_path) as db:
-        tid = add_task(db, title, due=body.get("due") or None, priority=int(body.get("priority", 2)), source=body.get("source", "manual"),
+        tid = add_task(db, title, due=body.get("due") or None, priority=priority, source=body.get("source", "manual"),
                        lead_id=body.get("lead_id"), partner_id=body.get("partner_id"))
     return {"id": tid, "duplicate": tid is None}
 
@@ -503,7 +564,7 @@ def task_action(task_id: int, body: dict, x_sz: str | None = Header(default=None
 
                 return update_task(db, task_id, **(body.get("fields") or {}))
             set_task(db, task_id, body.get("action", ""), int(body.get("days", 1)))
-        except ValueError as exc:
+        except (ValueError, TypeError) as exc:
             raise HTTPException(400, str(exc)) from exc
     return {"ok": True}
 
@@ -793,7 +854,9 @@ def partner_update(partner_id: int, body: dict, x_sz: str | None = Header(defaul
 
 
 @app.get("/api/prep/{event_id}")
-def prep(event_id: str, ai: int = 0) -> dict:
+def prep(event_id: str, ai: int = 0, x_sz: str | None = Header(default=None)) -> dict:
+    if ai:   # calls the LLM (costs money): needs the same header as state-changing calls
+        _guard(x_sz)
     from ..llm import LLM
     from ..ops import meeting_prep
 
@@ -875,6 +938,8 @@ def kpi(body: dict, x_sz: str | None = Header(default=None)) -> dict:
         value = float(body.get("value"))
     except (TypeError, ValueError) as exc:
         raise HTTPException(400, "value must be a number") from exc
+    if not math.isfinite(value):
+        raise HTTPException(400, "value must be a finite number")
     with DB(cfg.db_path) as db:
         record_kpi(db, key, value, body.get("day") or None)
     return {"ok": True}
@@ -893,9 +958,10 @@ def run_job(job: str, x_sz: str | None = Header(default=None)) -> dict:
     _guard(x_sz)
     if job not in jobs.JOBS:
         raise HTTPException(404, f"unknown job {job}")
-    if _running.get(job) == "running":
-        return {"started": False, "status": "already running"}
-    _running[job] = "running"
+    with _run_lock:
+        if _running.get(job) == "running":
+            return {"started": False, "status": "already running"}
+        _running[job] = "running"
     from ..operations import JOB_AGENT
 
     agent = JOB_AGENT.get(job, "setz")
@@ -930,9 +996,10 @@ def playbook_run(name: str, x_sz: str | None = Header(default=None)) -> dict:
 
     if name not in PLAYBOOKS:
         raise HTTPException(404, f"unknown playbook {name}")
-    if _running.get("playbook") == "running":
-        return {"started": False, "status": "a playbook is already running"}
-    _running["playbook"] = "running"
+    with _run_lock:
+        if _running.get("playbook") == "running":
+            return {"started": False, "status": "a playbook is already running"}
+        _running["playbook"] = "running"
 
     def work() -> None:
         try:
@@ -1012,7 +1079,7 @@ def notifications_read(body: dict | None = None, x_sz: str | None = Header(defau
 
     cfg = load_config()
     with DB(cfg.db_path) as db:
-        mark_read(db, [int(i) for i in (body or {}).get("ids", [])] or None)
+        mark_read(db, _ints((body or {}).get("ids")) or None)
     return {"ok": True}
 
 
@@ -1043,7 +1110,10 @@ async def push_subscribe(request: Request, x_sz: str | None = Header(default=Non
     cfg = load_config()
     with DB(cfg.db_path) as db:
         try:
-            save_subscription(db, await request.json(), request.headers.get("user-agent", ""))
+            sub = await request.json()
+            if not isinstance(sub, dict):
+                raise ValueError("subscription must be a JSON object")
+            save_subscription(db, sub, request.headers.get("user-agent", ""))
         except (ValueError, KeyError) as exc:
             raise HTTPException(400, str(exc)) from exc
     return {"ok": True}
@@ -1099,9 +1169,15 @@ async def voice_event(body: dict, x_sz: str | None = Header(default=None)) -> di
     _guard(x_sz)
     if body.get("state") not in {"idle", "listening", "thinking", "speaking"}:
         raise HTTPException(400, "bad state")
+    try:
+        envelope = [float(x) for x in (body.get("envelope") or [])][:20000]
+        frame_ms = int(body.get("frame_ms", 40))
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(400, "envelope must be a list of numbers, frame_ms a number") from exc
+    if not all(math.isfinite(x) for x in envelope):
+        raise HTTPException(400, "envelope must be finite numbers")
     _broadcast({"state": body["state"], "text": str(body.get("text", ""))[:600],
-                "envelope": [float(x) for x in body.get("envelope", [])][:20000],
-                "frame_ms": int(body.get("frame_ms", 40)), "at": time.time()})
+                "envelope": envelope, "frame_ms": frame_ms, "at": time.time()})
     return {"ok": True, "listeners": len(_subscribers)}
 
 
@@ -1123,6 +1199,42 @@ async def voice_stream(request: Request) -> StreamingResponse:
                     yield ": keep-alive\n\n"
         finally:
             _subscribers.discard(q)
+
+    return StreamingResponse(gen(), media_type="text/event-stream", headers={"Cache-Control": "no-cache"})
+
+
+class _Channel:
+    """Adapter that lets one /api/events queue sit in a per-channel subscriber set; tags each event with `ch`."""
+
+    def __init__(self, q: asyncio.Queue, ch: str):
+        self.q, self.ch = q, ch
+
+    def put_nowait(self, event: dict) -> None:
+        self.q.put_nowait({**event, "ch": self.ch})
+
+
+@app.get("/api/events")
+async def events_stream(request: Request) -> StreamingResponse:
+    """One stream per page for everything live (voice state, agent activity, notifications), each event tagged
+    with `ch`: browsers allow only ~6 connections per host over HTTP/1.1, so separate streams per tab run out."""
+    global _loop
+    _loop = asyncio.get_running_loop()
+    q: asyncio.Queue = asyncio.Queue(maxsize=200)
+    subs = [(_subscribers, _Channel(q, "voice")), (_agent_subs, _Channel(q, "agent")), (_notify_subs, _Channel(q, "notify"))]
+    for group, sub in subs:
+        group.add(sub)
+
+    async def gen():
+        try:
+            yield f"data: {json.dumps({**_voice_state, 'ch': 'voice'})}\n\n"
+            while not await request.is_disconnected():
+                try:
+                    yield f"data: {json.dumps(await asyncio.wait_for(q.get(), timeout=15))}\n\n"
+                except asyncio.TimeoutError:
+                    yield ": keep-alive\n\n"
+        finally:
+            for group, sub in subs:
+                group.discard(sub)
 
     return StreamingResponse(gen(), media_type="text/event-stream", headers={"Cache-Control": "no-cache"})
 
@@ -1159,6 +1271,388 @@ def ask(body: dict, x_sz: str | None = Header(default=None)) -> dict:
     else:
         _broadcast({"state": "idle", "text": reply, "envelope": []})
     return out
+
+
+# -- market intelligence: partners, competitors, whom to onboard next ----------------------------------------
+
+@app.get("/api/market")
+def market_view(ai: int = 0, x_sz: str | None = Header(default=None)) -> dict:
+    from .. import market
+
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        if ai:
+            _guard(x_sz)   # spends API credits
+            return market.strategy(cfg, db)
+        return {"partners": market.partner_analysis(cfg, db), "competitors": market.competitor_analysis(cfg, db),
+                "onboard_next": market.onboard_next(cfg, db, 15), "summary": ""}
+
+
+@app.get("/api/market/onboard-next")
+def market_next(limit: int = 15, bucket: str = "", campus: str = "") -> list[dict]:
+    from ..market import onboard_next
+
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        return onboard_next(cfg, db, max(1, min(limit, 100)), bucket or None, campus or None)
+
+
+# -- universities & campuses (OpenStreetMap) ----------------------------------------------------------------
+
+@app.get("/api/campuses")
+def campus_list() -> dict:
+    from ..leadgen import CAMPUSES, coverage, discovered_campuses
+
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        return {"coverage": coverage(cfg, db), "built_in": len(CAMPUSES), "discovered": discovered_campuses(cfg),
+                "last_discovery": db.kv_get("last_run:universities")}
+
+
+@app.post("/api/leadgen/universities")
+def campus_discover(x_sz: str | None = Header(default=None)) -> dict:
+    _guard(x_sz)
+    from ..leadgen import discover_universities
+
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        try:
+            return discover_universities(cfg, db)
+        except RuntimeError as exc:
+            raise HTTPException(502, str(exc)) from exc
+
+
+@app.post("/api/campuses/toggle")
+def campus_toggle(body: dict, x_sz: str | None = Header(default=None)) -> dict:
+    _guard(x_sz)
+    from ..leadgen import set_campus_enabled
+
+    if not set_campus_enabled(load_config(), str(body.get("name", "")), bool(body.get("enabled", True))):
+        raise HTTPException(404, "no such discovered campus")
+    return {"ok": True}
+
+
+# -- Lex: contracts ------------------------------------------------------------------------------------------
+
+@app.get("/api/contracts")
+def contracts_list() -> dict:
+    from .. import contracts as lex
+
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        return {"contracts": lex.contracts(db), "templates": lex.templates(cfg),
+                "partners": [dict(r) for r in db.q("SELECT id, name, stage, status FROM partners ORDER BY name")]}
+
+
+@app.post("/api/contracts")
+def contracts_prepare(body: dict, x_sz: str | None = Header(default=None)) -> dict:
+    _guard(x_sz)
+    from .. import contracts as lex
+
+    cfg = load_config()
+    fields = body.get("fields") or {}
+    if not isinstance(fields, dict):
+        raise HTTPException(400, "fields must be an object")
+    try:
+        pid = int(body["partner_id"]) if body.get("partner_id") else None
+        cid = int(body["id"]) if body.get("id") else None
+        with DB(cfg.db_path) as db:
+            r = lex.prepare(cfg, db, str(body.get("template") or "partner_de"), partner_id=pid, fields=fields, contract_id=cid)
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return {k: v for k, v in r.items() if k != "text"} | {"text": r["text"]}
+
+
+@app.get("/api/contracts/{cid}")
+def contracts_get(cid: int) -> dict:
+    from .. import contracts as lex
+
+    with DB(load_config().db_path) as db:
+        try:
+            return lex.get(db, cid)
+        except ValueError as exc:
+            raise HTTPException(404, str(exc)) from exc
+
+
+@app.get("/api/contracts/{cid}/download")
+def contracts_download(cid: int, fmt: str = "docx") -> FileResponse:
+    from .. import contracts as lex
+
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        try:
+            c = lex.get(db, cid)
+        except ValueError as exc:
+            raise HTTPException(404, str(exc)) from exc
+    path = Path(c["path_docx"] if fmt == "docx" else c["path_md"] or "")
+    root = (cfg.data_dir / "contracts").resolve()
+    if not c.get("path_docx" if fmt == "docx" else "path_md") or not path.is_file() or root not in path.resolve().parents:
+        raise HTTPException(404, "file not available (install the contracts extra for .docx)")
+    return FileResponse(path, filename=path.name.encode("ascii", "ignore").decode() or f"contract.{fmt}")
+
+
+@app.post("/api/contracts/{cid}/status")
+def contracts_status(cid: int, body: dict, x_sz: str | None = Header(default=None)) -> dict:
+    _guard(x_sz)
+    from .. import contracts as lex
+
+    with DB(load_config().db_path) as db:
+        try:
+            lex.set_status(db, cid, str(body.get("status", "")))
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+    return {"ok": True}
+
+
+@app.post("/api/contracts/analyse")
+async def contracts_analyse(request: Request, x_sz: str | None = Header(default=None), x_filename: str = Header(default="draft.txt"),
+                            ai: int = 0) -> dict:
+    """Body = the file (docx / pdf / txt / md), file name in X-Filename. Or JSON {"text": ...}."""
+    _guard(x_sz)
+    from .. import contracts as lex
+
+    data = await request.body()
+    if len(data) > 15_000_000:
+        raise HTTPException(413, "file too large (15 MB max)")
+    cfg = load_config()
+    name = Path(x_filename).name or "draft.txt"
+    if request.headers.get("content-type", "").startswith("application/json"):
+        try:
+            data, name = str(json.loads(data).get("text", "")).encode(), "pasted.txt"
+        except (ValueError, AttributeError) as exc:
+            raise HTTPException(400, "invalid JSON") from exc
+    def review() -> dict:
+        with DB(cfg.db_path) as db:   # opened in the worker thread that uses it
+            return lex.review_file(cfg, db, name, data, ai=bool(ai))
+
+    try:
+        return await asyncio.to_thread(review)
+    except (ValueError, RuntimeError, KeyError) as exc:
+        raise HTTPException(400, f"Could not read the file: {exc}") from exc
+
+
+# -- council: agents' messages, peer review, brains ------------------------------------------------------------
+
+@app.get("/api/council")
+def council_view() -> dict:
+    from .. import council
+
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        return council.overview(cfg, db)
+
+
+@app.post("/api/council/run")
+def council_run(x_sz: str | None = Header(default=None)) -> dict:
+    _guard(x_sz)
+    from .. import council
+
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        r = council.cross_check(cfg, db, autofix=False)
+    _broadcast_agent({"agent": "sentinel", "status": "ok", "summary": f"Peer review: {r['messages']} open, {len(r['new'])} new"})
+    return r
+
+
+@app.post("/api/council/messages/{mid}")
+def council_message(mid: int, body: dict, x_sz: str | None = Header(default=None)) -> dict:
+    _guard(x_sz)
+    from .. import council
+
+    cfg = load_config()
+    action = body.get("action")
+    with DB(cfg.db_path) as db:
+        try:
+            if action == "fix":
+                return {"result": council.apply_fix(cfg, db, mid)}
+            council.set_message(db, mid, {"dismiss": "dismissed", "resolve": "resolved", "reopen": "open"}.get(action, ""))
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+    return {"ok": True}
+
+
+# -- autopilot & approvals ---------------------------------------------------------------------------------------
+
+@app.get("/api/autopilot")
+def autopilot_view() -> dict:
+    from .. import autopilot
+
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        return {"rules": autopilot.rules(cfg), "pending": autopilot.pending(db), "history": autopilot.history(db),
+                "last_run": db.kv_get("last_run:autopilot")}
+
+
+@app.post("/api/approvals/{aid}")
+def approval_decide(aid: int, body: dict, x_sz: str | None = Header(default=None)) -> dict:
+    _guard(x_sz)
+    from .. import autopilot
+
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        try:
+            return autopilot.decide(cfg, db, aid, bool(body.get("approve")))
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+
+
+# -- bridge: admin panel + mobile app ------------------------------------------------------------------------------
+
+@app.get("/api/bridge")
+def bridge_view() -> dict:
+    from .. import bridge
+
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        return bridge.status(cfg, db)
+
+
+@app.post("/api/bridge/webhook")
+async def bridge_webhook(request: Request) -> dict:
+    """Events from the admin panel (Standard Webhooks signature). Open path: the signature is the authentication."""
+    from .. import bridge
+
+    body = await request.body()
+    if len(body) > 1_000_000:
+        raise HTTPException(413, "too large")
+    try:
+        bridge.verify(dict(request.headers), body)
+        event = json.loads(body)
+        if not isinstance(event, dict):
+            raise ValueError("event must be an object")
+    except ValueError as exc:
+        raise HTTPException(401 if "signature" in str(exc) or "header" in str(exc) or "timestamp" in str(exc) or "off" in str(exc) else 400,
+                            str(exc)) from exc
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        return bridge.handle_event(cfg, db, request.headers.get("webhook-id", ""), event)
+
+
+@app.get("/api/bridge/v1/recommendations")
+def bridge_recommendations(authorization: str = Header(default="")) -> dict:
+    """For the admin panel: Setz's onboarding recommendations (Bearer SZ_BRIDGE_TOKEN)."""
+    import hmac
+
+    from ..config import secret
+    from ..market import onboard_next
+
+    token = secret("SZ_BRIDGE_TOKEN")
+    if not token or not hmac.compare_digest(authorization.removeprefix("Bearer ").strip().encode(), token.encode()):
+        raise HTTPException(401, "invalid token")
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        recs = onboard_next(cfg, db, 20)
+    return {"items": [{k: r[k] for k in ("name", "bucket", "category", "campus", "distance_m", "priority", "reasons", "pitch", "status")}
+                      for r in recs]}
+
+
+# -- phone: push-to-talk and the share sheet --------------------------------------------------------------------
+
+@app.get("/talk")
+def talk_page() -> FileResponse:
+    return FileResponse(STATIC / "talk.html")
+
+
+_whisper = None
+_whisper_lock = threading.Lock()
+
+
+def _transcribe(audio_bytes: bytes) -> tuple[str, str]:
+    """Phone recording (webm/ogg/m4a/wav) -> text with the laptop's Whisper (same model as the voice loop)."""
+    global _whisper
+    from ..speech import decode
+
+    audio = decode(audio_bytes)
+    with _whisper_lock:
+        if _whisper is None:
+            from faster_whisper import WhisperModel
+
+            cfg = load_config()
+            name = cfg.get("voice.whisper_model", "small")
+            try:
+                _whisper = WhisperModel(name, device="cuda", compute_type="int8_float16")
+            except Exception:
+                _whisper = WhisperModel(name, device="cpu", compute_type="int8")
+        segments, info = _whisper.transcribe(audio, beam_size=1, vad_filter=True)
+        text = " ".join(s.text for s in segments).strip()
+    return text, (info.language if info.language in ("en", "de") else "en")
+
+
+@app.post("/api/voice/ask-audio")
+async def ask_audio(request: Request, x_sz: str | None = Header(default=None), speak: int = 1) -> dict:
+    """Push-to-talk from the phone: audio in, Setz's answer (text + voice) out."""
+    _guard(x_sz)
+    data = await request.body()
+    if not data:
+        raise HTTPException(400, "no audio")
+    if len(data) > 12_000_000:
+        raise HTTPException(413, "recording too long")
+    try:
+        text, _lang = await asyncio.to_thread(_transcribe, data)
+    except (ImportError, RuntimeError) as exc:
+        raise HTTPException(501, "Speech recognition needs the voice extras on the laptop: pip install -e .[voice]") from exc
+    except Exception as exc:
+        raise HTTPException(400, f"Could not read the recording: {exc}") from exc
+    if not text:
+        return {"text": "", "answer": "I didn't catch that."}
+    out = await asyncio.to_thread(ask, {"text": text, "speak": bool(speak)}, "1")
+    return {"text": text, **out}
+
+
+_SHARE_MAX = 15_000_000
+
+
+@app.post("/share")
+async def share_target(request: Request) -> Response:
+    """Android share sheet -> Setz. Shared items wait in the inbox until you pick what Setz does with them."""
+    import secrets as _secrets
+
+    form = await request.form()
+    cfg = load_config()
+    item = {"id": _secrets.token_hex(6), "at": datetime.now().isoformat(timespec="seconds"),
+            "title": str(form.get("title") or "")[:300], "text": str(form.get("text") or "")[:20000], "url": str(form.get("url") or "")[:2000]}
+    f = form.get("file")
+    if f is not None and hasattr(f, "read"):
+        data = await f.read()
+        if 0 < len(data) <= _SHARE_MAX:
+            inbox = cfg.data_dir / "inbox"
+            inbox.mkdir(exist_ok=True)
+            safe = re.sub(r"[^A-Za-z0-9._-]+", "_", Path(getattr(f, "filename", "") or "shared").name)[-80:] or "shared"
+            dest = inbox / f"{item['id']}-{safe}"
+            dest.write_bytes(data)
+            item["file"] = dest.name
+    with DB(cfg.db_path) as db:
+        items = json.loads(db.kv_get("share:inbox", "[]") or "[]")
+        db.kv_set("share:inbox", json.dumps(([item] + items)[:30], ensure_ascii=False))
+    return RedirectResponse(f"/?shared={item['id']}#approvals", 303)
+
+
+@app.get("/api/share/inbox")
+def share_inbox() -> list[dict]:
+    from ..share import suggest
+
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        return [it | {"suggestions": suggest(it)} for it in json.loads(db.kv_get("share:inbox", "[]") or "[]")]
+
+
+@app.post("/api/share/{sid}")
+def share_act(sid: str, body: dict, x_sz: str | None = Header(default=None)) -> dict:
+    _guard(x_sz)
+    from ..share import act
+
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        items = json.loads(db.kv_get("share:inbox", "[]") or "[]")
+        it = next((i for i in items if i["id"] == sid), None)
+        if it is None:
+            raise HTTPException(404, "not in the inbox")
+        try:
+            result = act(cfg, db, it, str(body.get("action", "")))
+        except (ValueError, RuntimeError) as exc:
+            raise HTTPException(400, str(exc)) from exc
+        db.kv_set("share:inbox", json.dumps([i for i in items if i["id"] != sid], ensure_ascii=False))
+    return result
 
 
 def serve(port: int = 8765) -> None:

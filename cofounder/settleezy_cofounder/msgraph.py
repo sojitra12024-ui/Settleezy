@@ -72,6 +72,8 @@ class Graph:
         result = self.app.acquire_token_silent(self.scopes, account=accounts[0]) if accounts else None
         self._save_cache()
         if not result or "access_token" not in result:
+            if accounts:   # signed in before, but the token can't be renewed silently (e.g. calendar_write added a scope)
+                raise GraphError("Outlook permission changed: re-run `sz auth outlook`")
             raise GraphError("Not signed in to Outlook. Run: sz auth outlook")
         return result["access_token"]
 
@@ -124,11 +126,23 @@ class Graph:
     def me(self) -> dict:
         return self.get("/me", {"$select": "displayName,mail,userPrincipalName,proxyAddresses"})
 
-    def create_reply_draft(self, message_id: str, text: str, reply_all: bool = False) -> dict:
-        """Create a reply draft above the quoted thread. Not sent."""
+    def create_reply_draft(self, message_id: str, text: str, reply_all: bool = False, *,
+                           to: list[str] | None = None, cc: list[str] | None = None) -> dict:
+        """Create a reply draft above the quoted thread. Not sent.
+
+        ``to``/``cc`` override the recipients (follow-ups reply to my own Sent message, which would address me)."""
         action = "createReplyAll" if reply_all else "createReply"
-        draft = self._send_json("POST", f"/me/messages/{message_id}/{action}", {"comment": text})
-        self._send_json("PATCH", f"/me/messages/{draft['id']}", {"categories": [self.category]})
+        payload: dict[str, Any] = {"comment": text}
+        if to or cc:
+            payload["message"] = {
+                "toRecipients": [{"emailAddress": {"address": a}} for a in to or []],
+                "ccRecipients": [{"emailAddress": {"address": a}} for a in cc or []],
+            }
+        draft = self._send_json("POST", f"/me/messages/{message_id}/{action}", payload)
+        try:   # the draft exists now: a failed tag must not make callers retry and create a duplicate
+            self._send_json("PATCH", f"/me/messages/{draft['id']}", {"categories": [self.category]})
+        except (GraphError, httpx.HTTPError):
+            pass
         return draft
 
     def create_draft(self, to: list[str], subject: str, text: str) -> dict:

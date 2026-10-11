@@ -58,6 +58,8 @@ def sync(cfg: Config, db: DB, graph: Graph | None = None, history_days: int | No
             row = normalise(msg, label)
             db.upsert_message(row)
             n += 1
+            if n % 50 == 0:   # one Graph page: don't hold the SQLite write lock while fetching the next one
+                db.conn.commit()
             if row["sent_at"] and (newest is None or row["sent_at"] > newest):
                 newest = row["sent_at"]
         db.conn.commit()
@@ -67,7 +69,11 @@ def sync(cfg: Config, db: DB, graph: Graph | None = None, history_days: int | No
     return counts
 
 
-def sync_calendar(cfg: Config, db: DB, graph: Graph | None = None, days: int = 7) -> int:
+def sync_calendar(cfg: Config, db: DB, graph: Graph | None = None, days: int | None = None) -> int:
+    from .scheduling import DAYS_AHEAD
+
+    # at least as far ahead as meeting slots are suggested, or "free" would just mean "not synced"
+    days = max(days or 0, DAYS_AHEAD + 1)
     graph = graph or Graph(cfg)
     start = datetime.now().astimezone().replace(hour=0, minute=0, second=0, microsecond=0)
     events = graph.calendar_view(start, start + timedelta(days=days))
@@ -89,4 +95,5 @@ def sync_calendar(cfg: Config, db: DB, graph: Graph | None = None, days: int = 7
                 e.get("webLink") or "",
             ),
         )
+    db.kv_set("calendar:synced_until", (start + timedelta(days=days)).strftime("%Y-%m-%dT%H:%M"))
     return len(events)
