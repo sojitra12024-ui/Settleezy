@@ -51,6 +51,7 @@ Add-SzTask "growth-review"   "run growth"      (New-ScheduledTaskTrigger -Weekly
 Add-SzTask "campus-leadgen"  "run leadgen"     (New-ScheduledTaskTrigger -Weekly -DaysOfWeek Sunday -At 9:00pm) -Hidden
 Add-SzTask "pipeline-start"  "run pipeline"    (New-ScheduledTaskTrigger -Weekly -DaysOfWeek Monday -At 7:30am) -Hidden
 Add-SzTask "ig-discover"     "run igdiscover"  (New-ScheduledTaskTrigger -Weekly -DaysOfWeek Tuesday,Friday -At 12:15pm) -Hidden
+Add-SzTask "scribe-learn"    "run scribe"      (New-ScheduledTaskTrigger -Daily -At 9:30pm) -Hidden
 Add-SzTask "universities"    "run universities" (New-ScheduledTaskTrigger -Weekly -DaysOfWeek Sunday -At 8:30pm) -Hidden
 $t4 = New-ScheduledTaskTrigger -Daily -At 8:40am
 $t4.Repetition = (New-ScheduledTaskTrigger -Once -At 8:40am -RepetitionInterval (New-TimeSpan -Hours 1) -RepetitionDuration (New-TimeSpan -Hours 12)).Repetition

@@ -161,7 +161,15 @@ def _contracts(cfg: Config, db: DB) -> Any:
     return {"drafted": [c["title"] for c in auto_prepare(cfg, db)]}
 
 
+def _scribe(cfg: Config, db: DB) -> Any:
+    """Learn from what you sent (incl. how you edited Setz's drafts) and refresh the writing profile."""
+    from .scribe import compare_sent, learn
+
+    return {"compared": compare_sent(cfg, db), **learn(cfg, db)}
+
+
 JOBS: dict[str, Callable[[Config, DB], Any]] = {
+    "scribe": _scribe,
     "universities": _universities,
     "autopilot": _autopilot,
     "bridge": _bridge,

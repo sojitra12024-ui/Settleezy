@@ -53,7 +53,18 @@ def draft_for_item(cfg: Config, db: DB, llm: LLM, graph: Graph, item: Item) -> s
             + (f"\n\nOutreach playbook:\n{playbook[:4000]}" if playbook else "")
             + f"\n\nThread (oldest first):\n{thread}"
         )
-    body = llm.cloud(task, _system(cfg), effort="medium", max_tokens=4000)
+    if cfg.get("scribe.enabled", True):
+        # Scribe decides like the founder (reschedule, doubts, contract changes...) and writes in their voice
+        from .scribe import draft_reply
+
+        last_in = db.one("SELECT * FROM messages WHERE id=?", (item.message_id,)) if item.kind == "reply" else None
+        out = draft_reply(cfg, db, incoming=(last_in["body_text"] if last_in else ""), subject=item.subject,
+                          sender_name=item.counterpart_name, sender_email=item.counterpart, conversation_id=item.conversation_id,
+                          thread=thread, kind="reply" if item.kind == "reply" else "follow_up", llm=llm,
+                          followup_number=item.followup_number)
+        body = out["text"]
+    else:
+        body = llm.cloud(task, _system(cfg), effort="medium", max_tokens=4000)
     to = cc = None
     if item.kind == "followup":
         # replying to my own Sent message would address me: send the draft to the original external recipients

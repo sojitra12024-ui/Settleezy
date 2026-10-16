@@ -123,6 +123,20 @@ def _hermes(cfg: Config, db: DB, rep: Report) -> None:
                                     "Send the follow-up drafts"))
     if rh is not None and rh > 24:
         rep.findings.append(Finding("slow-replies", f"Median reply time is {rh:.0f} h", "Partners and students expect same-day replies.", "warn"))
+    try:   # Scribe: how close the drafts are to what you actually send
+        from .scribe import report as scribe_report
+
+        sr = scribe_report(cfg, db)
+        if sr["drafts_compared"]:
+            rep.metrics["Drafts kept"] = f"{sr['avg_similarity']:.0%}"
+        if not sr["learned_at"] or (_ago_days(sr["learned_at"]) or 99) > 14:
+            rep.findings.append(Finding("scribe-stale", "Your writing profile needs a refresh",
+                                        "Setz drafts best when it has learned from your recent replies.", "info", "Run sz scribe learn"))
+        elif sr["drafts_compared"] >= 5 and sr["avg_similarity"] < 0.5:
+            rep.findings.append(Finding("scribe-low", f"You rewrite most drafts ({sr['avg_similarity']:.0%} kept)",
+                                        "Scribe learns from your edits nightly; check its decisions on the Writing tab.", "warn"))
+    except Exception:
+        pass
     rep.summary = f"{len(replies)} replies owed ({len(high)} urgent), {len(fus)} follow-ups due."
 
 

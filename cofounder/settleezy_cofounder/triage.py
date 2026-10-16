@@ -123,7 +123,7 @@ def needs_reply(cfg: Config, db: DB, llm: LLM | None = None, since_days: int = 2
 
 def followups_due(cfg: Config, db: DB, since_days: int = 60) -> list[Item]:
     """My message is the last one in the thread and the wait exceeded the cadence."""
-    cadence = cfg.get("followup.cadence_days", [4, 7, 14])
+    cadence = cfg.get("followup.cadence_days", [7, 12, 14])
     me = cfg.my_addresses
     items = []
     for m in _latest_per_conversation(db, since_days):

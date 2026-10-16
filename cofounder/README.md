@@ -157,6 +157,7 @@ sz council                  what the agents found in each other's work   (sz cou
 sz autopilot                waiting for your OK   (sz autopilot approve 3 | run | rules)
 sz leadgen unis             every university and college in Berlin (OpenStreetMap) -> campuses + Buddy-platform leads
 sz bridge sync              admin panel + app: partners, members, venue requests (docs/ADMIN_BRIDGE.md)
+sz scribe try "<email>"     how you'd answer it: the decision + the draft in your voice   (sz scribe learn | sz scribe)
 ```
 
 ## Lead finder: ask for leads in plain words
@@ -564,6 +565,53 @@ The admin panel on your website controls the app, and Setz connects to it:
 The data flows into the agents (Quant's goals, Atlas's partner health, Vega's "onboard next") and the command
 center. The API the panel needs to expose, the webhook format, an example sender and the OpenAPI file are in
 [`docs/ADMIN_BRIDGE.md`](docs/ADMIN_BRIDGE.md).
+
+## Scribe: drafts that sound like you and decide like you
+
+Scribe learns from your last 90 days of replies. For each one it looks at what the other person wrote and what you
+answered. From that it learns two things.
+
+**How you write:**
+- Greetings: "Dear Name" by default, the full name when someone writes formally, "Hi" only when they did.
+- "I hope you are doing well." on its own line.
+- Your sign-offs and phrases.
+- Your two registers: quick replies of 2–4 sentences for logistics, and polished, structured emails for terms,
+  contracts and recaps.
+- Language: English even to German emails, unless the other person writes "du" or only speaks German. In German,
+  always "Sie".
+
+**What you decide** in each situation:
+- **They reschedule:** accept, propose a slot (often Monday next week), share the booking link.
+- **They have doubts:** answer point by point (no fees, no commission, the partner chooses the benefit, QR or app
+  code), then one call to action.
+- **They send contract changes:** confirm the edit and ask for all changes in one round.
+- **Weak offer:** compare it with their Groupon or NeoTaste deal, ask for a comparable benefit, give a date.
+- **They decline:** stay gracious and keep the door open.
+- **No-shows:** ask for an update, and set a firm boundary after a second one.
+- **Follow-ups:** a soft nudge, then a reason, then a deadline. Then stop.
+
+**Every draft:**
+1. Scribe classifies the email: situation, language, register, and the questions they asked.
+2. It applies your moves for that situation, filling in free calendar slots and your booking link.
+3. Claude writes the reply with your rules and your 3 most similar past replies.
+4. Scribe checks it against your style (greeting, sign-off, length, phrases you never use).
+
+Anything only you can decide is marked `[[CHECK: …]]`. Drafts land in Outlook → Drafts. **Nothing is ever sent.**
+
+It keeps learning. Every night it compares its drafts with what you actually sent. Phrases you keep deleting go on
+its "never use" list, and situations where you rewrite a lot lower its confidence.
+
+```
+sz scribe learn             learn from your mail (also runs every night)
+sz scribe                   what it learned: style + a decision table per situation
+sz scribe try "Hello Mr. Sojitra, unfortunately I can't make it today…" --sender "Ingo Schneider"
+```
+On the dashboard, the **Writing** tab lets you paste any email and shows the decision and the draft.
+
+To set it up:
+1. Put your Calendly link in `[scribe] booking_link`.
+2. Copy `style_seed.json` (from your one-off mail analysis) into `cofounder/data/`. It holds your rules and decisions
+   until Scribe has learned enough examples of its own. Your profile and examples stay in `data/` and never go into git.
 
 ## What's next
 See [`ROADMAP.md`](ROADMAP.md) for researched open-source projects that could be added next: a WhatsApp + Instagram DM inbox, partner impact reports, a content engine, OpenStreetMap venue discovery, app analytics, CRM, e-signatures, newsletters, memory and more, ranked by business impact.
