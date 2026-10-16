@@ -138,3 +138,8 @@ def test_api_try_and_report(cfg, db):
     assert r["plan"]["intent"] == "reschedule_request" and r["text"]
     rep = c.get("/api/scribe").json()
     assert any(d["intent"] == "reschedule_request" for d in rep["decisions"])
+
+
+def test_empathy_only_for_real_bad_news(cfg, db):
+    assert "empathy" not in scribe.plan(cfg, db, "We are not sure how students will prove they are members?")["moves"]
+    assert scribe.plan(cfg, db, "I was ill last week, could we reschedule?")["moves"][0] == "empathy"

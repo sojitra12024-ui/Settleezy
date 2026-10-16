@@ -462,7 +462,7 @@ def plan(cfg: Config, db: DB, incoming: str, *, subject: str = "", sender_name: 
         ladder, note = FOLLOW_UP_LADDER[min(3, max(1, followup_number))]
         moves = list(dict.fromkeys(ladder + [m for m in moves if m not in ladder and m != "deadline"]))
         pol = {**pol, "notes": (pol.get("notes", "") + " " + note).strip(), "source": pol["source"] + f", follow-up #{followup_number}"}
-    if re.search(r"(sick|unwell|ill\b|hospital|krank|arzt|urlaub|vacation|holiday|family emergency)", incoming or "", re.I) and "empathy" not in moves:
+    if re.search(r"\b(sick|unwell|ill|hospital|krank|beim arzt|im urlaub|on vacation|on holiday|family emergency|condolence|passed away|verstorben)\b", incoming or "", re.I) and "empathy" not in moves:
         moves.insert(0, "empathy")
     facts: dict[str, Any] = {}
     checks: list[str] = []
