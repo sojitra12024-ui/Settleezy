@@ -20,6 +20,7 @@ def msg(db, id, conv, folder, frm, to, body, days_ago, subject="Partnership", au
 
 
 def test_needs_reply_and_followups(cfg, db):
+    cfg.raw.setdefault("followup", {})["cadence_days"] = [4, 7, 14]
     # partner asked a question -> reply owed
     msg(db, "a1", "c1", "inbox", "anna@cafe.de", ME, "Could you send the student discount details?", 1)
     # newsletter -> ignored
@@ -40,6 +41,7 @@ def test_needs_reply_and_followups(cfg, db):
 
 
 def test_followup_cadence_counts_previous_followups(cfg, db):
+    cfg.raw.setdefault("followup", {})["cadence_days"] = [4, 7, 14]
     msg(db, "o1", "c9", "sent", ME, "lea@bar.de", "Would you be interested?", 20)
     msg(db, "o2", "c9", "sent", ME, "lea@bar.de", "Just checking in - would you be interested?", 8)
     fu = followups_due(cfg, db)
