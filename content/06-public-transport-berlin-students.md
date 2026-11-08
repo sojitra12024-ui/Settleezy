@@ -1,7 +1,7 @@
 ---
 title: "Public Transport in Berlin for Students: Semesterticket vs Deutschlandticket (2026)"
 slug: /guides/public-transport-berlin-students/
-meta_description: "The cheapest way for students to get around Berlin in 2026: Deutschland-Semesterticket (€37.80/month), Deutschlandticket (€63), bikes, and how to avoid the €60 fine."
+meta_description: "Cheapest ways for students to get around Berlin in 2026: Deutschland-Semesterticket (€37.80/month), Deutschlandticket (€63), bikes, and avoiding the €60 fine."
 focus_query: "Berlin public transport students cheapest"
 schema: Article + FAQPage
 ---

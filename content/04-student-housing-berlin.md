@@ -1,7 +1,7 @@
 ---
 title: "How to Find Student Housing in Berlin Without Getting Scammed (2026)"
 slug: /guides/student-housing-berlin/
-meta_description: "Where international students find rooms in Berlin, what they cost in 2026 (€659 average WG room), the 8 red flags of housing scams, and your rights as a tenant."
+meta_description: "Where international students find rooms in Berlin, 2026 prices (€659 average WG room), 8 red flags of housing scams, and your rights as a tenant."
 focus_query: "student housing Berlin international students"
 schema: Article + HowTo + FAQPage
 ---

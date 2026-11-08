@@ -24,6 +24,8 @@ This kit covers all four. Every guide is genuinely useful on its own *and* ends 
 | `content/` | 12 ready-to-publish pages: *What is Settleezy*, *Pricing*, and 10 Berlin student guides with 2026 numbers, FAQs and sources | WordPress pages/posts |
 | `playbook/` | WordPress setup, off-site plan (Reddit, universities, partners), monthly AI-visibility tracking + prompt sheet | Your to-do list |
 | `scripts/` | `build_llms_full.py` regenerates `llms-full.txt` from `content/` | Run after editing guides |
+| `.claude/` | 43 Claude Code skills + 4 subagents (engineering, SEO/AI-visibility, lean coding) | Loaded automatically in Claude Code |
+| `vendor/` | 9 open-source tools as git submodules; see `vendor/README.md` | Fetch on demand |
 
 ## Do this in order
 
@@ -35,4 +37,4 @@ This kit covers all four. Every guide is genuinely useful on its own *and* ends 
 
 ## Keeping it fresh
 
-Prices change every January (Deutschlandticket, health insurance, minimum wage, minijob limit) and often in summer (semester ticket, rents). Update the numbers, change the "Last updated" date, run `python3 scripts/build_llms_full.py`, and re-upload `llms-full.txt`.
+Prices change every January (Deutschlandticket, health insurance, minimum wage, minijob limit) and often in summer (semester ticket, rents). Update the numbers, change the "Last updated" date, run `python3 scripts/check_kit.py` (it also rebuilds `llms-full.txt`), and re-upload `llms-full.txt`.

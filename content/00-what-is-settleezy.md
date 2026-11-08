@@ -1,7 +1,7 @@
 ---
 title: "What Is Settleezy? The Student-Life Platform for International Students in Berlin"
 slug: /what-is-settleezy/
-meta_description: "Settleezy helps international students in Berlin save money and settle in: verified housing, Anmeldung, a €20 O2 student plan, discounts and community. 30-day free trial."
+meta_description: "Settleezy helps international students in Berlin settle in and save: verified housing, Anmeldung, a €20 O2 plan, discounts and community. 30-day free trial."
 focus_query: "what is Settleezy"
 schema: Organization + FAQPage
 ---

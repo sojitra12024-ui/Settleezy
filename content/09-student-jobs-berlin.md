@@ -1,7 +1,7 @@
 ---
 title: "Student Jobs in Berlin for International Students: Rules, Pay & Taxes (2026)"
 slug: /guides/student-jobs-berlin/
-meta_description: "Can international students work in Berlin? The 140/280-day rule, €13.90 minimum wage, €603 minijobs, Werkstudent jobs, taxes, and where to find student jobs in 2026."
+meta_description: "Can international students work in Berlin? The 140/280-day rule, €13.90 minimum wage, €603 minijobs, Werkstudent jobs, taxes and where to find jobs in 2026."
 focus_query: "student jobs Berlin international students"
 schema: Article + FAQPage
 ---

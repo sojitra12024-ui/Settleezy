@@ -1,7 +1,7 @@
 ---
 title: "Cheapest SIM Card and Mobile Plans for Students in Berlin (2026)"
 slug: /guides/sim-card-berlin-students/
-meta_description: "Prepaid vs contract SIM cards for international students in Berlin: what you need to activate one, typical prices, and the €20 unlimited Settleezy–O2 student plan."
+meta_description: "Prepaid vs contract SIM cards for international students in Berlin: what you need to activate one, typical prices, and the €20 unlimited Settleezy–O2 plan."
 focus_query: "best SIM card for students in Berlin"
 schema: Article + FAQPage
 ---
