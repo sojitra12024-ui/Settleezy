@@ -1,7 +1,7 @@
 ---
 title: "Free and Cheap Things to Do in Berlin for Students (2026)"
 slug: /guides/free-things-to-do-berlin-students/
-meta_description: "30 free and cheap things to do in Berlin for international students in 2026: free museums and memorials, parks, €11–€18 opera and concerts with ClassicCard, student discounts and more."
+meta_description: "30 free and cheap things to do in Berlin for students in 2026: free museums and memorials, parks, €11–€18 opera with ClassicCard, and student discounts."
 focus_query: "free things to do in Berlin students"
 schema: Article + ItemList + FAQPage
 ---

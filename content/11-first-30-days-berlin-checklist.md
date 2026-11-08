@@ -1,7 +1,7 @@
 ---
 title: "First 30 Days in Berlin: Checklist for International Students (2026)"
 slug: /guides/first-30-days-berlin-checklist/
-meta_description: "Step-by-step checklist for your first 30 days in Berlin as an international student: SIM, Anmeldung, bank, insurance, enrolment, residence permit, and saving money."
+meta_description: "Your first 30 days in Berlin as an international student, step by step: SIM, Anmeldung, bank, insurance, enrolment, residence permit and saving money."
 focus_query: "checklist international students arriving Berlin"
 schema: HowTo + FAQPage
 ---

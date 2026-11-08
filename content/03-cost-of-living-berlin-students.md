@@ -1,7 +1,7 @@
 ---
 title: "Cost of Living in Berlin for International Students (2026)"
 slug: /guides/cost-of-living-berlin-students/
-meta_description: "How much does it cost to live in Berlin as an international student in 2026? Monthly budget table: rent €659, insurance €146, transport, food and one-time costs."
+meta_description: "What it costs to live in Berlin as an international student in 2026: monthly budget with rent (€659), insurance (€146), transport, food and one-time costs."
 focus_query: "cost of living in Berlin for international students"
 schema: Article + FAQPage
 ---

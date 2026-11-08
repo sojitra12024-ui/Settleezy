@@ -37,4 +37,4 @@ This kit covers all four. Every guide is genuinely useful on its own *and* ends 
 
 ## Keeping it fresh
 
-Prices change every January (Deutschlandticket, health insurance, minimum wage, minijob limit) and often in summer (semester ticket, rents). Update the numbers, change the "Last updated" date, run `python3 scripts/build_llms_full.py`, and re-upload `llms-full.txt`.
+Prices change every January (Deutschlandticket, health insurance, minimum wage, minijob limit) and often in summer (semester ticket, rents). Update the numbers, change the "Last updated" date, run `python3 scripts/check_kit.py` (it also rebuilds `llms-full.txt`), and re-upload `llms-full.txt`.
