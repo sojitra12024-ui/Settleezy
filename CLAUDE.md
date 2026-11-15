@@ -168,7 +168,7 @@ Do not assume a tool can do something. If a workflow needs a capability that is 
 the smallest way to add it.
 
 ## Command Centre
-The SETZ Command Centre is a private Claude artifact (link in `Setz/README.md`, never in this repository). It reads
+The SETZ Command Centre is a private Claude artifact (link in `Setz/command-centre.md`, never in this repository). It reads
 Outlook, the calendar, the `Setz` knowledge files and the routines list live, and has no tool that sends or changes
 anything. It keeps two collections in its own store, which you reach with the artifact data tool:
 - `approvals`: when you prepare a Level 2 action, add a document `{title, agent, level, target, action, reversible,
