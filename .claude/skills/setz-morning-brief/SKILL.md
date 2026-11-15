@@ -15,7 +15,8 @@ Gather in parallel, then write one brief. Read-only except for the files noted a
 4. **Deadlines and tasks**: due or overdue items in `Setz/Log/tasks.md`.
 5. **Settleezy updates**: any change worth knowing in `Setz/Settleezy/growth.md` or from the latest routine
    reports. Skip this section when nothing changed.
-6. **Operational issues**: anything broken or at risk (failed routine, bounced emails, a connector that is down).
+6. **Radar**: run the `setz-radar` checks and include what crosses a threshold.
+7. **Operational issues**: anything broken or at risk (failed routine, bounced emails, a connector that is down).
 
 ## Output (short enough to read on the phone)
 - **Top five priorities today**, each one line with the reason it is on the list.

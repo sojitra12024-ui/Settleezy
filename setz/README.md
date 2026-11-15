@@ -26,8 +26,8 @@ connectors and schedules. This plan is based on what was actually available in M
 | Part | Where | Why |
 |---|---|---|
 | Setz's core instructions | `CLAUDE.md` (Claude Code) and `setz/project-instructions.md` (Claude Project) | Same identity on every surface |
-| 15 specialist agents | `.claude/agents/` | Real subagents with their own context |
-| Council, briefs, inbox workflow | `.claude/skills/` | Reusable workflows |
+| 25 specialist agents | `.claude/agents/` | Real subagents with their own context |
+| Council, decision analysis, radar, accountability report, briefs, inbox workflow | `.claude/skills/` | Reusable workflows |
 | Permission enforcement | `.claude/settings.json` | Claude Code must ask before send, invite or delete |
 | Knowledge and memory | OneDrive folder `Setz` | One private source, readable by every session, routine and device |
 | Schedules | Claude routines | Run in the cloud without the laptop |
@@ -35,36 +35,32 @@ connectors and schedules. This plan is based on what was actually available in M
 **Keep business knowledge out of this repository: it is public.** Only instructions live here.
 
 ### The knowledge folder (OneDrive)
+Created and loaded on 15 Nov 2026 (25 files; index in `Setz/README.md`).
 ```
 Setz/
+  README.md    index of collections, record format, statuses
   Personal/    profile.md · writing-style.md · recurring.md
-  Settleezy/   company.md · business-model.md · product.md · partners.md · universities.md
-               competitors.md · growth.md · finance.md · roadmap.md · contracts/
-  Log/         decisions.md · tasks.md · followups.md · briefings/
+  Settleezy/   company · business-model · product · roadmap · partners · universities · competitors
+               growth · kpis · finance · funding · marketing · operations · projects · contracts/
+  Log/         decision-register.md · activity.md · discrepancies.md · tasks.md · followups.md
+               automation-register.md · briefings/
 ```
 `Personal` and `Settleezy` are the two knowledge environments. Setz reads both; business agents get
 `Settleezy` only, plus whatever personal detail their task needs.
 
-## Stages
+## Setz 2.0: phases and state (15 Nov 2026)
 
-1. **Configure Setz.** Done in this repository: identity, hierarchy, permissions, knowledge rules.
-2. **Specialist agents.** Done: 15 agents with scope, tools as they really are, and a fixed report format.
-3. **Council.** Done: ten personas, blind first round, debate, consolidated recommendation with dissent.
-4. **Connect applications**, in this order:
-   1. Outlook and calendar: already connected.
-   2. Create the `Setz` folder in OneDrive and load the knowledge pack. *Needs your go-ahead.*
-   3. Tasks: use `Setz/Log/tasks.md`. Microsoft To Do needs a connector with the Tasks permission; none is
-      available today.
-   4. Settleezy website and app: public pages can be monitored now. App and admin data need an export or API.
-   5. Instagram and LinkedIn analytics: finish connecting Windsor.ai in claude.ai → Settings → Connectors.
-5. **Automations** (Claude routines, Europe/Berlin). *Needs your go-ahead.*
-   - Morning brief, weekdays 07:45 → `setz-morning-brief`
-   - Evening review, weekdays 18:45 → `setz-evening-review`
-   - Weekly intelligence, Mondays 07:15 → `setz-weekly-intelligence`
-   - Existing outreach tracker stays as it is.
-6. **Voice and Sett the Fox.** See below. Optional, after the rest works.
-7. **Test whole workflows**, for example: "Setz, check my Outlook, identify all unanswered partner emails,
-   retrieve their previous conversations, prepare personalised responses and organise follow-ups in my calendar."
+| Phase | Content | State |
+|---|---|---|
+| 1 Core intelligence | Orchestration rules, 25 agents, decision analysis and Decision Register, radar, accountability report, quality gate, knowledge base in OneDrive | Configured. Tested live: knowledge base write and read-back; morning brief on real mailbox and calendar data. Not yet tested: a run with several agents in parallel, the council, a full decision analysis |
+| 2 Business intelligence | Dashboard, KPIs, charts, financial intelligence | Not started. KPI definitions exist (`kpis.md`); every value is "Insufficient data" until app, payment and accounting data are available |
+| 3 CRM and operations | Lead and partner records, pipeline, tasks and projects | Not started. Open decision: which existing store holds the records |
+| 4 Research and growth | Research reports, competitor view, marketing command centre | Agents exist; no reports produced |
+| 5 Communication and audio | Executive inbox, meeting intelligence, voice | `setz-inbox` exists, not yet run on the live inbox. Voice: see below |
+| 6 Automation | Daily, weekly, monthly routines and alerts | One routine runs (outreach tracker). Three proposed, not created |
+
+Earlier stage list: identity, agents and council are done; the knowledge folder is loaded; routines and the
+fox are still open.
 
 ## Set-up steps for you
 
@@ -99,4 +95,4 @@ Recommended order: phone side button first (two minutes, real Setz). Then decide
 API key and a model purchase.
 
 ## What stays out of scope
-New backends, databases, dashboards or apps. The earlier prototype in `cofounder/` is frozen.
+New backends, databases or apps. A dashboard, when Phase 2 starts, is a Claude artifact fed from existing records, not a hosted application. The earlier prototype in `cofounder/` is frozen.

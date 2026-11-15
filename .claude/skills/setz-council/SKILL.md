@@ -9,7 +9,7 @@ The council exists to improve a decision, not to agree with it. Ten answers that
 ## Before you convene
 1. Restate the decision as one question with the options on the table. If it is vague, ask Mruddual one
    clarifying question first.
-2. Read the relevant knowledge files in `Setz/Settleezy/` (and `Setz/Log/decisions.md` for earlier decisions on
+2. Read the relevant knowledge files in `Setz/Settleezy/` (and `Setz/Log/decision-register.md` for earlier decisions on
    the same topic). Write a one-page **brief**: the question, the facts with their dates, what is unknown, the
    constraints (money, time, team). Every member gets the same brief and nothing else from this conversation.
 
@@ -42,8 +42,8 @@ Give Mruddual:
 6. **Next steps**, each tagged `[autonomous]`, `[approval]` or `[explicit]`.
 7. A table: member, position, confidence, changed mind (yes/no).
 
-Then write the decision (once Mruddual makes it) to `Setz/Log/decisions.md` with the date, the options
-considered and the reason.
+Then write the decision (once Mruddual makes it) to `Setz/Log/decision-register.md` using the entry format in
+`setz-decision` (ID, alternatives, council contributions with dissent, reasoning, evidence, review date).
 
 ## Rules
 - Members argue from their role's incentives. They use only facts from the brief or sources they cite.

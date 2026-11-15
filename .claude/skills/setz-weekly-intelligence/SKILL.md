@@ -20,3 +20,9 @@ Run these agents in parallel and give each only what it needs:
 5. **Decisions needed from you.** If one is strategic, offer to convene the council.
 
 Save to `Setz/Log/briefings/YYYY-Www-weekly.md` and update the knowledge files the agents flagged.
+
+## Added in Setz 2.0
+- **Decisions due for review**: run the review mechanism in `setz-decision`.
+- **Agent accountability**: a five-line summary from `setz-accountability` (failures first).
+- **Radar**: include `setz-radar` items for the week ahead.
+- Have `quality-audit` check every number in the report before it is shown; state the verdict.
