@@ -31,6 +31,7 @@ connectors and schedules. This plan is based on what was actually available in M
 | Permission enforcement | `.claude/settings.json` | Claude Code must ask before send, invite or delete |
 | Knowledge and memory | OneDrive folder `Setz` | One private source, readable by every session, routine and device |
 | Schedules | Claude routines | Run in the cloud without the laptop |
+| Command Centre (interface, Sett the Fox, voice, council, approvals) | A private Claude artifact with connector access | Live data without a backend; works in the Claude app and on claude.ai |
 
 **Keep business knowledge out of this repository: it is public.** Only instructions live here.
 

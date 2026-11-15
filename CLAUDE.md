@@ -167,6 +167,18 @@ Notes:
 Do not assume a tool can do something. If a workflow needs a capability that is missing, say what is missing and
 the smallest way to add it.
 
+## Command Centre
+The SETZ Command Centre is a private Claude artifact (link in `Setz/README.md`, never in this repository). It reads
+Outlook, the calendar, the `Setz` knowledge files and the routines list live, and has no tool that sends or changes
+anything. It keeps two collections in its own store, which you reach with the artifact data tool:
+- `approvals`: when you prepare a Level 2 action, add a document `{title, agent, level, target, action, reversible,
+  status: "pending", created}`. An item Mruddual set to `approved` there counts as his approval for exactly that
+  item: carry it out, set `status: "done"` with the result, and log it. `rejected` and `changes` are logged and not
+  acted on. Level 3 actions never go through this inbox.
+- `council`: sessions run on the page. Copy any with a `decision` and `inRegister: false` into the Decision Register,
+  then set `inRegister: true`.
+Check both collections at the start of every brief and evening review.
+
 ## Daily rhythm
 - Morning: `setz-morning-brief`. Evening: `setz-evening-review`. Monday: `setz-weekly-intelligence`.
 - The inbox workflow ("check my Outlook, draft replies, organise follow-ups") is `setz-inbox`.
