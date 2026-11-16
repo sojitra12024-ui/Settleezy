@@ -32,6 +32,7 @@ connectors and schedules. This plan is based on what was actually available in M
 | Knowledge and memory | OneDrive folder `Setz` | One private source, readable by every session, routine and device |
 | Schedules | Claude routines | Run in the cloud without the laptop |
 | Command Centre (interface, Sett the Fox, voice, council, approvals) | A private Claude artifact with connector access | Live data without a backend; works in the Claude app and on claude.ai |
+| Setz on the laptop and phone, offline-capable (OpenJarvis) | `setz/openjarvis/` | Open-source local agent with the Setz prompt and skills; no access to the connectors |
 
 **Keep business knowledge out of this repository: it is public.** Only instructions live here.
 
