@@ -496,6 +496,20 @@ def pending_approvals() -> str:
         return json.dumps(pending(db), ensure_ascii=False, default=str)
 
 
+@server.tool()
+def draft_like_me(email_text: str, sender_name: str = "", subject: str = "") -> str:
+    """Scribe: decide how the founder would answer this email (situation, moves, register, open checks) and draft the
+    reply in their voice. Returns the plan and the text; nothing is saved or sent."""
+    from .scribe import draft_reply
+
+    cfg, db = _db()
+    with db:
+        out = draft_reply(cfg, db, incoming=email_text, sender_name=sender_name, subject=subject, record=False)
+        p = out["plan"]
+        return json.dumps({"situation": p["situation"], "register": p["register"], "language": p["lang"], "decision": p["move_labels"],
+                           "checks": p["checks"], "confidence": p["confidence"], "draft": out["text"]}, ensure_ascii=False)
+
+
 def main() -> None:
     server.run("stdio")
 

@@ -35,6 +35,7 @@ SCHEDULE: dict[str, tuple[str, list[int], list[str]]] = {
     "growth": ("Weekly growth review", [0], ["07:15"]),
     "learn": ("Re-learn your writing voice", [6], ["20:00"]),
     "universities": ("Universities & campuses (OSM)", [6], ["20:30"]),
+    "scribe": ("Re-learn how you write and decide", ALL, ["21:30"]),
     "autopilot": ("Autopilot: tidy, draft, ask for approvals", ALL, [f"{h:02d}:40" for h in range(8, 21)]),
     "bridge": ("Admin panel + app sync", ALL, [f"{h:02d}:20" for h in range(7, 23)]),
 }
@@ -42,7 +43,7 @@ JOB_AGENT = {"mail": "hermes", "track": "hermes", "drafts": "hermes", "learn": "
              "enrich": "hunter", "pipeline": "hunter", "igdiscover": "nova", "instagram": "nova", "growth": "quant",
              "calendly": "chrono", "ops": "atlas", "doctor": "sentinel", "agents": "setz", "brain": "setz", "brief": "setz",
              "morning": "setz",
-             "universities": "campus", "autopilot": "setz", "bridge": "bridge", "council": "sentinel", "contracts": "lex"}
+             "universities": "campus", "autopilot": "setz", "bridge": "bridge", "council": "sentinel", "contracts": "lex", "scribe": "hermes"}
 PLAYBOOKS: dict[str, dict[str, Any]] = {
     "prospecting": {"label": "Prospecting run", "steps": ["leadgen", "enrich", "igdiscover", "brain", "pipeline"],
                     "what": "Find venues near campuses and on Instagram, read their Impressum, learn, start outreach"},
@@ -50,7 +51,7 @@ PLAYBOOKS: dict[str, dict[str, Any]] = {
               "what": "Sync Outlook, match replies, write reply and follow-up drafts"},
     "intelligence": {"label": "Market intelligence", "steps": ["scrape", "instagram", "agents", "growth"],
                      "what": "Competitor listings, Instagram numbers, agent reports, growth review"},
-    "learning": {"label": "Brain refresh", "steps": ["brain", "learn"],
+    "learning": {"label": "Brain refresh", "steps": ["brain", "learn", "scribe"],
                  "what": "Refresh memories, retrain the lead model, re-learn your writing voice"},
     "expansion": {"label": "Expansion scan", "steps": ["universities", "leadgen", "scrape", "enrich", "agents"],
                   "what": "Map every university, the venues around them and competitor listings; rank whom to onboard next"},

@@ -32,7 +32,7 @@ calendly_link = ""                      # optional: offered as "or pick a time h
 ignore_domains = []                     # e.g. ["@hostinger.com", "@stripe.com"]
 
 [followup]
-cadence_days = [4, 7, 14]               # follow-up #1 after 4 days, #2 after 7 more, breakup after 14; `sz learn` suggests better values
+cadence_days = [7, 12, 14]              # your rhythm: #1 after ~a week, #2 ~12 days later, #3 (firm, with a deadline) 2 weeks later; then stop
 
 [drafts]
 max_per_run = 15
@@ -128,6 +128,16 @@ meeting_reminder_minutes = 10
 [agents]
 ai_briefing = true          # Setz writes the team briefing with Claude when an API key is set (otherwise a plain summary)
 parallel = true             # all agents analyse at the same time, each on its own database connection
+
+[scribe]
+# Your writing double: learns how you write AND what you decide (reschedule, doubts, contract changes, weak offers,
+# declines, follow-ups...) from your last 90 days of replies. `sz scribe learn` (nightly), Writing tab, `sz scribe try`.
+enabled = true
+learn_days = 90
+booking_link = ""             # your Calendly "partner discovery call" link, offered when you'd share it
+reply_language = "founder"    # founder: English unless they only speak German or write "du" (your habit) · mirror: German to German
+keep_quirks = false           # true: also copy quick-reply habits like "Thankyou" as one word
+min_examples = 4              # situations with fewer of your replies use data/style_seed.json, then built-in defaults
 
 [council]
 # Agents check each other's work after every run (sz council). Safe fixes that only tidy Setz's own data:

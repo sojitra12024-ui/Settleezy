@@ -287,6 +287,7 @@ dialog .dhead { display: flex; justify-content: space-between; align-items: cent
     <button data-page="schedule" role="tab">Schedule</button>
     <button data-page="growth" role="tab">Growth</button>
     <button data-page="market" role="tab">Market</button>
+    <button data-page="writing" role="tab">Writing</button>
     <button data-page="contracts" role="tab">Contracts <span class="count" id="c-contracts"></span></button>
     <button data-page="approvals" role="tab">Autopilot <span class="count" id="c-approvals"></span></button>
     <button data-page="leads" role="tab">Leads & competitors</button>
@@ -454,6 +455,24 @@ dialog .dhead { display: flex; justify-content: space-between; align-items: cent
   <section class="card span-8"><h2>Partner performance <small>redemptions per week since going live</small></h2><div class="scroll" style="max-height:420px"><table id="mk-perf"></table></div></section>
   <section class="card span-4"><h2>Universities & campuses <span class="seg"><button id="mk-unis" title="Find every university and college in Berlin on OpenStreetMap">Find all (OSM)</button></span></h2>
     <div id="mk-campuses" class="scroll" style="max-height:380px"></div></section>
+</section>
+
+<!-- ================= WRITING (Scribe) ================= -->
+<section class="page" id="page-writing">
+  <section class="kpis span-12" id="wr-kpis"></section>
+  <section class="card span-7"><h2>Try it <small>paste an email you received: see what you would decide and the draft</small></h2>
+    <form id="wr-form" class="form-grid">
+      <label style="grid-column:1/-1">From (name)<input name="sender" id="wr-sender" placeholder="e.g. Ingo Schneider"></label>
+      <label style="grid-column:1/-1">Their email<textarea name="text" id="wr-text" rows="7" placeholder="Paste the email here…"></textarea></label>
+      <div style="grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap"><button class="primary">Draft my reply</button>
+        <button type="button" class="small" data-wrsample="reschedule">Example: they reschedule</button>
+        <button type="button" class="small" data-wrsample="doubt">Example: they have doubts</button>
+        <button type="button" class="small" data-wrsample="contract">Example: contract changes</button></div>
+    </form>
+    <div id="wr-out"></div></section>
+  <section class="card span-5"><h2>Your style <small id="wr-learned"></small></h2><div id="wr-style"></div></section>
+  <section class="card span-12"><h2>How you decide <small>what you do in each situation, learned from your replies</small></h2>
+    <div class="scroll" style="max-height:560px"><table id="wr-decisions"></table></div></section>
 </section>
 
 <!-- ================= CONTRACTS ================= -->
@@ -1169,7 +1188,7 @@ $("#p-form").addEventListener("submit", async (e) => { e.preventDefault();
 
 try { const t = localStorage.getItem("sz-theme"); if (t) document.documentElement.dataset.theme = t; } catch (_) {}
 let startPage = (location.hash || "").slice(1); try { startPage = startPage || localStorage.getItem("sz-page") || "today"; } catch (_) { startPage = startPage || "today"; }
-const PAGES = ["today", "partners", "pipeline", "schedule", "growth", "market", "contracts", "approvals", "leads", "insights"];
+const PAGES = ["today", "partners", "pipeline", "schedule", "growth", "market", "writing", "contracts", "approvals", "leads", "insights"];
 showPage(PAGES.includes(startPage) ? startPage : "today");
 window.addEventListener("hashchange", () => { const h = location.hash.slice(1); if (PAGES.includes(h) && h !== page) showPage(h); });
 load();

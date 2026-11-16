@@ -148,10 +148,58 @@
       <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap"><a class="small" href="/talk"><button class="small">Open push-to-talk</button></a>${local ? "" : `<span class="pill">connected from this phone</span>`}</div>`;
   }
 
+  /* ---------- WRITING (Scribe) ---------- */
+  const SAMPLES = {
+    reschedule: ["Ingo Schneider", "Hello Mr. Sojitra,\n\nunfortunately something came up and I can't make it to our meeting today. Could we move it to another day?\n\nBest regards,\nIngo"],
+    doubt: ["Carolina", "Hi Mruddual,\n\nthanks for the call. Before we fill in the form: how does the discount work exactly, and is there any fee or commission for us? We are also not sure how students prove they are members.\n\nBest,\nCarolina"],
+    contract: ["Yasmin", "Dear Mruddual,\n\nplease find our comments on the agreement attached. We would like to change the representative name and adjust the clause about event cancellation.\n\nKind regards,\nYasmin"],
+  };
+  async function loadWriting() {
+    const r = await (await fetch("/api/scribe")).json();
+    const en = (r.style || {}).en || {}, de = (r.style || {}).de || {};
+    $("#wr-learned").textContent = r.learned_at ? "learned " + when(r.learned_at) + " from " + r.emails + " emails" : (r.seed ? "from the analysis of your mail" : "not learned yet: run sz scribe learn");
+    $("#wr-kpis").innerHTML = [
+      kpi("Emails learned from", fmt(r.emails), r.learned_at ? "last 90 days" : "run sz scribe learn"),
+      kpi("Typical length", en.median_words ? en.median_words + " words" : "–", "English replies"),
+      kpi("Greeting", en.greetings && en.greetings[0] ? en.greetings[0][0] : "–", "most used"),
+      kpi("Sign-off", en.sign_offs && en.sign_offs[0] ? en.sign_offs[0][0] : "–", "most used"),
+      kpi("Drafts you kept", r.drafts_compared ? Math.round(100 * r.avg_similarity) + "%" : "–", r.drafts_compared ? r.drafts_compared + " compared with what you sent" : "learns from your edits"),
+    ].join("");
+    const block = (lang, st) => !st.emails ? "" : `<h3>${lang}</h3><div style="font-size:13px">
+      <div><b>Greetings:</b> ${esc((st.greetings || []).slice(0, 4).map(([g, n]) => `${g} (${n})`).join(" · "))}</div>
+      ${st.openers && st.openers.length ? `<div><b>Openers:</b> ${esc(st.openers.slice(0, 3).join(" · "))}</div>` : ""}
+      <div><b>Sign-off:</b> ${esc((st.sign_offs || []).slice(0, 3).map(([g, n]) => `${g} (${n})`).join(" · "))}</div>
+      <div><b>Length:</b> about ${st.median_words} words · bullets in ${Math.round(100 * (st.bullets_rate || 0))}% · exclamation marks in ${Math.round(100 * (st.exclamation_rate || 0))}%</div>
+      ${st.du_vs_sie ? `<div><b>du / Sie:</b> ${st.du_vs_sie.du} / ${st.du_vs_sie.Sie}</div>` : ""}
+      ${st.phrases && st.phrases.length ? `<div style="margin-top:6px"><b>Phrases you reuse:</b> ${st.phrases.slice(0, 14).map((p) => `<span class="why">${esc(p)}</span>`).join("")}</div>` : ""}
+      ${st.never && st.never.length ? `<div style="margin-top:6px"><b>You delete:</b> ${st.never.slice(0, 10).map((p) => `<span class="why">${esc(p)}</span>`).join("")}</div>` : ""}</div>`;
+    const ss = r.seed_style;
+    const seedBlock = !ss ? "" : `<h3>From the analysis of your mail</h3><div style="font-size:13px">
+      <div><b>Greeting:</b> ${esc(((ss.greetings || {}).en || {}).first || "")} · quick: ${esc(((ss.greetings || {}).en || {}).quick || "")} · "Hi" only if they did</div>
+      <div><b>Sign-off:</b> ${esc((ss.sign_off || {}).en || "")}</div>
+      <ul style="margin:6px 0 0;padding-left:18px">${(ss.rules || []).slice(0, 8).map((x) => `<li>${esc(x)}</li>`).join("")}</ul>
+      <div style="margin-top:6px"><b>Your phrases:</b> ${(ss.phrases || []).slice(0, 12).map((x) => `<span class="why">${esc(x)}</span>`).join("")}</div></div>`;
+    $("#wr-style").innerHTML = (block("English", en) + block("Deutsch", de) + seedBlock) || `<div class="empty">Setz learns your style from your sent mail. On your laptop run <code>sz scribe learn</code> (it also runs every night).</div>`;
+    $("#wr-decisions").innerHTML = `<tr><th>Situation</th><th>What you do</th><th class="num">Examples</th><th>Length</th><th>Based on</th></tr>` +
+      r.decisions.filter((d) => d.moves.length || d.examples).map((d) => `<tr><td><b>${esc(d.situation)}</b></td>
+        <td>${d.moves.map((m) => `<span class="why">${esc(m.label.split(" (")[0])}${m.freq ? " · " + Math.round(100 * m.freq) + "%" : ""}</span>`).join("")}</td>
+        <td class="num">${d.examples}</td><td>${d.median_words ? d.median_words + " words" : "–"}</td><td class="muted" style="font-size:12px">${esc(d.source)}</td></tr>`).join("");
+  }
+  function showDraft(o) {
+    const p = o.plan;
+    $("#wr-out").innerHTML = `<div class="wr-plan"><div><b>${esc(p.situation)}</b> <span class="pill">${p.lang === "de" ? "Deutsch" : "English"}</span>
+      <span class="pill ${p.confidence < 0.6 ? "med" : ""}">confidence ${Math.round(p.confidence * 100)}%</span></div>
+      <div style="margin-top:4px">${p.move_labels.map((m) => `<span class="why">${esc(m)}</span>`).join("") || '<span class="muted">short reply</span>'}</div>
+      <div class="muted" style="font-size:12px;margin-top:4px">${esc(p.policy_source)}</div>
+      ${p.checks.length ? `<div style="margin-top:6px">${p.checks.map((c) => `<div>⚑ ${esc(c)}</div>`).join("")}</div>` : ""}</div>
+      <pre class="wr-draft">${esc(o.text)}</pre><div class="muted" style="font-size:12px">On your laptop this goes straight into Outlook → Drafts. Nothing is sent.</div>`;
+  }
+
   /* ---------- events ---------- */
   document.addEventListener("click", async (e) => {
     const t = (s) => e.target.closest(s);
     try {
+      if (t("[data-wrsample]")) { const [n, txt] = SAMPLES[t("[data-wrsample]").dataset.wrsample]; $("#wr-sender").value = n; $("#wr-text").value = txt; return; }
       if (t("#mk-ai")) { e.target.disabled = true; toast("Asking Claude…"); await loadMarket(true); e.target.disabled = false; return; }
       if (t("#mk-unis")) { e.target.disabled = true; toast("Searching OpenStreetMap for universities…"); const r = await post("/api/leadgen/universities");
         toast(`${r.institutions} institutions, ${r.added_campuses} campuses added, ${r.new_university_leads} new university leads`); e.target.disabled = false; return loadMarket(); }
@@ -187,6 +235,11 @@
     if (e.target.dataset && e.target.dataset.ctstatus) { try { await post(`/api/contracts/${e.target.dataset.ctstatus}/status`, { status: e.target.value }); toast(e.target.value === "signed" ? "Signed: partner moved forward" : "Status saved"); loadContracts(); } catch (err) { toast(err.message); } }
   });
   document.addEventListener("submit", async (e) => {
+    if (e.target.id === "wr-form") {
+      e.preventDefault(); const b = e.target.querySelector("button.primary"); b.disabled = true; $("#wr-out").innerHTML = '<div class="empty">Setz is thinking like you…</div>';
+      try { showDraft(await post("/api/scribe/try", { text: $("#wr-text").value, sender: $("#wr-sender").value })); } catch (err) { $("#wr-out").innerHTML = `<div class="empty">${esc(err.message)}</div>`; }
+      b.disabled = false; return;
+    }
     if (e.target.id !== "ct-form") return;
     e.preventDefault();
     const f = new FormData(e.target), fields = {};
@@ -200,7 +253,7 @@
   });
 
   /* ---------- page hooks ---------- */
-  const loaders = { market: () => loadMarket(), contracts: loadContracts, approvals: loadAutopilot };
+  const loaders = { market: () => loadMarket(), contracts: loadContracts, approvals: loadAutopilot, writing: loadWriting };
   HQ.show = (p) => { if (loaders[p]) loaders[p]().then(() => (loaded[p] = Date.now())).catch((err) => toast(err.message)); };
   HQ.load = () => {
     fetch("/api/autopilot").then((r) => r.json()).then((ap) => fetch("/api/share/inbox").then((r) => r.json()).then((sh) => { $("#c-approvals").textContent = (ap.pending.length + sh.length) || ""; })).catch(() => {});
@@ -216,6 +269,7 @@
   .cc-msg{border-left:3px solid var(--border);padding:8px 10px;margin-bottom:8px;background:var(--surface-2);border-radius:0 8px 8px 0}.cc-msg.alert{border-left-color:var(--critical)}.cc-msg.warn{border-left-color:var(--warning)}
   .cc-route{font-size:12px;color:var(--text-secondary);margin-bottom:2px}.cc-brain{display:grid;padding:6px 0;border-bottom:1px solid var(--border)}
   .ct-grid{display:grid;grid-template-columns:1fr 1.4fr;gap:16px}.ct-grid h3,#page-approvals h3,#page-contracts h3{font-size:12.5px;margin:10px 0 4px;color:var(--text-secondary)}.ct-score{margin:10px 0}
+  .wr-plan{margin-top:12px;padding:10px 12px;border-radius:10px;background:var(--surface-2)}.wr-draft{white-space:pre-wrap;font:13.5px/1.55 Inter,system-ui,sans-serif;background:var(--surface-1);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin:10px 0 6px;max-width:100%;overflow-wrap:anywhere}
   #ct-list a.small{font-size:12px;margin-left:4px}#ct-ai{width:auto;padding:0;margin:0}#page-contracts .toolbar label{white-space:nowrap}nav.tabsbar .count:empty{display:none}
   @media (max-width:700px){.ct-grid{grid-template-columns:1fr}.mk-row{grid-template-columns:24px 1fr}.mk-row>div:last-child{grid-column:2;text-align:left;display:flex;gap:10px;align-items:center}.ap-item{flex-direction:column}}`;
   document.head.appendChild(css);

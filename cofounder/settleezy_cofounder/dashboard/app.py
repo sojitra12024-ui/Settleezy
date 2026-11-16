@@ -1546,6 +1546,32 @@ def bridge_recommendations(authorization: str = Header(default="")) -> dict:
                       for r in recs]}
 
 
+# -- Scribe: your writing double ------------------------------------------------------------------------------
+
+@app.get("/api/scribe")
+def scribe_view() -> dict:
+    from .. import scribe
+
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        return scribe.report(cfg, db)
+
+
+@app.post("/api/scribe/try")
+def scribe_try(body: dict, x_sz: str | None = Header(default=None)) -> dict:
+    """Paste an email: see what Setz would decide and the draft it would write (nothing is saved or sent)."""
+    _guard(x_sz)
+    from .. import scribe
+
+    text = str(body.get("text") or "").strip()
+    if not text:
+        raise HTTPException(400, "paste the email you want answered")
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        return scribe.draft_reply(cfg, db, incoming=text[:20000], subject=str(body.get("subject") or ""),
+                                  sender_name=str(body.get("sender") or ""), record=False)
+
+
 # -- phone: push-to-talk and the share sheet --------------------------------------------------------------------
 
 @app.get("/talk")

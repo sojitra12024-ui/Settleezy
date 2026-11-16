@@ -761,6 +761,32 @@ def cmd_bridge(args) -> None:
             _print(bridge.status(cfg, db))
 
 
+def cmd_scribe(args) -> None:
+    from . import scribe
+
+    cfg = load_config()
+    with DB(cfg.db_path) as db:
+        if args.action == "learn":
+            print(f"compared {scribe.compare_sent(cfg, db)} drafts with what you sent")
+            _print(scribe.learn(cfg, db, args.days))
+        elif args.action == "try":
+            text = " ".join(args.text) or sys.stdin.read()
+            out = scribe.draft_reply(cfg, db, incoming=text, sender_name=args.sender or "", record=False)
+            pl = out["plan"]
+            print(f"Situation: {pl['situation']} ({pl['lang']}) · confidence {pl['confidence']:.0%} · {pl['policy_source']}")
+            print("Decision: " + "; ".join(pl["move_labels"]))
+            for c in pl["checks"]:
+                print(f"Check: {c}")
+            print("\n" + out["text"])
+        else:
+            r = scribe.report(cfg, db)
+            print(f"Learned {r['learned_at'] or 'never'} from {r['emails']} emails · drafts compared {r['drafts_compared']} "
+                  f"(avg similarity {r['avg_similarity']:.0%})")
+            for d in r["decisions"]:
+                if d["examples"] or d["moves"]:
+                    print(f"  {d['situation'][:42]:<42} {d['examples']:>3} ex.  " + ", ".join(m["label"].split(" (")[0] for m in d["moves"][:4]))
+
+
 def cmd_mcp(args) -> None:
     from .mcp_server import main
 
@@ -948,6 +974,12 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("action", nargs="?", default="list", choices=["list", "run", "rules", "approve", "reject"])
     ap.add_argument("id", nargs="?")
     ap.set_defaults(fn=cmd_autopilot)
+    sb = sub.add_parser("scribe", help="your writing double: sz scribe (what it learned) | learn [--days 90] | try \"<email text>\" [--sender Name]")
+    sb.add_argument("action", nargs="?", default="show", choices=["show", "learn", "try"])
+    sb.add_argument("text", nargs="*")
+    sb.add_argument("--days", type=int)
+    sb.add_argument("--sender")
+    sb.set_defaults(fn=cmd_scribe)
     bg = sub.add_parser("bridge", help="admin panel + app link: sz bridge (status) | sync")
     bg.add_argument("action", nargs="?", default="status", choices=["status", "sync"])
     bg.set_defaults(fn=cmd_bridge)
